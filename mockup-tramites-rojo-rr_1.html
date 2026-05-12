@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>R&R Importaciones — Trámites</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Onest:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Paleta principal - rojo R&R como color de marca */
+  --blue-50:  #FDF2F2;   /* rosa muy claro (hover suave) */
+  --blue-100: #FCE4E4;   /* rosa claro */
+  --blue-200: #F8B4B4;   /* rojo apagado */
+  --blue-300: #E76A6A;   /* rojo medio */
+  --blue-500: #C61D26;   /* rojo brillante (acentos) */
+  --blue-600: #B0181F;   /* rojo R&R profundo (PRINCIPAL) */
+  --blue-700: #931218;   /* rojo profundo (hover/pressed) */
+  --blue-900: #5A0A0E;   /* rojo casi vino (sombras) */
+
+  /* Rojo de alerta separado: NO usado como acento de marca para evitar confusión.
+     Mantengo solo en --red-* para semáforos críticos si se necesita en el futuro. */
+  --red-soft:   #FEE2E2;
+  --red:        #DC2626;
+  --red-text:   #991B1B;
+
+  --green-soft: #D1FAE5;
+  --green:      #10B981;
+  --green-text: #065F46;
+
+  /* Ámbar: ahora es el color de "atención/urgente" (sustituye al rojo en alertas
+     porque el rojo ya es color de marca y no queremos diluir su significado) */
+  --amber-soft: #FEF3C7;
+  --amber:      #F59E0B;
+  --amber-text: #92400E;
+
+  --gray-50:  #F8FAFC;
+  --gray-100: #F1F5F9;
+  --gray-150: #E8EDF4;
+  --gray-200: #E2E8F0;
+  --gray-300: #CBD5E1;
+  --gray-400: #94A3B8;
+  --gray-500: #64748B;
+  --gray-600: #475569;
+  --gray-700: #334155;
+  --gray-800: #1E293B;
+  --gray-900: #0F172A;
+
+  --bg-app: #F5F7FB;
+  --bg-surface: #FFFFFF;
+  --border: #E5EAF3;
+  --border-strong: #D5DCE8;
+
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-body: 'Onest', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg-app);
+  color: var(--gray-900);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+body { display: flex; min-height: 100vh; }
+
+/* ============ SIDEBAR ============ */
+.sidebar {
+  width: 232px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.brand {
+  padding: 22px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.brand-logo {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: -1px;
+  color: var(--gray-900);
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+}
+
+.brand-logo .r1 { color: var(--blue-600); font-weight: 400; }
+.brand-logo .amp { 
+  font-style: italic; 
+  color: var(--gray-900);
+  margin: 0 2px;
+}
+.brand-logo .r2 { color: var(--blue-600); font-weight: 400; }
+
+.brand-tagline {
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.nav {
+  padding: 8px 12px 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.nav-section { margin-top: 14px; }
+.nav-section:first-child { margin-top: 0; }
+
+.nav-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  padding: 8px 10px 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--gray-700);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.12s ease;
+  margin-bottom: 1px;
+}
+.nav-item:hover { background: var(--gray-50); color: var(--gray-900); }
+
+.nav-item.active {
+  background: var(--blue-600);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(176, 24, 31, 0.22), 0 1px 2px rgba(176, 24, 31, 0.14);
+}
+.nav-item.active svg { opacity: 1; }
+
+.nav-item svg { width: 17px; height: 17px; flex-shrink: 0; opacity: 0.72; stroke-width: 1.8; }
+
+.nav-badge {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.nav-item.active .nav-badge { 
+  background: rgba(255,255,255,0.22); 
+  color: white; 
+}
+
+.user-block {
+  padding: 14px 16px;
+  margin: 0 12px 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--blue-50) 0%, white 100%);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  cursor: pointer;
+}
+
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--blue-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 12px;
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.user-name { font-size: 13px; font-weight: 600; color: var(--gray-900); }
+.user-role { font-size: 11px; color: var(--gray-500); }
+
+/* ============ MAIN ============ */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
+  height: 60px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--gray-500);
+}
+.breadcrumb-current { color: var(--gray-900); font-weight: 600; }
+.breadcrumb-sep { color: var(--gray-300); }
+
+.search {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--gray-50);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  width: 320px;
+  transition: all 0.15s;
+}
+.search:focus-within {
+  border-color: var(--blue-500);
+  background: white;
+  box-shadow: 0 0 0 3px rgba(176, 24, 31, 0.10);
+}
+.search svg { width: 14px; height: 14px; color: var(--gray-400); }
+.search input {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;
+  width: 100%;
+  color: var(--gray-900);
+}
+.search input::placeholder { color: var(--gray-400); }
+
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--gray-500);
+  background: white;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.icon-btn {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  color: var(--gray-600);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.12s;
+  position: relative;
+}
+.icon-btn:hover { background: var(--gray-100); color: var(--gray-900); }
+.icon-btn svg { width: 17px; height: 17px; stroke-width: 1.8; }
+
+.notif-dot {
+  position: absolute;
+  top: 8px; right: 9px;
+  width: 7px; height: 7px;
+  background: var(--amber);
+  border-radius: 50%;
+  border: 2px solid var(--bg-surface);
+}
+
+/* ============ CONTENT ============ */
+.content {
+  padding: 32px 36px 48px;
+  flex: 1;
+  max-width: 1600px;
+  width: 100%;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 24px;
+}
+
+.page-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 46px;
+  line-height: 1;
+  letter-spacing: -1.5px;
+  color: var(--gray-900);
+  margin-bottom: 4px;
+}
+.page-title em {
+  font-style: italic;
+  color: var(--blue-600);
+}
+
+.page-sub {
+  font-size: 13.5px;
+  color: var(--gray-500);
+}
+.page-sub strong {
+  color: var(--gray-700);
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.btn svg { width: 15px; height: 15px; stroke-width: 2; }
+
+.btn-primary {
+  background: var(--blue-600);
+  color: white;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset, 
+              0 4px 10px rgba(176, 24, 31, 0.28),
+              0 1px 3px rgba(176, 24, 31, 0.22);
+}
+.btn-primary:hover { 
+  background: var(--blue-700); 
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.2) inset, 
+              0 6px 14px rgba(176, 24, 31, 0.34),
+              0 2px 4px rgba(176, 24, 31, 0.22);
+}
+
+.btn-secondary {
+  background: var(--bg-surface);
+  color: var(--gray-700);
+  border-color: var(--border-strong);
+}
+.btn-secondary:hover { 
+  background: var(--gray-50); 
+  color: var(--gray-900); 
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--gray-600);
+}
+.btn-ghost:hover { background: var(--gray-100); color: var(--gray-900); }
+
+/* ============ METRIC CARDS (HERO) ============ */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.metric {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+.metric:hover { 
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.metric.featured {
+  background: linear-gradient(135deg, var(--blue-600) 0%, var(--blue-700) 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 8px 24px rgba(176, 24, 31, 0.22), 
+              0 2px 6px rgba(176, 24, 31, 0.12);
+}
+
+.metric-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--gray-500);
+}
+.metric.featured .metric-label { color: rgba(255,255,255,0.75); }
+
+.metric-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: var(--blue-50);
+  color: var(--blue-600);
+  display: flex; align-items: center; justify-content: center;
+}
+.metric.featured .metric-icon { 
+  background: rgba(255,255,255,0.18); 
+  color: white;
+}
+.metric-icon svg { width: 15px; height: 15px; stroke-width: 2; }
+
+.metric-value {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: -2px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.metric-value .currency {
+  font-size: 22px;
+  color: var(--gray-400);
+  font-weight: 400;
+}
+.metric.featured .metric-value .currency { color: rgba(255,255,255,0.6); }
+
+.metric-value .unit {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-400);
+  letter-spacing: 0;
+}
+.metric.featured .metric-value .unit { color: rgba(255,255,255,0.65); }
+
+.metric-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+.metric.featured .metric-foot { color: rgba(255,255,255,0.75); }
+
+.metric-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.trend-up {
+  background: var(--green-soft);
+  color: var(--green-text);
+}
+.trend-down {
+  background: var(--red-soft);
+  color: var(--red-text);
+}
+.trend-flat {
+  background: var(--gray-100);
+  color: var(--gray-600);
+}
+.metric.featured .metric-trend {
+  background: rgba(255,255,255,0.18);
+  color: white;
+}
+
+/* Mini progress ring para featured */
+.ring-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ring-progress svg { width: 56px; height: 56px; }
+.ring-bg { stroke: rgba(255,255,255,0.20); }
+.ring-fill { stroke: white; stroke-linecap: round; }
+
+/* ============ FILTERS BAR ============ */
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.chip:hover { 
+  border-color: var(--border-strong); 
+  color: var(--gray-900);
+}
+.chip.active {
+  background: var(--gray-900);
+  color: white;
+  border-color: var(--gray-900);
+}
+.chip-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.chip.active .chip-count {
+  background: rgba(255,255,255,0.18);
+  color: white;
+}
+
+.filters-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 6px;
+}
+
+/* ============ TABLE ============ */
+.table-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.table-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--gray-50);
+}
+
+.table-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.table-title .count {
+  font-family: var(--font-mono);
+  background: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--gray-600);
+}
+
+.table-actions {
+  display: flex; gap: 6px;
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tbl thead tr {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+.tbl th {
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tbl th:last-child { text-align: right; }
+
+.tbl tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+  cursor: pointer;
+}
+.tbl tbody tr:hover { background: var(--blue-50); }
+.tbl tbody tr:last-child { border-bottom: none; }
+
+.tbl td {
+  padding: 14px;
+  font-size: 13.5px;
+  color: var(--gray-800);
+  vertical-align: middle;
+}
+
+.cell-num {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.cell-date {
+  font-family: var(--font-mono);
+  color: var(--gray-600);
+  font-size: 13px;
+}
+
+.cell-cliente {
+  font-weight: 600;
+  color: var(--gray-900);
+}
+.cell-cliente-meta {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--gray-500);
+  margin-top: 1px;
+}
+
+.cell-vehiculo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cell-vehiculo .marca {
+  font-weight: 600;
+  color: var(--gray-900);
+  font-size: 13px;
+  letter-spacing: -0.1px;
+}
+.cell-vehiculo .vin {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.cell-aduana {
+  font-family: var(--font-mono);
+  color: var(--gray-700);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tramitador-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 4px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+}
+.tramitador-pill .avatar {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--blue-600);
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.cell-money {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--gray-900);
+  text-align: right;
+}
+.cell-money .neg {
+  color: var(--amber-text);
+}
+
+.estado-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.estado-pill .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+
+.estado-pendiente { background: var(--gray-100); color: var(--gray-700); }
+.estado-pendiente .dot { background: var(--gray-400); }
+
+.estado-proceso { background: var(--blue-50); color: var(--blue-700); }
+.estado-proceso .dot { background: var(--blue-500); }
+
+.estado-rojo { background: var(--red-soft); color: var(--red-text); }
+.estado-rojo .dot { background: var(--red); }
+
+.estado-verde { background: var(--green-soft); color: var(--green-text); }
+.estado-verde .dot { background: var(--green); }
+
+.estado-amarillo { background: var(--amber-soft); color: var(--amber-text); }
+.estado-amarillo .dot { background: var(--amber); }
+
+.estado-cobrado { 
+  background: var(--gray-900); 
+  color: white; 
+}
+.estado-cobrado .dot { background: white; }
+
+.cell-dias {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--gray-600);
+  text-align: center;
+}
+.cell-dias.alert { color: var(--amber-text); font-weight: 700; }
+
+.row-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.row-action {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--gray-400);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.1s;
+}
+.row-action:hover {
+  background: white;
+  color: var(--gray-900);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.row-action svg { width: 14px; height: 14px; stroke-width: 1.8; }
+
+/* ============ PAGINATION ============ */
+.pagination {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--gray-50);
+}
+.pag-info {
+  font-size: 12.5px;
+  color: var(--gray-600);
+}
+.pag-info strong { color: var(--gray-900); font-weight: 600; }
+
+.pag-nav { display: flex; gap: 4px; align-items: center; }
+.pag-btn {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+  transition: all 0.12s;
+}
+.pag-btn:hover { border-color: var(--blue-500); color: var(--blue-600); }
+.pag-btn.active {
+  background: var(--blue-600);
+  border-color: var(--blue-600);
+  color: white;
+}
+.pag-btn svg { width: 14px; height: 14px; }
+
+/* ============ ANIMATIONS ============ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-1 { animation: fadeUp 0.4s ease 0.05s backwards; }
+.animate-2 { animation: fadeUp 0.4s ease 0.10s backwards; }
+.animate-3 { animation: fadeUp 0.4s ease 0.15s backwards; }
+.animate-4 { animation: fadeUp 0.4s ease 0.20s backwards; }
+
+/* ============ RESPONSIVE ============ */
+@media (max-width: 1280px) {
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .content { padding: 20px; }
+  .metrics { grid-template-columns: 1fr; }
+  .page-title { font-size: 34px; }
+  .search { width: 180px; }
+}
+
+/* ============ SCROLLBAR ============ */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 5px; border: 2px solid var(--bg-app); }
+::-webkit-scrollbar-thumb:hover { background: var(--gray-300); }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-logo">
+      <span class="r1">R</span><span class="amp">&amp;</span><span class="r2">R</span>
+    </div>
+    <div class="brand-tagline">Importaciones</div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-section">
+      <div class="nav-label">Operación</div>
+      <div class="nav-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span>Inicio</span>
+      </div>
+      <div class="nav-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        <span>Clientes</span>
+        <span class="nav-badge">254</span>
+      </div>
+      <div class="nav-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span>Vehículos</span>
+      </div>
+      <div class="nav-item active">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span>Trámites</span>
+        <span class="nav-badge">23</span>
+      </div>
+      <div class="nav-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <span>Pedimentos</span>
+      </div>
+      <div class="nav-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        <span>Inventario</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Cotizaciones</div>
+      <div class="nav-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        <span>Nueva cotización</span>
+      </div>
+      <div class="nav-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Histórico</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Finanzas</div>
+      <div class="nav-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Pagos</span>
+        <span class="nav-badge" style="background: var(--amber-soft); color: var(--amber-text);">7</span>
+      </div>
+      <div class="nav-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+        <span>Gastos hormiga</span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="user-block">
+    <div class="user-avatar">RR</div>
+    <div style="flex:1; min-width:0;">
+      <div class="user-name">Ricardo R.</div>
+      <div class="user-role">Director</div>
+    </div>
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px; color: var(--gray-400); stroke-width: 1.8;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="topbar">
+    <nav class="breadcrumb">
+      <span>Operación</span>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-current">Trámites</span>
+    </nav>
+
+    <div class="search">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <input type="text" placeholder="Buscar cliente, VIN, pedimento, número…" />
+      <span class="kbd">⌘ K</span>
+    </div>
+
+    <button class="icon-btn" aria-label="Notificaciones">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+      <span class="notif-dot"></span>
+    </button>
+
+    <button class="icon-btn" aria-label="Configuración">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    </button>
+  </header>
+
+  <div class="content">
+
+    <!-- PAGE HEAD -->
+    <div class="page-head animate-1">
+      <div>
+        <h1 class="page-title">Trámites <em>en curso</em></h1>
+        <div class="page-sub">
+          Lunes <strong>11 / mayo / 2026</strong> · 23 trámites activos · 7 requieren atención
+        </div>
+      </div>
+      <button class="btn btn-primary">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Nuevo trámite
+      </button>
+    </div>
+
+    <!-- METRIC CARDS -->
+    <div class="metrics">
+      
+      <div class="metric featured animate-1">
+        <div class="metric-head">
+          <span class="metric-label">Activos</span>
+          <div class="ring-progress" style="position: absolute; top: 16px; right: 16px;">
+            <svg viewBox="0 0 56 56">
+              <circle class="ring-bg" cx="28" cy="28" r="22" fill="none" stroke-width="5"/>
+              <circle class="ring-fill" cx="28" cy="28" r="22" fill="none" stroke-width="5"
+                stroke-dasharray="138.23" stroke-dashoffset="51.84"
+                transform="rotate(-90 28 28)"/>
+            </svg>
+          </div>
+        </div>
+        <div class="metric-value">
+          23<span class="unit">trámites</span>
+        </div>
+        <div class="metric-foot">
+          <span>18 en proceso · 5 pendientes</span>
+          <span class="metric-trend">+4 esta semana</span>
+        </div>
+      </div>
+
+      <div class="metric animate-2">
+        <div class="metric-head">
+          <span class="metric-label">Cobrado este mes</span>
+          <div class="metric-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+          </div>
+        </div>
+        <div class="metric-value">
+          <span class="currency">$</span>1.84<span class="unit">M MXN</span>
+        </div>
+        <div class="metric-foot">
+          <span>De $2.64M facturados</span>
+          <span class="metric-trend trend-up">↑ 12% vs abril</span>
+        </div>
+      </div>
+
+      <div class="metric animate-3">
+        <div class="metric-head">
+          <span class="metric-label">Por cobrar</span>
+          <div class="metric-icon" style="background: var(--amber-soft); color: var(--amber-text);">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+        </div>
+        <div class="metric-value">
+          <span class="currency">$</span>892<span class="unit">K MXN</span>
+        </div>
+        <div class="metric-foot">
+          <span>7 clientes con saldo</span>
+          <span class="metric-trend trend-down">2 con +30 días</span>
+        </div>
+      </div>
+
+      <div class="metric animate-4">
+        <div class="metric-head">
+          <span class="metric-label">Vehículos en patio</span>
+          <div class="metric-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          </div>
+        </div>
+        <div class="metric-value">
+          12<span class="unit">unidades</span>
+        </div>
+        <div class="metric-foot">
+          <span>Tiempo prom. 11 días</span>
+          <span class="metric-trend trend-up">↓ 2 días vs abril</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FILTERS -->
+    <div class="filters">
+      <div class="chip active">Todos <span class="chip-count">23</span></div>
+      <div class="chip">Pendiente <span class="chip-count">5</span></div>
+      <div class="chip">En proceso <span class="chip-count">8</span></div>
+      <div class="chip">Desaduanado <span class="chip-count">3</span></div>
+      <div class="chip">Entregado <span class="chip-count">2</span></div>
+      <div class="chip">Pendiente pago <span class="chip-count">5</span></div>
+      <div class="filters-sep"></div>
+      <div class="chip">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px; height:14px; stroke-width:2;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+        Más filtros
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-card">
+      <div class="table-head">
+        <div class="table-title">
+          Resultados <span class="count">23</span>
+        </div>
+        <div class="table-actions">
+          <button class="btn btn-ghost" style="padding: 6px 10px; font-size: 12px;">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+            Ordenar
+          </button>
+          <button class="btn btn-ghost" style="padding: 6px 10px; font-size: 12px;">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Exportar
+          </button>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>N°</th>
+              <th>Fecha</th>
+              <th>Cliente</th>
+              <th>Vehículo</th>
+              <th>Aduana</th>
+              <th>Tramitador</th>
+              <th style="text-align:right;">Cobro</th>
+              <th style="text-align:right;">Saldo</th>
+              <th>Estado</th>
+              <th style="text-align:center;">Días</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="cell-num">#3041</td>
+              <td class="cell-date">11/05/26</td>
+              <td><div class="cell-cliente">DOMINGO<span class="cell-cliente-meta">CLI-008 · 263 trámites</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">Freightliner Cascadia</span><span class="vin">2018 · VIN ...225857</span></div></td>
+              <td class="cell-aduana">3482</td>
+              <td><div class="tramitador-pill"><div class="avatar">M</div>Mario</div></td>
+              <td class="cell-money">$24,380</td>
+              <td class="cell-money"><span style="color: var(--gray-400);">—</span></td>
+              <td><div class="estado-pill estado-verde"><span class="dot"></span>Entregado</div></td>
+              <td class="cell-dias">5</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+            <tr>
+              <td class="cell-num">#3040</td>
+              <td class="cell-date">10/05/26</td>
+              <td><div class="cell-cliente">ELIAS<span class="cell-cliente-meta">CLI-012 · 169 trámites</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">Kenworth T680</span><span class="vin">2017 · VIN ...442891</span></div></td>
+              <td class="cell-aduana">3482</td>
+              <td><div class="tramitador-pill"><div class="avatar" style="background: var(--gray-700);">C</div>Cono</div></td>
+              <td class="cell-money">$34,580</td>
+              <td class="cell-money"><span class="neg">$12,580</span></td>
+              <td><div class="estado-pill estado-amarillo"><span class="dot"></span>Pendiente pago</div></td>
+              <td class="cell-dias alert">12</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+            <tr>
+              <td class="cell-num">#3039</td>
+              <td class="cell-date">10/05/26</td>
+              <td><div class="cell-cliente">LUIS LDO TX<span class="cell-cliente-meta">CLI-024 · Laredo, TX</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">Ford F-150</span><span class="vin">2020 · VIN ...887332</span></div></td>
+              <td class="cell-aduana">3482</td>
+              <td><div class="tramitador-pill"><div class="avatar">M</div>Mario</div></td>
+              <td class="cell-money">$52,000</td>
+              <td class="cell-money"><span style="color: var(--gray-400);">—</span></td>
+              <td><div class="estado-pill estado-verde"><span class="dot"></span>Entregado</div></td>
+              <td class="cell-dias">2</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+            <tr>
+              <td class="cell-num">#3038</td>
+              <td class="cell-date">09/05/26</td>
+              <td><div class="cell-cliente">HURTADO<span class="cell-cliente-meta">CLI-031 · 117 trámites</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">Chevrolet Silverado</span><span class="vin">2019 · VIN ...112004</span></div></td>
+              <td class="cell-aduana">3320</td>
+              <td><div class="tramitador-pill"><div class="avatar">M</div>Mario</div></td>
+              <td class="cell-money">$48,200</td>
+              <td class="cell-money"><span style="color: var(--gray-400);">—</span></td>
+              <td><div class="estado-pill estado-rojo"><span class="dot"></span>Desaduanado</div></td>
+              <td class="cell-dias">1</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+            <tr>
+              <td class="cell-num">#3037</td>
+              <td class="cell-date">09/05/26</td>
+              <td><div class="cell-cliente">KIKO<span class="cell-cliente-meta">CLI-019 · 88 trámites</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">Dodge RAM 2500</span><span class="vin">2018 · VIN ...556701</span></div></td>
+              <td class="cell-aduana">3482</td>
+              <td><div class="tramitador-pill"><div class="avatar" style="background: var(--gray-700);">C</div>Cono</div></td>
+              <td class="cell-money">$41,300</td>
+              <td class="cell-money"><span style="color: var(--gray-400);">—</span></td>
+              <td><div class="estado-pill estado-pendiente"><span class="dot"></span>Pendiente</div></td>
+              <td class="cell-dias">0</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+            <tr>
+              <td class="cell-num">#3036</td>
+              <td class="cell-date">08/05/26</td>
+              <td><div class="cell-cliente">JM<span class="cell-cliente-meta">CLI-045 · 67 trámites</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">Nissan Frontier</span><span class="vin">2019 · VIN ...903112</span></div></td>
+              <td class="cell-aduana">3482</td>
+              <td><div class="tramitador-pill"><div class="avatar">M</div>Mario</div></td>
+              <td class="cell-money">$28,560</td>
+              <td class="cell-money"><span style="color: var(--gray-400);">—</span></td>
+              <td><div class="estado-pill estado-proceso"><span class="dot"></span>En proceso</div></td>
+              <td class="cell-dias">7</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+            <tr>
+              <td class="cell-num">#3035</td>
+              <td class="cell-date">07/05/26</td>
+              <td><div class="cell-cliente">R&amp;R<span class="cell-cliente-meta">Auto-importación</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">Peterbilt 379</span><span class="vin">2015 · VIN ...771203</span></div></td>
+              <td class="cell-aduana">3482</td>
+              <td><div class="tramitador-pill"><div class="avatar">M</div>Mario</div></td>
+              <td class="cell-money">$62,400</td>
+              <td class="cell-money"><span style="color: var(--gray-400);">—</span></td>
+              <td><div class="estado-pill estado-cobrado"><span class="dot"></span>Cobrado</div></td>
+              <td class="cell-dias">18</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+            <tr>
+              <td class="cell-num">#3034</td>
+              <td class="cell-date">07/05/26</td>
+              <td><div class="cell-cliente">PEDRO ARREOLA<span class="cell-cliente-meta">CLI-052 · 77 trámites</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">International ProStar</span><span class="vin">2016 · VIN ...228145</span></div></td>
+              <td class="cell-aduana">3482</td>
+              <td><div class="tramitador-pill"><div class="avatar" style="background: var(--gray-700);">C</div>Cono</div></td>
+              <td class="cell-money">$45,800</td>
+              <td class="cell-money"><span style="color: var(--gray-400);">—</span></td>
+              <td><div class="estado-pill estado-verde"><span class="dot"></span>Entregado</div></td>
+              <td class="cell-dias">4</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+            <tr>
+              <td class="cell-num">#3033</td>
+              <td class="cell-date">06/05/26</td>
+              <td><div class="cell-cliente">MARIO ALLENDE<span class="cell-cliente-meta">CLI-060 · 45 trámites</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">Volvo VNL</span><span class="vin">2017 · VIN ...665024</span></div></td>
+              <td class="cell-aduana">3320</td>
+              <td><div class="tramitador-pill"><div class="avatar">M</div>Mario</div></td>
+              <td class="cell-money">$58,900</td>
+              <td class="cell-money"><span class="neg">$28,900</span></td>
+              <td><div class="estado-pill estado-amarillo"><span class="dot"></span>Pendiente pago</div></td>
+              <td class="cell-dias alert">25</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+            <tr>
+              <td class="cell-num">#3032</td>
+              <td class="cell-date">06/05/26</td>
+              <td><div class="cell-cliente">VICTOR ALLENDE<span class="cell-cliente-meta">CLI-061 · 45 trámites</span></div></td>
+              <td><div class="cell-vehiculo"><span class="marca">Jeep Wrangler</span><span class="vin">2021 · VIN ...554118</span></div></td>
+              <td class="cell-aduana">3482</td>
+              <td><div class="tramitador-pill"><div class="avatar" style="background: var(--gray-700);">C</div>Cono</div></td>
+              <td class="cell-money">$38,700</td>
+              <td class="cell-money"><span style="color: var(--gray-400);">—</span></td>
+              <td><div class="estado-pill estado-verde"><span class="dot"></span>Entregado</div></td>
+              <td class="cell-dias">2</td>
+              <td><div class="row-actions"><button class="row-action"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <div class="pag-info">
+          Mostrando <strong>1–10</strong> de <strong>23</strong> trámites
+        </div>
+        <div class="pag-nav">
+          <button class="pag-btn">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width:2;"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <button class="pag-btn active">1</button>
+          <button class="pag-btn">2</button>
+          <button class="pag-btn">3</button>
+          <button class="pag-btn">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="stroke-width:2;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+</body>
+</html>

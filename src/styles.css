@@ -1,0 +1,279 @@
+@import "tailwindcss";
+
+@source "./";
+
+:root {
+  /* Brand palette */
+  --rr-50: #FDF2F2;
+  --rr-100: #FCE4E4;
+  --rr-200: #F8B4B4;
+  --rr-300: #E76A6A;
+  --rr-500: #C61D26;
+  --rr-600: #B0181F;
+  --rr-700: #931218;
+  --rr-900: #5A0A0E;
+
+  /* Semantic colors */
+  --green-soft: #D1FAE5;
+  --green: #10B981;
+  --green-text: #065F46;
+  --amber-soft: #FEF3C7;
+  --amber: #F59E0B;
+  --amber-text: #92400E;
+  --red-soft: #FEE2E2;
+  --red: #DC2626;
+  --red-text: #991B1B;
+
+  /* Tinted neutrals — shifted toward brand red hue (oklch 25°) with tiny chroma */
+  --n-50: #FAF8F9;
+  --n-100: #F3F1F3;
+  --n-150: #EBE8EB;
+  --n-200: #E2DEE2;
+  --n-300: #C9C5CA;
+  --n-400: #A4A0A5;
+  --n-500: #7D797F;
+  --n-600: #585459;
+  --n-700: #383438;
+  --n-800: #231F23;
+  --n-900: #121012;
+
+  /* App surfaces */
+  --bg-app: #F6F5F7;
+  --bg-surface: #FFFFFF;
+  --bg-surface-raised: #FFFFFF;
+  --border: #E5E1E6;
+  --border-strong: #D5D0D6;
+
+  /* Typography */
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-body: 'Onest', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Elevation / shadow scale — multi-layered, soft depth */
+  --shadow-xs: 0 1px 2px rgba(18, 16, 18, 0.04);
+  --shadow-sm: 0 1px 3px rgba(18, 16, 18, 0.05), 0 1px 2px rgba(18, 16, 18, 0.04);
+  --shadow-md: 0 4px 8px rgba(18, 16, 18, 0.05), 0 2px 4px rgba(18, 16, 18, 0.04);
+  --shadow-lg: 0 8px 20px rgba(18, 16, 18, 0.06), 0 3px 8px rgba(18, 16, 18, 0.04);
+  --shadow-xl: 0 12px 32px rgba(18, 16, 18, 0.08), 0 4px 12px rgba(18, 16, 18, 0.05);
+  --shadow-2xl: 0 20px 48px rgba(18, 16, 18, 0.10), 0 6px 16px rgba(18, 16, 18, 0.06);
+  --shadow-glow-red: 0 4px 14px rgba(176, 24, 31, 0.25), 0 1px 4px rgba(176, 24, 31, 0.15);
+  --shadow-glow-red-lg: 0 8px 28px rgba(176, 24, 31, 0.28), 0 2px 8px rgba(176, 24, 31, 0.15);
+
+  /* Glass utilities */
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.35);
+  --glass-border-strong: rgba(255, 255, 255, 0.55);
+  --glass-shadow: 0 4px 20px rgba(18, 16, 18, 0.06);
+  --glass-blur: 12px;
+
+  /* Motion curves — premium ease-out */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@theme {
+  --font-sans: 'Onest', -apple-system, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --color-rr-600: #B0181F;
+  --color-rr-500: #C61D26;
+  --color-rr-700: #931218;
+  --color-rr-50: #FDF2F2;
+  --color-bg-app: #F6F5F7;
+  --color-border: #E5E1E6;
+  --color-n-900: #121012;
+  --color-n-800: #231F23;
+  --color-n-700: #383438;
+  --color-n-600: #585459;
+  --color-n-500: #7D797F;
+  --color-n-400: #A4A0A5;
+  --color-n-300: #C9C5CA;
+  --color-n-200: #E2DEE2;
+  --color-n-100: #F3F1F3;
+  --color-n-50: #FAF8F9;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: var(--bg-app);
+  color: var(--n-800);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Subtle ambient noise */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.02;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+.font-display { font-family: var(--font-display); }
+.font-mono-data { font-family: var(--font-mono); }
+
+/* =============================
+   Glassmorphism utilities
+   ============================= */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: var(--glass-shadow), var(--shadow-sm);
+}
+
+.glass-sidebar {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-right: 1px solid var(--glass-border);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: var(--shadow-md);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+/* Solid card with premium elevation */
+.card-elevated {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  transition: all 250ms var(--ease-out-quart);
+}
+
+.card-elevated:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+
+/* Premium button with glass effect */
+.btn-primary {
+  background: var(--rr-600);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset, var(--shadow-glow-red);
+  transition: all 200ms var(--ease-out-quart);
+}
+
+.btn-primary:hover {
+  background: var(--rr-700);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.2) inset, var(--shadow-glow-red-lg);
+}
+
+/* =============================
+   Animations
+   ============================= */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glassReveal {
+  from { opacity: 0; transform: scale(0.98); backdrop-filter: blur(0px); }
+  to   { opacity: 1; transform: scale(1); backdrop-filter: blur(12px); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(60px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(60px) rotate(-360deg); }
+}
+
+/* Pro-level entrance: staggered list items */
+.stagger-item {
+  opacity: 0;
+  animation: fadeUp 500ms var(--ease-out-quart) forwards;
+}
+
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 60ms; }
+.stagger-item:nth-child(3) { animation-delay: 120ms; }
+.stagger-item:nth-child(4) { animation-delay: 180ms; }
+.stagger-item:nth-child(5) { animation-delay: 240ms; }
+.stagger-item:nth-child(6) { animation-delay: 300ms; }
+.stagger-item:nth-child(7) { animation-delay: 360ms; }
+.stagger-item:nth-child(8) { animation-delay: 420ms; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--n-200); border-radius: 5px; border: 2px solid var(--bg-app); }
+::-webkit-scrollbar-thumb:hover { background: var(--n-300); }
+
+/* Sidebar nav */
+.nav-active {
+  background: rgba(176, 24, 31, 0.10);
+  color: #B0181F;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(176, 24, 31, 0.08);
+}
+
+.nav-active .nav-icon { opacity: 1; }
+
+.nav-active .nav-badge {
+  background: rgba(176, 24, 31, 0.15);
+  color: #B0181F;
+}
+
+/* PrimeNG overrides */
+.p-button { font-family: var(--font-body); }
+.p-inputtext { font-family: var(--font-body); }
