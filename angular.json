@@ -27,6 +27,7 @@
               }
             ],
             "styles": [
+              "src/design-system.css",
               "src/styles.tailwind.css",
               "node_modules/primeicons/primeicons.css"
             ],
@@ -86,6 +87,7 @@
               }
             ],
             "styles": [
+              "src/design-system.css",
               "src/styles.tailwind.css"
             ],
             "scripts": []
