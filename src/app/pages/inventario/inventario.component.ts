@@ -37,6 +37,7 @@ import { VehiculoService, VehiculoListDto } from '../../services/vehiculo.servic
                   <th class="text-left px-5 py-3.5">Ingreso patio</th>
                   <th class="text-left px-5 py-3.5">Ubicación</th>
                   <th class="text-center px-5 py-3.5">Checkpoints</th>
+                  <th class="text-center px-5 py-3.5">Fotos</th>
                   <th class="text-center px-5 py-3.5"></th>
                 </tr>
               </thead>
@@ -56,6 +57,23 @@ import { VehiculoService, VehiculoListDto } from '../../services/vehiculo.servic
                       </div>
                     </td>
                     <td class="px-5 py-3.5 text-center">
+                      <button type="button" (click)="openFotos(v)" [disabled]="!hasFotos(v)"
+                        class="inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-medium transition-colors"
+                        [class.border-[#C61D26]]="hasFotos(v)"
+                        [class.text-[#C61D26]]="hasFotos(v)"
+                        [class.bg-[#FFF5F5]]="hasFotos(v)"
+                        [class.hover:bg-[#FEE2E2]]="hasFotos(v)"
+                        [class.border-[#E4E7EC]]="!hasFotos(v)"
+                        [class.text-[#9EA3AE]]="!hasFotos(v)"
+                        [class.bg-[#F8FAFC]]="!hasFotos(v)"
+                        [title]="hasFotos(v) ? 'Ver fotos del vehiculo' : 'Sin fotos cargadas'">
+                        Fotos
+                        @if (v.fotosCount) {
+                          <span class="font-mono-data">{{ v.fotosCount }}</span>
+                        }
+                      </button>
+                    </td>
+                    <td class="px-5 py-3.5 text-center">
                       <button (click)="router.navigate(['/tramites'])"
                         class="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-[#0D1017] text-white hover:bg-[#1E2330] transition-colors">
                         Iniciar trámite
@@ -68,6 +86,32 @@ import { VehiculoService, VehiculoListDto } from '../../services/vehiculo.servic
           </div>
         </div>
       }
+
+      @if (fotosModalVehiculo(); as v) {
+        <div class="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" (click)="closeFotos()">
+          <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl" (click)="$event.stopPropagation()">
+            <div class="flex items-start justify-between gap-4 border-b border-[#E4E7EC] p-5">
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#9EA3AE]">Fotos del vehiculo</p>
+                <h2 class="mt-1 text-[18px] font-semibold text-[#0D1017]">{{ v.marcaNombre || 'Vehiculo' }} {{ v.modeloNombre || '' }} {{ v.anno || '' }}</h2>
+                <p class="mt-1 font-mono-data text-[12px] text-[#6B717F]">{{ v.vin || 'Sin VIN' }}</p>
+              </div>
+              <button type="button" (click)="closeFotos()" class="rounded-lg px-3 py-1.5 text-[13px] text-[#6B717F] hover:bg-[#F3F4F6]">Cerrar</button>
+            </div>
+
+            <div class="p-5">
+              @if (v.fotoPreviewUrl) {
+                <img [src]="fileUrl(v.fotoPreviewUrl)" alt="Foto del vehiculo" class="max-h-[420px] w-full rounded-xl object-contain bg-[#F8FAFC]" />
+              } @else {
+                <div class="rounded-xl border border-dashed border-[#D8DEE8] bg-[#F8FAFC] p-10 text-center">
+                  <p class="text-[14px] font-medium text-[#1E2330]">Este vehiculo indica fotos, pero todavia no hay preview disponible.</p>
+                  <p class="mt-1 text-[13px] text-[#8B93A1]">Cuando conectemos Cloudflare R2 aqui se mostrara la galeria completa.</p>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
     </div>
   `,
 })
@@ -77,11 +121,29 @@ export class InventarioComponent {
 
   vehiculos = signal<VehiculoListDto[]>([]);
   loading = signal(true);
+  fotosModalVehiculo = signal<VehiculoListDto | null>(null);
 
   constructor() {
     this.vehiculoService.getInventarioActual().subscribe({
       next: (res) => { this.vehiculos.set(res); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
+  }
+
+  hasFotos(v: VehiculoListDto): boolean {
+    return (v.fotosCount ?? 0) > 0 || !!v.fotoPreviewUrl;
+  }
+
+  openFotos(v: VehiculoListDto): void {
+    if (!this.hasFotos(v)) return;
+    this.fotosModalVehiculo.set(v);
+  }
+
+  closeFotos(): void {
+    this.fotosModalVehiculo.set(null);
+  }
+
+  fileUrl(url: string): string {
+    return url.startsWith('http') ? url : `http://localhost:5198${url}`;
   }
 }

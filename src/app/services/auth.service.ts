@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap } from 'rxjs/operators';
@@ -17,6 +17,7 @@ export interface UserInfo {
   apellidos: string;
   role: string;
   tenantId: string;
+  permisos: string[];
 }
 
 export interface LoginResponse {
@@ -31,6 +32,21 @@ export class AuthService {
   private readonly apiUrl = 'http://localhost:5198/api/auth';
   readonly user = signal<UserInfo | null>(null);
   readonly isAuthenticated = signal(false);
+
+  readonly isAdmin = computed(() => this.user()?.role === 'ADMIN');
+
+  /** Devuelve true si el usuario tiene el permiso indicado. ADMIN siempre puede todo. */
+  can(codigo: string): boolean {
+    const u = this.user();
+    if (!u) return false;
+    if (u.role === 'ADMIN') return true;
+    return u.permisos.includes(codigo);
+  }
+
+  /** Devuelve true si el usuario tiene AL MENOS uno de los permisos. */
+  canAny(...codigos: string[]): boolean {
+    return codigos.some(c => this.can(c));
+  }
 
   constructor(
     private http: HttpClient,
@@ -88,7 +104,9 @@ export class AuthService {
     const userData = localStorage.getItem('user');
     if (token && userData) {
       try {
-        this.user.set(JSON.parse(userData));
+        const parsed: UserInfo = JSON.parse(userData);
+        if (!parsed.permisos) parsed.permisos = [];
+        this.user.set(parsed);
         this.isAuthenticated.set(true);
       } catch {
         this.clearSession();

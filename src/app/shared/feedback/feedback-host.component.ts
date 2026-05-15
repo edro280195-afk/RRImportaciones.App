@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { NotificationService } from '../../services/notification.service';
+import { ConfirmDialogComponent } from './confirm-dialog.component';
 
 @Component({
   selector: 'app-feedback-host',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ConfirmDialogComponent],
   template: `
     <section class="feedback-toasts" aria-live="polite" aria-atomic="true">
       @for (toast of notifications.toasts(); track toast.id) {
@@ -21,29 +22,7 @@ import { NotificationService } from '../../services/notification.service';
     </section>
 
     @if (notifications.modal(); as modal) {
-      <section class="feedback-modal-backdrop" (click)="notifications.closeModal()">
-        <article class="feedback-modal" [ngClass]="'feedback-modal--' + modal.severity" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
-          <div class="feedback-modal__mark">{{ modal.severity === 'confirm' ? '?' : iconFor(modal.severity) }}</div>
-          <div class="feedback-modal__content">
-            <div class="feedback-modal__header">
-              <h2>{{ modal.title }}</h2>
-              <button type="button" class="feedback-modal__close" (click)="notifications.closeModal()" aria-label="Cerrar">x</button>
-            </div>
-            <p class="feedback-modal__message">{{ modal.message }}</p>
-            @if (modal.detail) {
-              <pre class="feedback-modal__detail">{{ modal.detail }}</pre>
-            }
-            <div class="feedback-modal__actions">
-              @if (modal.severity === 'confirm') {
-                <button type="button" class="feedback-button feedback-button--ghost" (click)="notifications.closeModal()">{{ modal.cancelText }}</button>
-                <button type="button" class="feedback-button feedback-button--primary" (click)="notifications.confirmModal()">{{ modal.confirmText }}</button>
-              } @else {
-                <button type="button" class="feedback-button feedback-button--primary" (click)="notifications.closeModal()">Entendido</button>
-              }
-            </div>
-          </div>
-        </article>
-      </section>
+      <app-confirm-dialog [modal]="modal" (cancel)="notifications.closeModal()" (accept)="notifications.confirmModal()" />
     }
   `,
   styles: [`

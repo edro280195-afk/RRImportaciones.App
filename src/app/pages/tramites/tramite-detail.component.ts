@@ -2,10 +2,14 @@ import { Component, signal, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DatePipe, CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TramiteService, TramiteDetailDto } from '../../services/tramite.service';
+import { TramiteService, TramiteDetailDto, TramitePagoDto } from '../../services/tramite.service';
 import { PagoService } from '../../services/pago.service';
 import { GastoHormigaService, TipoGastoDto } from '../../services/gasto-hormiga.service';
+import { BancoDto, BancoService } from '../../services/banco.service';
+import { CotizacionService } from '../../services/cotizacion.service';
 import { NotificationService } from '../../services/notification.service';
+import { AuthService } from '../../services/auth.service';
+import { CampoService } from '../../services/campo.service';
 
 @Component({
   selector: 'app-tramite-detail',
@@ -39,18 +43,28 @@ import { NotificationService } from '../../services/notification.service';
 
           <!-- Actions -->
           <div class="flex items-center gap-2 flex-wrap">
-            <button (click)="showCambiarEstado = true" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#0D1017] text-white hover:bg-[#1E2330] transition-colors">
-              Cambiar estado
+            <button (click)="openPortal(t.id)" class="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-[#FFF1F1] text-[#A31820] border border-[#FFC5C5] hover:bg-[#FFE0E0] transition-colors">
+              Portal cliente
             </button>
-            <button (click)="showPedimento = true" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors">
-              + Pedimento
-            </button>
-            <button (click)="showEntrega = true" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors">
-              + Entrega
-            </button>
-            <button (click)="showNota = true" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors">
-              + Nota
-            </button>
+            @if (auth.can('TRAMITES_EDITAR')) {
+              <button (click)="showCambiarEstado = true" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#0D1017] text-white hover:bg-[#1E2330] transition-colors">
+                Cambiar estado
+              </button>
+              <button (click)="showPedimento = true" [disabled]="hasPedimento(t)" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors disabled:opacity-45" [title]="hasPedimento(t) ? 'Este trámite ya tiene pedimento registrado' : 'Agregar pedimento'">
+                {{ hasPedimento(t) ? 'Pedimento listo' : '+ Pedimento' }}
+              </button>
+              <button (click)="showEntrega = true" [disabled]="hasEntrega(t)" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors disabled:opacity-45" [title]="hasEntrega(t) ? 'Este trámite ya tiene entrega registrada' : 'Registrar entrega'">
+                {{ hasEntrega(t) ? 'Entrega lista' : '+ Entrega' }}
+              </button>
+              <button (click)="crearTareaCampo(t.id)" [disabled]="hasCampo(t)" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#FFF1F1] text-[#A31820] border border-[#FFC5C5] hover:bg-[#FFE0E0] transition-colors disabled:opacity-55" [title]="hasCampo(t) ? 'Este trámite ya está en campo' : 'Crear tarea de campo'">
+                {{ hasCampo(t) ? 'En campo' : '+ Campo' }}
+              </button>
+            }
+            @if (auth.can('EVENTOS_CREAR')) {
+              <button (click)="showNota = true" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors">
+                + Nota
+              </button>
+            }
           </div>
         </div>
 
@@ -74,6 +88,18 @@ import { NotificationService } from '../../services/notification.service';
             </p>
           </div>
         </div>
+
+        @if (t.cotizacionOrigenId) {
+          <div class="card-elevated mb-6 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] p-4">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-[13px] font-semibold text-[#1E40AF]">Originado en cotizacion #{{ t.cotizacionOrigenFolio }}</p>
+                <p class="text-[12px] text-[#4B5563]">Cotizada {{ t.cotizacionFecha | date:'dd/MM/yyyy' }} / convertida {{ t.fechaCreacion | date:'dd/MM/yyyy HH:mm' }}</p>
+              </div>
+              <button (click)="router.navigate(['/cotizaciones', t.cotizacionOrigenId])" class="rounded-xl bg-[#DBEAFE] px-3 py-2 text-[12px] font-semibold text-[#1E40AF]">Ver cotizacion</button>
+            </div>
+          </div>
+        }
 
         <!-- Tabs -->
         <div class="flex items-center gap-1 mb-4">
@@ -155,11 +181,49 @@ import { NotificationService } from '../../services/notification.service';
           </div>
         }
 
+        @if (activeTab() === 'documentos') {
+          <div class="card-elevated rounded-2xl p-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              @for (doc of documentosBase; track doc.tipoDocumento) {
+                <div class="rounded-xl border border-[#E4E7EC] p-4">
+                  @let actual = findDocumento(t, doc.tipoDocumento);
+                  <div class="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p class="text-[13px] font-semibold text-[#0D1017]">{{ doc.nombre }}</p>
+                      <p class="text-[11px] text-[#9EA3AE]">{{ doc.descripcion }}</p>
+                    </div>
+                    <span class="px-2 py-1 rounded-lg text-[11px] font-semibold" [style]="documentoPill(actual?.estatus || 'PENDIENTE')">{{ actual?.estatus || 'PENDIENTE' }}</span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <button (click)="guardarDocumento(t.id, doc.tipoDocumento, 'RECIBIDO')" class="rounded-xl border border-[#E4E7EC] px-3 py-2 text-[12px] font-medium">Recibido</button>
+                    <button (click)="guardarDocumento(t.id, doc.tipoDocumento, 'VALIDADO')" class="rounded-xl bg-[#0D1017] px-3 py-2 text-[12px] font-medium text-white">Validado</button>
+                  </div>
+                </div>
+              }
+            </div>
+
+            @if (t.tareasCampo.length) {
+              <h3 class="text-[14px] font-semibold mb-3">Tareas de campo</h3>
+              @for (tc of t.tareasCampo; track tc.id) {
+                <div class="flex justify-between gap-3 border-t border-[#F3F4F6] py-3 text-[13px]">
+                  <div>
+                    <p class="font-semibold">{{ tc.tipo }} · {{ tc.estatus }}</p>
+                    <p class="text-[#6B717F]">{{ tc.personalCampoNombre || 'Abierta' }} · {{ tc.ubicacion || 'Sin ubicación' }}</p>
+                  </div>
+                  <p class="text-[#9EA3AE]">{{ tc.fechaCreacion | date:'dd/MM/yyyy' }}</p>
+                </div>
+              }
+            }
+          </div>
+        }
+
         @if (activeTab() === 'gastos') {
           <div class="card-elevated rounded-2xl p-5">
-            <div class="flex justify-end mb-3">
-              <button (click)="openGastoModal()" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#0D1017] text-white">Nuevo gasto</button>
-            </div>
+            @if (auth.can('GASTOS_REGISTRAR')) {
+              <div class="flex justify-end mb-3">
+                <button (click)="openGastoModal()" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#0D1017] text-white">Nuevo gasto</button>
+              </div>
+            }
             @if (t.gastosHormiga.length === 0) {
               <p class="text-[13px] text-[#9EA3AE] text-center py-8">Sin gastos hormiga registrados</p>
             }
@@ -183,19 +247,23 @@ import { NotificationService } from '../../services/notification.service';
               <div><p class="text-[11px] text-[#9EA3AE] uppercase font-semibold">Verificado</p><p class="text-[15px] font-semibold">{{ totalVerificado(t) | currency:'MXN' }}</p></div>
               <div><p class="text-[11px] text-[#9EA3AE] uppercase font-semibold">Saldo</p><p class="text-[15px] font-semibold">{{ t.saldoPendiente | currency:'MXN' }}</p></div>
             </div>
-            <div class="flex justify-end mb-3">
-              <button (click)="openPagoModal()" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#0D1017] text-white">Registrar pago</button>
-            </div>
+            @if (auth.can('PAGOS_REGISTRAR')) {
+              <div class="flex justify-end mb-3">
+                <button (click)="openPagoModal()" class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#0D1017] text-white">Registrar pago</button>
+              </div>
+            }
             @if (t.pagos.length === 0) {
               <p class="text-[13px] text-[#9EA3AE] text-center py-8">Sin pagos registrados</p>
             }
             @for (p of t.pagos; track p.id) {
-              <div class="grid grid-cols-[110px_1fr_90px_110px_90px] gap-3 items-center border-b border-[#F3F4F6] py-2 last:border-0 text-[13px]">
+              <div class="grid grid-cols-[100px_1fr_80px_105px_88px_64px_54px] gap-3 items-center border-b border-[#F3F4F6] py-2 last:border-0 text-[13px]">
                 <span class="text-[#6B717F]">{{ p.fechaPago | date:'dd/MM/yyyy' }}</span>
                 <span>{{ p.metodo }} {{ p.banco ? '|' + p.banco : '' }}</span>
                 <span class="font-mono-data">{{ p.tipoCambio || '—' }}</span>
                 <span class="text-right font-mono-data">{{ p.monto | currency:p.moneda }}</span>
                 <span class="px-2 py-1 rounded-lg text-[11px] font-semibold text-center" [style]="p.verificado ? 'background:#DCFCE7;color:#166534;' : 'background:#FEF3C7;color:#92400E;'">{{ p.verificado ? 'Verificado' : 'Pendiente' }}</span>
+                <a [href]="reciboUrl(p)" target="_blank" class="text-right text-[12px] font-medium text-[#C61D26]">Recibo</a>
+                <button (click)="deletePago(p.id, p.monto, p.moneda)" class="text-right text-[12px] font-medium text-[#991B1B]">Borrar</button>
               </div>
             }
           </div>
@@ -278,32 +346,66 @@ import { NotificationService } from '../../services/notification.service';
       }
 
       @if (showPago) {
-        <div class="fixed inset-0 bg-black/30 z-50 flex items-start justify-center pt-[8vh]" (click)="showPago = false">
+        <div class="fixed inset-0 bg-black/30 z-50 flex items-start justify-center pt-[8vh]" (click)="!savingPago && (showPago = false)">
           <form class="bg-white rounded-2xl p-6 w-[560px] shadow-xl" (click)="$event.stopPropagation()" (ngSubmit)="doRegistrarPago()">
             <h3 class="text-[16px] font-semibold mb-4">Registrar pago</h3>
             <div class="grid grid-cols-2 gap-2">
               <input [(ngModel)]="pagoForm.fechaPago" name="fechaPago" type="date" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
               <input [(ngModel)]="pagoForm.monto" name="monto" type="number" min="0.01" step="0.01" placeholder="Monto" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
-              <select [(ngModel)]="pagoForm.moneda" name="moneda" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
+              <select [(ngModel)]="pagoForm.moneda" name="moneda" (change)="onPagoMonedaChange()" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
                 <option value="MXN">MXN</option>
                 <option value="USD">USD</option>
               </select>
-              <input [(ngModel)]="pagoForm.tipoCambio" name="tipoCambio" type="number" step="0.000001" placeholder="TC si USD" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
+              <input [(ngModel)]="pagoForm.tipoCambio" name="tipoCambio" type="number" step="0.000001" [readonly]="pagoForm.moneda !== 'USD'" [placeholder]="pagoForm.moneda === 'USD' ? 'TC automatico' : 'Solo USD'" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px] read-only:bg-[#F3F4F6]">
               <select [(ngModel)]="pagoForm.metodo" name="metodo" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
                 <option value="TRANSFERENCIA">Transferencia</option>
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="DEPOSITO">Depósito</option>
                 <option value="CHEQUE">Cheque</option>
               </select>
-              <input [(ngModel)]="pagoForm.banco" name="banco" placeholder="Banco" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
+              @if (pagoForm.metodo === 'TRANSFERENCIA' || pagoForm.metodo === 'DEPOSITO') {
+                <select [(ngModel)]="pagoForm.banco" name="banco" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
+                  <option value="">Banco registrado</option>
+                  @for (b of bancos; track b.id) {
+                    <option [value]="b.nombre">{{ b.identificador }} · {{ b.nombre }}{{ b.cuenta ? ' · ' + b.cuenta : '' }}</option>
+                  }
+                </select>
+              } @else {
+                <input [(ngModel)]="pagoForm.banco" name="banco" placeholder="Banco (opcional)" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
+              }
             </div>
             <input [(ngModel)]="pagoForm.referencia" name="referencia" placeholder="Referencia" class="w-full px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px] mt-2">
+            <div class="mt-3 rounded-2xl border border-[#E4E7EC] bg-[#F9FAFB] p-3 text-[12px] text-[#4B5162]">
+              <div class="flex items-center justify-between gap-3">
+                <span>Saldo disponible</span>
+                <strong class="font-mono-data text-[#0D1017]">{{ saldoDisponiblePago() | currency:'MXN' }}</strong>
+              </div>
+              <div class="flex items-center justify-between gap-3 mt-1">
+                <span>Este pago en MXN</span>
+                <strong class="font-mono-data" [class.text-[#991B1B]]="pagoExcedeSaldo()">{{ pagoFormMxn() | currency:'MXN' }}</strong>
+              </div>
+            </div>
+            @if (pagoValidationMessages().length > 0) {
+              <div class="mt-3 rounded-2xl border border-[#FEE2E2] bg-[#FFF7F7] px-3 py-2 text-[12px] text-[#991B1B]">
+                @for (message of pagoValidationMessages(); track message) {
+                  <p>{{ message }}</p>
+                }
+              </div>
+            }
             <textarea [(ngModel)]="pagoForm.notas" name="notas" placeholder="Notas" class="w-full px-3 py-2 rounded-xl border border-[#E4E7EC] text-[13px] mt-2" rows="2"></textarea>
-            <input type="file" accept=".jpg,.jpeg,.png,.pdf" (change)="onPagoFile($event)" class="mt-3 text-[13px]">
+            <label class="mt-3 block text-[12px] text-[#6B717F]">{{ pagoForm.metodo === 'EFECTIVO' ? 'Comprobante opcional en efectivo' : 'Comprobante bancario obligatorio' }}</label>
+            <input type="file" accept=".jpg,.jpeg,.png,.pdf" (change)="onPagoFile($event)" class="mt-1 text-[13px]">
             @if (pagoFileName) { <p class="text-[12px] text-[#6B717F] mt-1">Comprobante: {{ pagoFileName }}</p> }
             <div class="flex justify-end gap-2 mt-5">
-              <button type="button" (click)="showPago = false" class="px-4 py-2 rounded-xl text-[12.5px] border border-[#E4E7EC]">Cancelar</button>
-              <button type="submit" class="px-4 py-2 rounded-xl text-[12.5px] bg-[#0D1017] text-white">Guardar</button>
+              <button type="button" [disabled]="savingPago" (click)="showPago = false" class="px-4 py-2 rounded-xl text-[12.5px] border border-[#E4E7EC] disabled:opacity-50">Cancelar</button>
+              <button type="submit" [disabled]="savingPago || pagoValidationMessages().length > 0" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12.5px] bg-[#0D1017] text-white disabled:opacity-50">
+                @if (savingPago) {
+                  <span class="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin"></span>
+                  Guardando...
+                } @else {
+                  <span>Guardar</span>
+                }
+              </button>
             </div>
           </form>
         </div>
@@ -342,7 +444,11 @@ export class TramiteDetailComponent implements OnInit {
   private tramiteService = inject(TramiteService);
   private pagoService = inject(PagoService);
   private gastoService = inject(GastoHormigaService);
+  private bancoService = inject(BancoService);
+  private cotizacionService = inject(CotizacionService);
+  private campoService = inject(CampoService);
   private notifications = inject(NotificationService);
+  auth = inject(AuthService);
   router = inject(Router);
 
   tramite = signal<TramiteDetailDto | null>(null);
@@ -362,6 +468,8 @@ export class TramiteDetailComponent implements OnInit {
   entForm = { descripcion: '', ubicacion: '' };
   notaContenido = '';
   tiposGasto: TipoGastoDto[] = [];
+  bancos: BancoDto[] = [];
+  savingPago = false;
   pagoFile: File | null = null;
   pagoFileName = '';
   pagoForm = this.emptyPagoForm();
@@ -370,13 +478,25 @@ export class TramiteDetailComponent implements OnInit {
   tabs = [
     { key: 'timeline', label: 'Timeline' },
     { key: 'pedimentos', label: 'Pedimentos' },
+    { key: 'documentos', label: 'Documentos' },
     { key: 'entregas', label: 'Entregas' },
     { key: 'gastos', label: 'Gastos hormiga' },
     { key: 'pagos', label: 'Pagos' },
   ];
 
+  documentosBase = [
+    { tipoDocumento: 'FACTURA', nombre: 'Factura', descripcion: 'Obligatoria para iniciar baja.' },
+    { tipoDocumento: 'IDENTIFICACION_INE', nombre: 'Identificación INE', descripcion: 'O alternativa notariada del vendedor.' },
+    { tipoDocumento: 'HOJA_NOTARIADA', nombre: 'Hoja notariada', descripcion: 'Alternativa cuando el vendedor es estadounidense.' },
+    { tipoDocumento: 'IDENTIFICACION_AMERICANA', nombre: 'Identificación americana', descripcion: 'Identificación del vendedor estadounidense.' },
+    { tipoDocumento: 'BAJA', nombre: 'Baja', descripcion: 'Resultado del proceso de baja, aprox. 72 horas.' },
+    { tipoDocumento: 'TITULO', nombre: 'Título', descripcion: 'Se entrega con el vehículo después de la baja.' },
+    { tipoDocumento: 'PEDIMENTO_PDF', nombre: 'Pedimento PDF', descripcion: 'Documento devuelto por el externo al tramitador.' },
+  ];
+
   ngOnInit() {
     this.gastoService.getTiposGasto().subscribe(t => this.tiposGasto = t);
+    this.bancoService.getAll(true).subscribe(b => this.bancos = b);
     this.route.paramMap.subscribe(params => {
       const id = params.get('id');
       if (id) this.loadTramite(id);
@@ -411,38 +531,121 @@ export class TramiteDetailComponent implements OnInit {
     this.showGasto = true;
   }
 
+  openPortal(id: string) {
+    window.open(`/portal/tramite/${id}`, '_blank', 'noopener,noreferrer');
+  }
+
   onPagoFile(event: Event) {
     const input = event.target as HTMLInputElement;
     this.pagoFile = input.files?.[0] ?? null;
     this.pagoFileName = this.pagoFile?.name ?? '';
   }
 
-  doRegistrarPago() {
-    const t = this.tramite();
-    if (!t || !this.pagoFile || this.pagoForm.monto <= 0) {
-      this.notifications.warning('El monto y el comprobante son obligatorios.');
+  onPagoMonedaChange() {
+    if (this.pagoForm.moneda !== 'USD') {
+      this.pagoForm.tipoCambio = null;
       return;
     }
+    this.cotizacionService.getTipoCambio().subscribe({
+      next: tc => this.pagoForm.tipoCambio = tc.tipoCambio,
+      error: err => this.notifications.fromHttpError(err, 'No se pudo obtener el tipo de cambio. Puedes capturarlo manualmente.'),
+    });
+  }
 
+  pagoFormMxn(): number {
+    if (!this.pagoForm.monto || this.pagoForm.monto <= 0) return 0;
+    if (this.pagoForm.moneda === 'USD') return this.pagoForm.monto * (this.pagoForm.tipoCambio || 0);
+    return this.pagoForm.monto;
+  }
+
+  saldoDisponiblePago(): number {
+    const t = this.tramite();
+    if (!t) return 0;
+    const pagosPendientes = t.pagos
+      .filter(p => !p.verificado)
+      .reduce((sum, p) => sum + (p.moneda === 'USD' ? p.monto * (p.tipoCambio || 0) : p.monto), 0);
+    return Math.max(0, t.saldoPendiente - pagosPendientes);
+  }
+
+  pagoExcedeSaldo(): boolean {
+    return this.pagoFormMxn() > this.saldoDisponiblePago();
+  }
+
+  pagoValidationMessages(): string[] {
+    const messages: string[] = [];
+    if (!this.pagoForm.monto || this.pagoForm.monto <= 0) messages.push('El monto debe ser mayor a cero.');
+    if (this.pagoForm.moneda === 'USD' && (!this.pagoForm.tipoCambio || this.pagoForm.tipoCambio <= 0)) messages.push('El tipo de cambio es obligatorio para pagos en USD.');
+    if ((this.pagoForm.metodo === 'TRANSFERENCIA' || this.pagoForm.metodo === 'DEPOSITO') && !this.pagoForm.banco) messages.push('Selecciona el banco para transferencias o depositos.');
+    if (this.pagoForm.metodo !== 'EFECTIVO' && !this.pagoFile) messages.push('Adjunta el comprobante bancario.');
+    if (this.pagoExcedeSaldo()) messages.push(`El pago excede el saldo disponible por ${(this.pagoFormMxn() - this.saldoDisponiblePago()).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}.`);
+    return messages;
+  }
+
+  doRegistrarPago() {
+    const t = this.tramite();
+    const messages = this.pagoValidationMessages();
+    if (!t || messages.length > 0) {
+      this.notifications.warning(messages[0] || 'Revisa los datos del pago.');
+      return;
+    }
+    if (this.savingPago) return;
+
+    const file = this.pagoFile;
+    this.savingPago = true;
     this.pagoService.create({
       ...this.pagoForm,
       tramiteId: t.id,
-      comprobanteUrl: `pendiente-upload:${this.pagoFile.name}`,
+      comprobanteUrl: file ? `pendiente-upload:${file.name}` : null,
       tipoCambio: this.pagoForm.moneda === 'USD' ? this.pagoForm.tipoCambio : null,
     }).subscribe({
       next: pago => {
-        const file = this.pagoFile;
-        if (!file) return;
+        if (!file) {
+          this.savingPago = false;
+          this.showPago = false;
+          this.notifications.success(pago.reciboPagoUrl ? 'Pago registrado y recibo generado.' : 'Pago registrado. Puedes regenerar el recibo desde pagos.');
+          this.loadTramite(t.id);
+          return;
+        }
+
         this.pagoService.uploadComprobante(pago.id, file).subscribe({
           next: () => {
+            this.savingPago = false;
             this.showPago = false;
-            this.notifications.success('Pago registrado correctamente.');
+            this.notifications.success(pago.reciboPagoUrl ? 'Pago registrado y recibo generado.' : 'Pago registrado. Puedes regenerar el recibo desde pagos.');
             this.loadTramite(t.id);
           },
-          error: err => this.notifications.fromHttpError(err, 'El pago se creo, pero fallo la subida del comprobante'),
+          error: err => {
+            this.savingPago = false;
+            this.notifications.fromHttpError(err, 'El pago se creo, pero fallo la subida del comprobante');
+          },
         });
       },
-      error: err => this.notifications.fromHttpError(err, 'Error al registrar pago'),
+      error: err => {
+        this.savingPago = false;
+        this.notifications.fromHttpError(err, 'Error al registrar pago');
+      },
+    });
+  }
+
+  async deletePago(id: string, monto: number, moneda: string): Promise<void> {
+    const t = this.tramite();
+    if (!t) return;
+
+    const confirmed = await this.notifications.confirm({
+      title: 'Borrar pago',
+      message: 'Se ocultara del tramite y de los saldos operativos. La bitacora administrativa conservara el movimiento.',
+      detail: `${t.numeroConsecutivo} | ${monto.toLocaleString('es-MX', { style: 'currency', currency: moneda })}`,
+      confirmText: 'Borrar pago',
+      cancelText: 'Cancelar',
+    });
+    if (!confirmed) return;
+
+    this.pagoService.delete(id).subscribe({
+      next: () => {
+        this.notifications.success('Pago borrado correctamente.');
+        this.loadTramite(t.id);
+      },
+      error: err => this.notifications.fromHttpError(err, 'No se pudo borrar el pago'),
     });
   }
 
@@ -463,13 +666,22 @@ export class TramiteDetailComponent implements OnInit {
     const t = this.tramite();
     if (!t) return [];
     const map: Record<string, string[]> = {
-      PENDIENTE_TRAMITE: ['EN_PROCESO', 'CANCELADO'],
-      EN_PROCESO: ['ROJO_DESADUANADO', 'CANCELADO'],
+      PENDIENTE_TRAMITE: ['FOTOS_SOLICITADAS', 'REQUISITOS_PENDIENTES', 'CANCELADO'],
+      FOTOS_SOLICITADAS: ['FOTOS_RECIBIDAS', 'REQUISITOS_PENDIENTES', 'CANCELADO'],
+      FOTOS_RECIBIDAS: ['REQUISITOS_PENDIENTES', 'BAJA_EN_PROCESO', 'CANCELADO'],
+      REQUISITOS_PENDIENTES: ['BAJA_EN_PROCESO', 'LISTO_PARA_PEDIMENTO', 'CANCELADO'],
+      BAJA_EN_PROCESO: ['BAJA_COMPLETADA', 'CANCELADO'],
+      BAJA_COMPLETADA: ['LISTO_PARA_PEDIMENTO', 'CANCELADO'],
+      LISTO_PARA_PEDIMENTO: ['PEDIMENTO_DOCUMENTADO', 'CANCELADO'],
+      PEDIMENTO_DOCUMENTADO: ['PAGO_PEDIMENTO_PENDIENTE', 'MANDADO_A_CRUCE', 'CANCELADO'],
+      PAGO_PEDIMENTO_PENDIENTE: ['MANDADO_A_CRUCE', 'CANCELADO'],
+      MANDADO_A_CRUCE: ['ROJO_DESADUANADO', 'CANCELADO'],
+      EN_PROCESO: ['ROJO_DESADUANADO', 'FOTOS_SOLICITADAS', 'REQUISITOS_PENDIENTES', 'CANCELADO'],
       ROJO_DESADUANADO: ['VERDE_ENTREGADO'],
       VERDE_ENTREGADO: ['AMARILLO_PENDIENTE_PAGO', 'COBRADO'],
       AMARILLO_PENDIENTE_PAGO: ['COBRADO'],
     };
-    return [...(map[t.estatus] || []), 'CANCELADO'];
+    return Array.from(new Set([...(map[t.estatus] || []), 'CANCELADO']));
   }
 
   doCambiarEstado() {
@@ -539,6 +751,48 @@ export class TramiteDetailComponent implements OnInit {
     });
   }
 
+  crearTareaCampo(tramiteId: string) {
+    this.campoService.crear({ tramiteId, tipo: 'FOTOS_YARDA' }).subscribe({
+      next: () => {
+        this.notifications.success('Tarea de campo creada.');
+        this.loadTramite(tramiteId);
+      },
+      error: err => this.notifications.fromHttpError(err, 'Error al crear tarea de campo'),
+    });
+  }
+
+  hasCampo(t: TramiteDetailDto): boolean {
+    return t.tareasCampo.some(x => x.estatus !== 'CANCELADA');
+  }
+
+  hasPedimento(t: TramiteDetailDto): boolean {
+    return t.pedimentos.length > 0;
+  }
+
+  hasEntrega(t: TramiteDetailDto): boolean {
+    return t.entregas.length > 0;
+  }
+
+  findDocumento(t: TramiteDetailDto, tipoDocumento: string) {
+    return t.documentos.find(d => d.tipoDocumento === tipoDocumento);
+  }
+
+  guardarDocumento(tramiteId: string, tipoDocumento: string, estatus: string) {
+    const base = this.documentosBase.find(d => d.tipoDocumento === tipoDocumento);
+    this.tramiteService.guardarDocumento(tramiteId, {
+      tipoDocumento,
+      nombre: base?.nombre,
+      estatus,
+      esRequerido: true,
+    }).subscribe({
+      next: () => {
+        this.notifications.success('Documento actualizado.');
+        this.loadTramite(tramiteId);
+      },
+      error: err => this.notifications.fromHttpError(err, 'Error al actualizar documento'),
+    });
+  }
+
   eventoColor(tipo: string): string {
     const colors: Record<string, string> = {
       CAMBIO_ESTADO: 'background: #2563EB;',
@@ -563,6 +817,14 @@ export class TramiteDetailComponent implements OnInit {
     return labels[tipo] || tipo;
   }
 
+  fileUrl(url: string): string {
+    return url.startsWith('http') ? url : `http://localhost:5198${url}`;
+  }
+
+  reciboUrl(pago: TramitePagoDto): string {
+    return pago.reciboPagoUrl ? this.fileUrl(pago.reciboPagoUrl) : this.pagoService.reciboUrl(pago.id);
+  }
+
   estadoPill(estatus: string): string {
     const colors: Record<string, string> = {
       PENDIENTE_TRAMITE: 'background: #FEF3C7; color: #92400E;',
@@ -576,6 +838,17 @@ export class TramiteDetailComponent implements OnInit {
     return colors[estatus] || 'background: #F3F4F6; color: #4B5162;';
   }
 
+  documentoPill(estatus: string): string {
+    const colors: Record<string, string> = {
+      PENDIENTE: 'background:#FEF3C7;color:#92400E;',
+      RECIBIDO: 'background:#DBEAFE;color:#1E40AF;',
+      VALIDADO: 'background:#DCFCE7;color:#166534;',
+      RECHAZADO: 'background:#FEE2E2;color:#991B1B;',
+      NO_APLICA: 'background:#F3F4F6;color:#6B7280;',
+    };
+    return colors[estatus] || colors['PENDIENTE'];
+  }
+
   private emptyPagoForm() {
     return {
       tramiteId: '',
@@ -583,7 +856,7 @@ export class TramiteDetailComponent implements OnInit {
       moneda: 'MXN',
       tipoCambio: null as number | null,
       metodo: 'TRANSFERENCIA',
-      banco: 'BBVA',
+      banco: '',
       referencia: null as string | null,
       comprobanteUrl: '',
       notas: null as string | null,

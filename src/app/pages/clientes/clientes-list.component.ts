@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { ClienteService, ClienteListDto, PagedResult } from '../../services/cliente.service';
 import { ClienteFormDialogComponent } from './cliente-form-dialog.component';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-clientes-list',
@@ -22,15 +23,17 @@ import { ClienteFormDialogComponent } from './cliente-form-dialog.component';
             Clientes
           </h1>
         </div>
-        <button
-          (click)="formDialog.openForCreate()"
-          class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-          </svg>
-          Nuevo cliente
-        </button>
+        @if (auth.can('CLIENTES_CREAR')) {
+          <button
+            (click)="formDialog.openForCreate()"
+            class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            Nuevo cliente
+          </button>
+        }
       </div>
 
       <!-- Search + filters -->
@@ -171,6 +174,7 @@ import { ClienteFormDialogComponent } from './cliente-form-dialog.component';
 export class ClientesListComponent {
   private service = inject(ClienteService);
   router = inject(Router);
+  auth = inject(AuthService);
 
   @ViewChild('formDialog') formDialog!: ClienteFormDialogComponent;
 

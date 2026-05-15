@@ -5,6 +5,9 @@ import { Observable } from 'rxjs';
 export interface GastoHormigaListDto {
   id: string;
   tramiteId: string | null;
+  clienteId: string | null;
+  vehiculoId: string | null;
+  tipoGastoId: string;
   numeroConsecutivo: string | null;
   clienteNombre: string | null;
   vehiculoVin: string | null;

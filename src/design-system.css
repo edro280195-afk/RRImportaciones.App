@@ -112,6 +112,48 @@ html, body {
 /* ── Utility classes ── */
 .font-mono-data { font-family: var(--font-mono) !important; font-feature-settings: 'tnum'; }
 
+.label-field {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--n-600);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.input-field {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--n-50);
+  color: var(--n-900);
+  padding: 10px 12px;
+  font-size: 13.5px;
+  line-height: 1.35;
+  outline: none;
+  box-shadow: var(--shadow-xs);
+  transition: background-color 160ms var(--ease-out-quart),
+              border-color 160ms var(--ease-out-quart),
+              box-shadow 160ms var(--ease-out-quart);
+}
+
+.input-field::placeholder {
+  color: var(--n-400);
+}
+
+.input-field:hover {
+  border-color: var(--border-strong);
+}
+
+.input-field:focus {
+  background: var(--bg-surface);
+  border-color: var(--rr-600);
+  box-shadow: 0 0 0 3px rgba(198,29,38,0.10);
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -193,6 +235,40 @@ html, body {
 
 .btn-primary:disabled {
   opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button,
+a[role="button"],
+input[type="button"],
+input[type="submit"] {
+  transition: transform 160ms var(--ease-out-quart),
+              box-shadow 160ms var(--ease-out-quart),
+              background-color 160ms var(--ease-out-quart),
+              border-color 160ms var(--ease-out-quart),
+              color 160ms var(--ease-out-quart),
+              opacity 160ms var(--ease-out-quart);
+}
+
+button:hover:not(:disabled),
+a[role="button"]:hover,
+input[type="button"]:hover:not(:disabled),
+input[type="submit"]:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+button:active:not(:disabled),
+a[role="button"]:active,
+input[type="button"]:active:not(:disabled),
+input[type="submit"]:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--shadow-xs);
+}
+
+button:disabled,
+input[type="button"]:disabled,
+input[type="submit"]:disabled {
   cursor: not-allowed;
 }
 

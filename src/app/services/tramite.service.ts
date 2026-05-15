@@ -54,9 +54,14 @@ export interface TramitePagoDto {
   monto: number;
   moneda: string;
   tipoCambio: number | null;
+  tipoMovimiento?: string;
+  pagadoPor?: string;
+  seCobraAlCliente?: boolean;
   metodo: string;
   banco: string | null;
   referencia: string | null;
+  folioRecibo: string | null;
+  reciboPagoUrl: string | null;
   fechaPago: string;
   verificado: boolean;
 }
@@ -82,6 +87,33 @@ export interface TramiteEntregaDto {
   fechaEntrega: string;
 }
 
+export interface TramiteDocumentoDto {
+  id: string;
+  tramiteId: string;
+  tipoDocumento: string;
+  nombre: string;
+  estatus: string;
+  esRequerido: boolean;
+  archivoUrl: string | null;
+  notas: string | null;
+  fechaRecibido: string | null;
+  fechaValidado: string | null;
+}
+
+export interface TramiteTareaCampoDto {
+  id: string;
+  tipo: string;
+  estatus: string;
+  personalCampoNombre: string | null;
+  ubicacion: string | null;
+  vinConfirmado: string | null;
+  fotosUrls: string[];
+  incidencia: string | null;
+  fechaCreacion: string;
+  fechaTomada: string | null;
+  fechaCompletada: string | null;
+}
+
 export interface TramiteDetailDto {
   id: string;
   numeroConsecutivo: string;
@@ -99,6 +131,9 @@ export interface TramiteDetailDto {
   aduanaNombre: string | null;
   tramitadorId: string | null;
   tramitadorNombre: string | null;
+  cotizacionOrigenId: string | null;
+  cotizacionOrigenFolio: string | null;
+  cotizacionFecha: string | null;
   tipoTramite: string;
   estatus: string;
   cobroTotal: number;
@@ -117,6 +152,8 @@ export interface TramiteDetailDto {
   pagos: TramitePagoDto[];
   gastosHormiga: TramiteGastoDto[];
   entregas: TramiteEntregaDto[];
+  documentos: TramiteDocumentoDto[];
+  tareasCampo: TramiteTareaCampoDto[];
 }
 
 export interface PagedResult<T> {
@@ -220,6 +257,17 @@ export class TramiteService {
 
   agregarNota(id: string, contenido: string): Observable<any> {
     return this.http.post(`${this.baseUrl}/${id}/notas`, { contenido });
+  }
+
+  guardarDocumento(id: string, request: {
+    tipoDocumento: string;
+    nombre?: string;
+    estatus: string;
+    esRequerido: boolean;
+    archivoUrl?: string | null;
+    notas?: string | null;
+  }): Observable<TramiteDocumentoDto> {
+    return this.http.post<TramiteDocumentoDto>(`${this.baseUrl}/${id}/documentos`, request);
   }
 
   getDashboard(): Observable<TramiteDashboardDto> {

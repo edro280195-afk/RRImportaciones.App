@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { TramiteService, TramiteListDto } from '../../services/tramite.service';
 import { TramiteFormDialogComponent } from './tramite-form-dialog.component';
+import { AuthService } from '../../services/auth.service';
 
 interface EstadoTab {
   label: string;
@@ -27,15 +28,17 @@ interface EstadoTab {
             Trámites
           </h1>
         </div>
-        <button
-          (click)="formDialog.open()"
-          class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-          </svg>
-          Nuevo trámite
-        </button>
+        @if (auth.can('TRAMITES_CREAR')) {
+          <button
+            (click)="formDialog.open()"
+            class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            Nuevo trámite
+          </button>
+        }
       </div>
 
       <!-- State tabs -->
@@ -181,6 +184,7 @@ interface EstadoTab {
 export class TramitesListComponent {
   private tramiteService = inject(TramiteService);
   router = inject(Router);
+  auth = inject(AuthService);
 
   @ViewChild('formDialog') formDialog!: TramiteFormDialogComponent;
 
@@ -204,7 +208,11 @@ export class TramitesListComponent {
   tabs: EstadoTab[] = [
     { label: 'Todos', value: '', color: '#0D1017' },
     { label: 'Pendientes', value: 'PENDIENTE_TRAMITE', color: '#D97706' },
-    { label: 'En proceso', value: 'EN_PROCESO', color: '#2563EB' },
+    { label: 'Fotos', value: 'FOTOS_SOLICITADAS', color: '#C61D26' },
+    { label: 'Requisitos', value: 'REQUISITOS_PENDIENTES', color: '#D97706' },
+    { label: 'Baja', value: 'BAJA_EN_PROCESO', color: '#7C3AED' },
+    { label: 'Pedimento', value: 'PEDIMENTO_DOCUMENTADO', color: '#2563EB' },
+    { label: 'Cruce', value: 'MANDADO_A_CRUCE', color: '#0F766E' },
     { label: 'Desaduanados', value: 'ROJO_DESADUANADO', color: '#DC2626' },
     { label: 'Entregados', value: 'VERDE_ENTREGADO', color: '#16A34A' },
     { label: 'Pte. pago', value: 'AMARILLO_PENDIENTE_PAGO', color: '#D97706' },

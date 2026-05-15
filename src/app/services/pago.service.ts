@@ -10,10 +10,16 @@ export interface PagoListDto {
   monto: number;
   moneda: string;
   tipoCambio: number | null;
+  tipoMovimiento: string;
+  pagadoPor: string;
+  seCobraAlCliente: boolean;
   metodo: string;
   banco: string | null;
   referencia: string | null;
   comprobanteUrl: string | null;
+  folioRecibo: string | null;
+  reciboPagoUrl: string | null;
+  reciboGeneradoEn: string | null;
   fechaPago: string;
   verificado: boolean;
   fechaRegistro: string;
@@ -38,13 +44,18 @@ export interface CreatePagoRequest {
   monto: number;
   moneda: string;
   tipoCambio?: number | null;
+  tipoMovimiento?: string;
+  pagadoPor?: string;
+  seCobraAlCliente?: boolean;
   metodo: string;
   banco?: string | null;
   referencia?: string | null;
-  comprobanteUrl: string;
+  comprobanteUrl?: string | null;
   notas?: string | null;
   fechaPago: string;
 }
+
+export interface UpdatePagoRequest extends CreatePagoRequest {}
 
 export interface PagoVerificarResponse {
   tramiteCobrado: boolean;
@@ -53,7 +64,14 @@ export interface PagoVerificarResponse {
 
 export interface PagoComprobanteResponse {
   pagoId: string;
-  comprobanteUrl: string;
+  comprobanteUrl?: string | null;
+}
+
+export interface PagoReciboResponse {
+  pagoId: string;
+  folioRecibo: string;
+  reciboPagoUrl: string;
+  reciboGeneradoEn: string;
 }
 
 export interface PagedResult<T> {
@@ -71,6 +89,7 @@ export class PagoService {
 
   getList(params: {
     tramiteId?: string;
+    search?: string;
     fechaDesde?: string;
     fechaHasta?: string;
     verificado?: boolean;
@@ -80,6 +99,7 @@ export class PagoService {
   }): Observable<PagedResult<PagoListDto>> {
     let httpParams = new HttpParams();
     if (params.tramiteId) httpParams = httpParams.set('tramiteId', params.tramiteId);
+    if (params.search) httpParams = httpParams.set('search', params.search);
     if (params.fechaDesde) httpParams = httpParams.set('fechaDesde', params.fechaDesde);
     if (params.fechaHasta) httpParams = httpParams.set('fechaHasta', params.fechaHasta);
     if (params.verificado != null) httpParams = httpParams.set('verificado', params.verificado);
@@ -97,6 +117,10 @@ export class PagoService {
     return this.http.post<PagoDetailDto>(this.baseUrl, request);
   }
 
+  update(id: string, request: UpdatePagoRequest): Observable<PagoDetailDto> {
+    return this.http.put<PagoDetailDto>(`${this.baseUrl}/${id}`, request);
+  }
+
   verificar(id: string): Observable<PagoVerificarResponse> {
     return this.http.post<PagoVerificarResponse>(`${this.baseUrl}/${id}/verificar`, {});
   }
@@ -109,6 +133,14 @@ export class PagoService {
     const form = new FormData();
     form.append('file', file);
     return this.http.post<PagoComprobanteResponse>(`${this.baseUrl}/${id}/comprobante`, form);
+  }
+
+  reciboUrl(id: string): string {
+    return `${this.baseUrl}/${id}/recibo`;
+  }
+
+  regenerarRecibo(id: string): Observable<PagoReciboResponse> {
+    return this.http.post<PagoReciboResponse>(`${this.baseUrl}/${id}/recibo/regenerar`, {});
   }
 
   delete(id: string): Observable<void> {

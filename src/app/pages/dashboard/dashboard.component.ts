@@ -4,6 +4,7 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { PagoListDto, PagoService } from '../../services/pago.service';
 import { GastoHormigaListDto, GastoHormigaService } from '../../services/gasto-hormiga.service';
 import { TramiteListDto, TramiteService, TramiteDashboardDto } from '../../services/tramite.service';
+import { CotizacionDashboardDto, CotizacionService } from '../../services/cotizacion.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -68,6 +69,30 @@ import { TramiteListDto, TramiteService, TramiteDashboardDto } from '../../servi
           <span class="metric-label">En patio</span>
           <p class="metric-value">{{ dash.vehiculosEnPatio }} <span class="text-[14px] font-normal text-[#9EA3AE] tracking-normal">uds</span></p>
           <p class="metric-help">Vehículos sin trámite completo</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+        <div class="card-elevated rounded-2xl p-5">
+          <span class="metric-label">Cotizaciones</span>
+          <p class="metric-value">{{ cotDash.pendientesRespuesta }}</p>
+          <p class="metric-help">Pendientes de respuesta</p>
+        </div>
+        <div class="card-elevated rounded-2xl p-5">
+          <span class="metric-label">Próximas</span>
+          <p class="metric-value">{{ cotDash.porExpirar }}</p>
+          <p class="metric-help">Por expirar en 2 días</p>
+        </div>
+        <div class="card-elevated rounded-2xl p-5">
+          <p class="text-[13px] font-semibold text-[#1E2330] mb-3">Aceptadas listas para convertir</p>
+          @for (c of cotDash.aceptadasListas; track c.id) {
+            <button (click)="router.navigate(['/cotizaciones', c.id])" class="mb-2 flex w-full items-center justify-between rounded-xl border border-[#E4E7EC] px-3 py-2 text-left text-[12px]">
+              <span>{{ c.folio }} / {{ c.clienteNombre || 'Sin cliente' }}</span>
+              <strong>{{ c.total | currency:'MXN':'symbol':'1.0-0' }}</strong>
+            </button>
+          } @empty {
+            <p class="text-[13px] text-[#9EA3AE]">Sin cotizaciones aceptadas pendientes.</p>
+          }
         </div>
       </div>
 
@@ -201,6 +226,7 @@ export class DashboardComponent {
   private tramiteService = inject(TramiteService);
   private pagoService = inject(PagoService);
   private gastoService = inject(GastoHormigaService);
+  private cotizacionService = inject(CotizacionService);
   router = inject(Router);
 
   today = new Date().toLocaleDateString('es-MX', {
@@ -208,12 +234,14 @@ export class DashboardComponent {
   });
 
   dash: TramiteDashboardDto = { activos: 0, verdesEsteMes: 0, amarillosPendientePago: 0, cobradoMes: 0, porCobrar: 0, vehiculosEnPatio: 0 };
+  cotDash: CotizacionDashboardDto = { pendientesRespuesta: 0, porExpirar: 0, aceptadasListas: [] };
   tramitesRecientes: TramiteListDto[] = [];
   pagosPendientes: PagoListDto[] = [];
   gastosRecientes: GastoHormigaListDto[] = [];
 
   constructor() {
     this.tramiteService.getDashboard().subscribe(d => this.dash = d);
+    this.cotizacionService.getDashboard().subscribe(d => this.cotDash = d);
     this.tramiteService.getList({ pageSize: 5 }).subscribe(r => this.tramitesRecientes = r.items);
     this.pagoService.getList({ verificado: false, pageSize: 5 }).subscribe(r => this.pagosPendientes = r.items);
     this.gastoService.getList({ pageSize: 3 }).subscribe(r => this.gastosRecientes = r.items);

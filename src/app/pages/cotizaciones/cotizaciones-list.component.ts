@@ -47,6 +47,7 @@ import { CotizacionListDto, CotizacionService } from '../../services/cotizacion.
                   <th class="text-left px-5 py-3 font-medium">Vehículo</th>
                   <th class="text-left px-5 py-3 font-medium">Cliente</th>
                   <th class="text-left px-5 py-3 font-medium">Estado</th>
+                  <th class="text-left px-5 py-3 font-medium">Convertida</th>
                   <th class="text-right px-5 py-3 font-medium">Total</th>
                   <th class="text-left px-5 py-3 font-medium">Fecha</th>
                 </tr>
@@ -58,6 +59,13 @@ import { CotizacionListDto, CotizacionService } from '../../services/cotizacion.
                     <td class="px-5 py-3">{{ c.vehiculo || c.vin || '—' }} @if (c.anno) { <span class="text-[#9EA3AE]">({{ c.anno }})</span> }</td>
                     <td class="px-5 py-3">{{ c.clienteNombre || 'Sin cliente' }}</td>
                     <td class="px-5 py-3"><span class="px-2 py-1 rounded-lg text-[11px] font-semibold" [style]="pill(c.estado)">{{ c.estado }}</span></td>
+                    <td class="px-5 py-3">
+                      @if (c.tramiteId) {
+                        <button type="button" (click)="$event.stopPropagation(); router.navigate(['/tramites', c.tramiteId])" class="rounded-lg bg-[#DBEAFE] px-2 py-1 text-[11px] font-semibold text-[#1E40AF]">{{ c.tramiteNumero || 'Ver tramite' }}</button>
+                      } @else {
+                        <span class="text-[12px] text-[#9EA3AE]">No</span>
+                      }
+                    </td>
                     <td class="px-5 py-3 text-right font-mono-data">\${{ c.total | number:'1.2-2' }}</td>
                     <td class="px-5 py-3 text-[#6B717F]">{{ c.fechaCreacion | date:'dd/MM/yyyy' }}</td>
                   </tr>

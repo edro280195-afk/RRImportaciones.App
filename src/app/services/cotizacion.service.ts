@@ -23,10 +23,22 @@ export interface GuardarCotizacionRequest extends CotizacionInput {
   fechaExpiracion: string | null;
 }
 
+export interface WhatsAppLinkResponse {
+  whatsappUrl: string;
+  pdfUrl: string;
+  mensaje: string;
+}
+
 export interface CotizacionOutput {
   id: string | null;
   folio: string | null;
+  tramiteId: string | null;
+  tramiteNumero: string | null;
   clienteId: string | null;
+  clienteNombre: string | null;
+  clienteApodo: string | null;
+  clienteTelefono: string | null;
+  clienteEmail: string | null;
   estado: string;
   vin: string | null;
   marcaId: string | null;
@@ -38,6 +50,13 @@ export interface CotizacionOutput {
   fraccion: string;
   regimenFiscal: string;
   fuentePrecio: string;
+  precioCatalogoMarca: string | null;
+  precioCatalogoModelo: string | null;
+  precioCatalogoOrigen: string | null;
+  precioAntiguedadAnios: number | null;
+  precioMatchTipo: string | null;
+  precioMatchScore: number | null;
+  precioAdvertencia: string | null;
   valorAduanaUsd: number | null;
   valorPesos: number;
   tipoCambioReferencia: number | null;
@@ -55,6 +74,22 @@ export interface CotizacionOutput {
   total: number;
   notas: string | null;
   fechaExpiracion: string | null;
+  fechaEnvio: string | null;
+  enviadoPor: string | null;
+  enviadoA: string | null;
+}
+
+export interface ConvertirCotizacionRequest {
+  aduanaCodigo: string;
+  tramitadorId: string;
+  tipoTramite: string;
+  notasAdicionales: string | null;
+}
+
+export interface CotizacionDashboardDto {
+  pendientesRespuesta: number;
+  porExpirar: number;
+  aceptadasListas: CotizacionListDto[];
 }
 
 export interface CotizacionListDto {
@@ -66,6 +101,8 @@ export interface CotizacionListDto {
   vehiculo: string | null;
   anno: number | null;
   total: number;
+  tramiteId: string | null;
+  tramiteNumero: string | null;
   fechaCreacion: string;
   fechaExpiracion: string | null;
 }
@@ -88,6 +125,7 @@ export interface TipoCambioDto {
   fecha: string;
   tipoCambio: number;
   fuente: string;
+  fetchedAt: string;
   isStale: boolean;
 }
 
@@ -126,6 +164,10 @@ export class CotizacionService {
     return this.http.get<CotizacionOutput>(`${this.baseUrl}/${id}`);
   }
 
+  getDashboard(): Observable<CotizacionDashboardDto> {
+    return this.http.get<CotizacionDashboardDto>(`${this.baseUrl}/dashboard`);
+  }
+
   decodeVin(vin: string): Observable<VehicleDecodedDto> {
     return this.http.get<VehicleDecodedDto>(`${this.baseUrl}/decode-vin/${vin}`);
   }
@@ -140,5 +182,33 @@ export class CotizacionService {
 
   rechazar(id: string, motivo: string): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${this.baseUrl}/${id}/rechazar`, { motivo });
+  }
+
+  pdfUrl(id: string, download = false): string {
+    return `${this.baseUrl}/${id}/pdf${download ? '/download' : ''}`;
+  }
+
+  getPdf(id: string, download = false): Observable<Blob> {
+    return this.http.get(this.pdfUrl(id, download), { responseType: 'blob' });
+  }
+
+  enviarEmail(id: string, destinatario: string, mensajePersonalizado: string | null): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.baseUrl}/${id}/enviar-email`, { destinatario, mensajePersonalizado });
+  }
+
+  whatsappLink(id: string, telefono: string, mensajePersonalizado: string | null): Observable<WhatsAppLinkResponse> {
+    return this.http.post<WhatsAppLinkResponse>(`${this.baseUrl}/${id}/whatsapp-link`, { telefono, mensajePersonalizado });
+  }
+
+  marcarEnviada(id: string, enviadoPor: string, enviadoA: string, mensajePersonalizado: string | null = null): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.baseUrl}/${id}/marcar-enviada`, { enviadoPor, enviadoA, mensajePersonalizado });
+  }
+
+  recalcular(id: string): Observable<CotizacionOutput> {
+    return this.http.post<CotizacionOutput>(`${this.baseUrl}/${id}/recalcular`, {});
+  }
+
+  convertirATramite(id: string, request: ConvertirCotizacionRequest): Observable<{ id: string; numeroConsecutivo: string }> {
+    return this.http.post<{ id: string; numeroConsecutivo: string }>(`${this.baseUrl}/${id}/convertir-a-tramite`, request);
   }
 }

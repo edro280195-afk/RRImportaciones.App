@@ -1,4 +1,4 @@
-import { Component, output, signal, OnInit, inject } from '@angular/core';
+import { Component, computed, HostListener, inject, input, OnInit, output, signal } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -8,11 +8,14 @@ interface MenuItem {
   icon: SafeHtml;
   route: string;
   badge?: string;
+  /** Permiso requerido. null = siempre visible. 'ADMIN_ONLY' = solo rol ADMIN. */
+  permiso?: string | null;
 }
 
 interface MenuGroup {
   label: string;
   items: MenuItem[];
+  /** Si todos los items están filtrados, el grupo se oculta. */
 }
 
 @Component({
@@ -20,27 +23,40 @@ interface MenuGroup {
   standalone: true,
   imports: [RouterLink, RouterLinkActive],
   template: `
+    @if (isMobile() && mobileOpen()) {
+      <button
+        type="button"
+        class="fixed inset-0 z-20 bg-[#0D1017]/45"
+        aria-label="Cerrar menu"
+        (click)="closeMobileMenu()"
+      ></button>
+    }
+
     <aside
-      class="sidebar-dark h-screen flex flex-col fixed left-0 top-0 z-20 overflow-y-auto transition-all duration-200 ease-in-out"
-      [class.sidebar-collapsed]="collapsed()"
-      [style.width]="collapsed() ? '64px' : '220px'"
+      class="sidebar-dark h-screen flex flex-col fixed left-0 top-0 z-30 overflow-y-auto transition-all duration-200 ease-in-out"
+      [class.sidebar-collapsed]="collapsed() && !isMobile()"
+      [class.-translate-x-full]="isMobile() && !mobileOpen()"
+      [class.translate-x-0]="!isMobile() || mobileOpen()"
+      [style.width]="isMobile() ? '100vw' : (collapsed() ? '64px' : '220px')"
     >
       <!-- Brand header + toggle -->
-      <div class="flex items-center px-3 pt-5 pb-4 border-b border-white/[0.06]" [class.justify-center]="collapsed()">
+      <div class="flex items-center px-4 pt-5 pb-4 border-b border-white/[0.06]" [class.justify-center]="collapsed() && !isMobile()">
         <button
-          (click)="toggle()"
+          (click)="isMobile() ? closeMobileMenu() : toggle()"
           class="w-7 h-7 rounded-[7px] bg-[#C61D26] flex items-center justify-center shadow-[0_2px_8px_rgba(198,29,38,0.4)] shrink-0 hover:bg-[#A5151F] transition-colors"
           [title]="collapsed() ? 'Expandir menú' : 'Colapsar menú'"
         >
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2 text-white">
-            @if (collapsed()) {
+            @if (isMobile()) {
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            } @else if (collapsed()) {
               <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
             } @else {
               <path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
             }
           </svg>
         </button>
-        @if (!collapsed()) {
+        @if (showLabels()) {
           <div class="overflow-hidden ml-2.5">
             <p class="text-white font-semibold text-[13px] leading-none tracking-[-0.3px] whitespace-nowrap">Importaciones</p>
           </div>
@@ -49,9 +65,9 @@ interface MenuGroup {
 
       <!-- Nav -->
       <nav class="flex-1 px-2.5 py-3 overflow-y-auto">
-        @for (group of menuGroups; track group.label; let gi = $index) {
+        @for (group of menuGroups(); track group.label; let gi = $index) {
           <div class="mb-4" [style.animationDelay]="(gi * 40) + 'ms'">
-            @if (!collapsed()) {
+            @if (showLabels()) {
               <p class="text-[10px] font-semibold text-white/25 uppercase tracking-[1px] px-2.5 mb-1 overflow-hidden whitespace-nowrap">{{ group.label }}</p>
             }
             @for (item of group.items; track item.label) {
@@ -61,8 +77,9 @@ interface MenuGroup {
                 [routerLinkActiveOptions]="{exact: item.route === '/inicio'}"
                 class="nav-link-dark"
                 [title]="item.label"
+                (click)="closeMobileMenu()"
               >
-                @if (collapsed()) {
+                @if (!showLabels()) {
                   <span class="nav-icon w-5 h-5" [innerHTML]="item.icon"></span>
                 } @else {
                   <span class="nav-icon w-4 h-4" [innerHTML]="item.icon"></span>
@@ -79,11 +96,11 @@ interface MenuGroup {
 
       <!-- User block -->
       <div class="p-2.5 border-t border-white/[0.06]">
-        <div class="flex items-center justify-center gap-2.5 px-2.5 py-2.5 rounded-lg hover:bg-white/[0.06] transition-all duration-150 cursor-pointer group" [title]="collapsed() ? displayName() : ''">
+        <div class="flex items-center justify-center gap-2.5 px-2.5 py-2.5 rounded-lg hover:bg-white/[0.06] transition-all duration-150 cursor-pointer group" [title]="!showLabels() ? displayName() : ''">
           <div class="w-[30px] h-[30px] rounded-full bg-[#C61D26] flex items-center justify-center text-white font-semibold text-[10px] shrink-0 shadow-[0_0_0_2px_rgba(198,29,38,0.3)]">
             {{ initials() }}
           </div>
-          @if (!collapsed()) {
+          @if (showLabels()) {
             <div class="flex-1 min-w-0 overflow-hidden">
               <p class="text-white/80 text-[12.5px] font-medium truncate leading-none mb-0.5 group-hover:text-white transition-colors duration-150">{{ displayName() }}</p>
               <p class="text-white/30 text-[11px] truncate">{{ userRole() }}</p>
@@ -109,11 +126,31 @@ export class SidebarComponent implements OnInit {
   private storageKey = 'sidebar-collapsed';
 
   collapsed = signal(false);
+  isMobile = signal(window.innerWidth < 768);
+  mobileOpen = input(false);
   collapsedChange = output<boolean>();
-  menuGroups: MenuGroup[] = [];
+  mobileClose = output<void>();
+
+  private allGroups: MenuGroup[] = [];
+
+  /** Grupos y items filtrados según los permisos del usuario actual. */
+  menuGroups = computed(() => {
+    // Leer el signal del usuario para que el computed reaccione a cambios de sesión.
+    const _ = this.auth.user();
+    return this.allGroups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => {
+          if (!item.permiso) return true;
+          if (item.permiso === 'ADMIN_ONLY') return this.auth.isAdmin();
+          return this.auth.can(item.permiso);
+        }),
+      }))
+      .filter(group => group.items.length > 0);
+  });
 
   constructor() {
-    this.menuGroups = this.buildMenu();
+    this.allGroups = this.buildMenu();
   }
 
   ngOnInit(): void {
@@ -123,11 +160,26 @@ export class SidebarComponent implements OnInit {
     }
   }
 
+  @HostListener('window:resize')
+  onResize(): void {
+    const mobile = window.innerWidth < 768;
+    this.isMobile.set(mobile);
+    if (!mobile) this.mobileClose.emit();
+  }
+
   toggle(): void {
     const next = !this.collapsed();
     this.collapsed.set(next);
     localStorage.setItem(this.storageKey, String(next));
     this.collapsedChange.emit(next);
+  }
+
+  closeMobileMenu(): void {
+    if (this.isMobile()) this.mobileClose.emit();
+  }
+
+  showLabels(): boolean {
+    return this.isMobile() || !this.collapsed();
   }
 
   displayName(): string {
@@ -169,6 +221,7 @@ export class SidebarComponent implements OnInit {
       historico: this.svg(s('M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z')),
       pagos: this.svg(s('M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z')),
       gastos: this.svg(s('M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z')),
+      reportes: this.svg(s('M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z') + s('M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z')),
       marcas: this.svg(s('M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z')),
       aduanas: this.svg(s('M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4')),
       tramitadores: this.svg(s('M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z')),
@@ -181,51 +234,57 @@ export class SidebarComponent implements OnInit {
       roles: this.svg(s('M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z')),
       auditoria: this.svg(s('M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01')),
       importador: this.svg(s('M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 0l-4 4m4-4l4 4') + s('M4 12h16')),
+      plantillas: this.svg(s('M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01')),
+      parametros: this.svg(s('M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z')),
     };
 
     return [
       {
         label: 'Operación',
         items: [
-          { label: 'Inicio', icon: icons.home, route: '/inicio' },
-          { label: 'Clientes', icon: icons.clients, route: '/clientes' },
-          { label: 'Vehículos', icon: icons.vehicles, route: '/vehiculos' },
-          { label: 'Trámites', icon: icons.tramites, route: '/tramites' },
-          { label: 'Pedimentos', icon: icons.pedimentos, route: '/pedimentos' },
-          { label: 'Inventario', icon: icons.inventario, route: '/inventario' },
+          { label: 'Inicio',      icon: icons.home,       route: '/inicio',      permiso: null },
+          { label: 'Clientes',    icon: icons.clients,    route: '/clientes',    permiso: 'CLIENTES_VER' },
+          { label: 'Vehículos',   icon: icons.vehicles,   route: '/vehiculos',   permiso: 'TRAMITES_VER' },
+          { label: 'Trámites',    icon: icons.tramites,   route: '/tramites',    permiso: 'TRAMITES_VER' },
+          { label: 'Campo',       icon: icons.personal,   route: '/campo',       permiso: 'EVENTOS_CREAR' },
+          { label: 'Pedimentos',  icon: icons.pedimentos, route: '/pedimentos',  permiso: 'TRAMITES_VER' },
+          { label: 'Inventario',  icon: icons.inventario, route: '/inventario',  permiso: 'TRAMITES_VER' },
         ],
       },
       {
         label: 'Cotizaciones',
         items: [
-          { label: 'Nueva', icon: icons.nuevaCoti, route: '/cotizaciones/nueva' },
-          { label: 'Histórico', icon: icons.historico, route: '/cotizaciones' },
+          { label: 'Nueva',      icon: icons.nuevaCoti, route: '/cotizaciones/nueva', permiso: 'COTIZACIONES_CREAR' },
+          { label: 'Histórico',  icon: icons.historico, route: '/cotizaciones',        permiso: 'COTIZACIONES_VER' },
         ],
       },
       {
         label: 'Finanzas',
         items: [
-          { label: 'Pagos', icon: icons.pagos, route: '/pagos', badge: '7' },
-          { label: 'Gastos hormiga', icon: icons.gastos, route: '/gastos-hormiga' },
+          { label: 'Pagos',             icon: icons.pagos,    route: '/pagos',                    permiso: 'PAGOS_VER' },
+          { label: 'Gastos hormiga',    icon: icons.gastos,   route: '/gastos-hormiga',            permiso: 'GASTOS_VER' },
+          { label: 'Reportes',          icon: icons.reportes, route: '/reportes',                  permiso: 'REPORTES_FINANCIEROS' },
         ],
       },
       {
         label: 'Catálogos',
         items: [
-          { label: 'Marcas', icon: icons.marcas, route: '/marcas' },
-          { label: 'Aduanas', icon: icons.aduanas, route: '/aduanas' },
-          { label: 'Tramitadores', icon: icons.tramitadores, route: '/tramitadores' },
-          { label: 'Personal', icon: icons.personal, route: '/personal' },
-          { label: 'Partners', icon: icons.partners, route: '/partners' },
+          { label: 'Marcas',        icon: icons.marcas,       route: '/marcas',       permiso: 'CATALOGOS_VER' },
+          { label: 'Aduanas',       icon: icons.aduanas,      route: '/aduanas',      permiso: 'CATALOGOS_VER' },
+          { label: 'Bancos',        icon: icons.pagos,        route: '/bancos',       permiso: 'CATALOGOS_VER' },
+          { label: 'Tramitadores',  icon: icons.tramitadores, route: '/tramitadores', permiso: 'CATALOGOS_VER' },
+          { label: 'Partners',      icon: icons.partners,     route: '/partners',     permiso: 'CATALOGOS_VER' },
         ],
       },
       {
         label: 'Admin',
         items: [
-          { label: 'Usuarios', icon: icons.usuarios, route: '/usuarios' },
-          { label: 'Roles', icon: icons.roles, route: '/roles' },
-          { label: 'Auditoría', icon: icons.auditoria, route: '/auditoria' },
-          { label: 'Importador', icon: icons.importador, route: '/admin/importador' },
+          { label: 'Usuarios',           icon: icons.usuarios,  route: '/usuarios',                 permiso: 'USUARIOS_VER' },
+          { label: 'Roles',              icon: icons.roles,     route: '/roles',                    permiso: 'ADMIN_ONLY' },
+          { label: 'Auditoría',          icon: icons.auditoria, route: '/auditoria',                permiso: 'ADMIN_ONLY' },
+          { label: 'Parámetros fiscales',icon: icons.parametros,route: '/admin/parametros-fiscales',permiso: 'ADMIN_ONLY' },
+          { label: 'Importador',         icon: icons.importador,route: '/admin/importador',         permiso: 'ADMIN_ONLY' },
+          { label: 'Plantillas',         icon: icons.plantillas,route: '/admin/plantillas',         permiso: 'ADMIN_ONLY' },
         ],
       },
     ];
