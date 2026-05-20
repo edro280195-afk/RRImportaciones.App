@@ -151,6 +151,20 @@ interface AppNotification {
           </button>
         }
 
+        @if (auth.isDueno()) {
+          <button
+            type="button"
+            (click)="goToAsistente()"
+            class="hidden sm:flex items-center gap-1.5 px-3 py-[7px] rounded-lg bg-[#C61D26] text-white text-[12px] font-semibold hover:bg-[#A01520] transition-all duration-150"
+            aria-label="Volver al Asistente Personal"
+          >
+            <svg fill="currentColor" viewBox="0 0 24 24" class="w-[13px] h-[13px] shrink-0">
+              <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+            </svg>
+            Mi Asistente
+          </button>
+        }
+
         <div class="relative">
           <button
             type="button"
@@ -394,6 +408,10 @@ export class TopbarComponent implements OnInit {
     this.closePanels();
     this.searchTerm.set('');
     this.router.navigate([route]);
+  }
+
+  goToAsistente(): void {
+    this.router.navigate(['/asistente-personal']);
   }
 
   private closePanels(): void {

@@ -1766,6 +1766,8 @@ export class LoginComponent implements OnInit, AfterViewInit, OnDestroy {
   private navigateHome(): void {
     if (this.auth.can('CAMPO_USAR') && !this.auth.isAdmin()) {
       this.router.navigate(['/campo']);
+    } else if (this.auth.isDueno()) {
+      this.router.navigate(['/asistente-personal']);
     } else {
       this.router.navigate(['/inicio']);
     }

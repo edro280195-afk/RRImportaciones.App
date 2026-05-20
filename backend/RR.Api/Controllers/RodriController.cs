@@ -7,7 +7,7 @@ namespace RR.Api.Controllers;
 
 [ApiController]
 [Route("api/rodri")]
-[Authorize(Roles = "ADMIN")]
+[Authorize(Roles = "ADMIN,DUEÑO")]
 public class RodriController : ControllerBase
 {
     private readonly IRodriService _rodriService;

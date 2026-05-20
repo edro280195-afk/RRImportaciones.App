@@ -113,13 +113,18 @@ builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
 builder.Services.AddScoped<ICatalogoPreciosService, CatalogoPreciosService>();
 builder.Services.AddSingleton<IPortalAccessService, PortalAccessService>();
 
-// Rodri tools
+// Rodri tools — consultas generales
 builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ListarCotizacionesTool>();
 builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ObtenerCotizacionTool>();
 builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.CalcularCotizacionTool>();
 builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ListarTramitesTool>();
 builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ListarClientesTool>();
 builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ObtenerAlertasTool>();
+// Rodri tools — Asistente Personal (Modo Don)
+builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ConsultarDeudoresTool>();
+builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ConsultarPagosRecientesTool>();
+builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ConsultarUbicacionVehiculosTool>();
+builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ConsultarDocumentosPendientesTool>();
 
 builder.Services.AddSignalR();
 builder.Services.AddHttpClient<IBanxicoService, BanxicoService>();

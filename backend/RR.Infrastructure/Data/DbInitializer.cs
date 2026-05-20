@@ -534,7 +534,7 @@ public static class DbInitializer
         using var tx = await db.Database.BeginTransactionAsync();
         try
         {
-            // 1. Asegurar que los 5 roles nuevos existan
+            // 1. Asegurar que los roles nuevos existan
             var nuevosRoles = new (string Nombre, string Descripcion, string[] Permisos)[]
             {
                 ("FACTURACION",      "Oficina · Facturación y cobros a clientes",
@@ -547,6 +547,9 @@ public static class DbInitializer
                     new[] { "EVENTOS_CREAR", "TRAMITES_VER", "CAMPO_USAR" }),
                 ("CHOFER",           "Campo · Traslado y entrega de unidades",
                     new[] { "EVENTOS_CREAR", "TRAMITES_VER", "CAMPO_USAR" }),
+                // Dueño: acceso total al negocio + experiencia Asistente Personal
+                ("DUEÑO",            "Propietario · Acceso total con vista de Asistente Personal",
+                    Array.Empty<string>()),
             };
 
             var nombresNuevos = nuevosRoles.Select(n => n.Nombre).ToList();

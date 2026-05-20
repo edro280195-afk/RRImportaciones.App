@@ -1,8 +1,9 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
-import { permissionGuard, adminGuard } from './guards/permission.guard';
+import { permissionGuard, adminGuard, duenoGuard } from './guards/permission.guard';
 import { campoAuthGuard } from './guards/campo-auth.guard';
 import { AppLayoutComponent } from './layout/app-layout/app-layout.component';
+import { ModoDonLayoutComponent } from './layout/modo-don-layout/modo-don-layout.component';
 import { LoginComponent } from './pages/login/login.component';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { PageNotFoundComponent } from './pages/not-found/page-not-found.component';
@@ -25,6 +26,20 @@ export const routes: Routes = [
   { path: 'portal', component: PortalInvalidoComponent },
   { path: 'login', component: LoginComponent },
   { path: '404', component: PageNotFoundComponent },
+
+  // ── Asistente Personal — vista exclusiva para rol DUEÑO ──────────────────
+  {
+    path: 'asistente-personal',
+    component: ModoDonLayoutComponent,
+    canActivate: [authGuard, duenoGuard],
+    children: [
+      {
+        path: '',
+        loadComponent: () => import('./pages/modo-don/modo-don.component').then(m => m.ModoDonComponent),
+        pathMatch: 'full',
+      },
+    ],
+  },
 
   // ── Módulo campo (standalone, sin AppLayout ni sidebar) ───────────────────
   {

@@ -20,3 +20,12 @@ export const adminGuard = () => {
   if (auth.isAdmin()) return true;
   return inject(Router).parseUrl('/inicio');
 };
+
+/**
+ * Guard para la vista Asistente Personal (rol DUEÑO).
+ */
+export const duenoGuard = () => {
+  const auth = inject(AuthService);
+  if (auth.isDueno()) return true;
+  return inject(Router).parseUrl('/inicio');
+};

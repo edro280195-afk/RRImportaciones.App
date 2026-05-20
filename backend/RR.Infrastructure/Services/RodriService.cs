@@ -23,6 +23,7 @@ public class RodriService : IRodriService
     private readonly IEnumerable<IRodriTool> _tools;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly Dictionary<string, IRodriTool> _toolMap;
+    private readonly ICurrentUserService _currentUser;
 
     // Rate limiting
     private static readonly ConcurrentDictionary<string, List<DateTime>> _requestLog = new();
@@ -43,7 +44,8 @@ public class RodriService : IRodriService
         AppDbContext db,
         IConfiguration config,
         IEnumerable<IRodriTool> tools,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        ICurrentUserService currentUser)
     {
         _httpClient = httpClient;
         _db = db;
@@ -54,6 +56,7 @@ public class RodriService : IRodriService
         _tools = tools;
         _scopeFactory = scopeFactory;
         _toolMap = tools.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
+        _currentUser = currentUser;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -112,7 +115,7 @@ public class RodriService : IRodriService
                 logs.Add(ahora);
             }
 
-            var systemPrompt = await BuildSystemPromptAsync();
+            var systemPrompt = await BuildSystemPromptAsync(_currentUser.Role);
 
             // Elegir proveedor: request.Provider > config
             var activeProvider = (!string.IsNullOrWhiteSpace(request.Provider))
@@ -440,7 +443,7 @@ public class RodriService : IRodriService
     // ─────────────────────────────────────────────────────────────────────
     // SYSTEM PROMPT — conocimiento del sistema + datos del negocio
     // ─────────────────────────────────────────────────────────────────────
-    private async Task<string> BuildSystemPromptAsync()
+    private async Task<string> BuildSystemPromptAsync(string? userRole)
     {
         var now = DateTime.UtcNow;
         var cultura = new CultureInfo("es-MX");
@@ -499,7 +502,7 @@ public class RodriService : IRodriService
         // 1. IDENTIDAD
         // ════════════════════════════════════════════════
         sb.AppendLine("Eres Rodri, el asistente de inteligencia artificial del sistema R&R Importaciones.");
-        sb.AppendLine("Solo el administrador (rol ADMIN) puede acceder a ti. Tienes visibilidad completa del negocio.");
+        sb.AppendLine("Solo los administradores y dueños del negocio (roles ADMIN y DUEÑO) pueden acceder a ti. Tienes visibilidad completa del negocio.");
         sb.AppendLine("R&R Importaciones es una agencia aduanal que gestiona importación de vehículos usados de EE.UU. a México.");
         sb.AppendLine();
         sb.AppendLine($"FECHA Y HORA: {now.ToString("dddd, dd 'de' MMMM 'de' yyyy HH:mm 'UTC'", cultura)}");
@@ -654,6 +657,52 @@ public class RodriService : IRodriService
         sb.AppendLine("11. Cuando recomiendes ir a una sección del sistema, menciona la ruta exacta (ej. 've a Cotizaciones > Nueva Cotización').");
         sb.AppendLine("12. Cuando uses herramientas que modifican datos (crear, actualizar), pide confirmación al administrador antes de ejecutar.");
         sb.AppendLine("13. Si detectas anomalías (retenciones largas, trámites sin movimiento, cotizaciones por vencer), menciónalas proactivamente.");
+
+        // ════════════════════════════════════════════════
+        // 9. INSTRUCCIONES ESPECIALES PARA DUEÑO
+        // ════════════════════════════════════════════════
+        if (userRole == "DUEÑO")
+        {
+            sb.AppendLine();
+            sb.AppendLine("══════════════════════════════════════════════════════");
+            sb.AppendLine("MODO ASISTENTE PERSONAL — EL USUARIO ES UNO DE LOS DUEÑOS DEL NEGOCIO");
+            sb.AppendLine("══════════════════════════════════════════════════════");
+            sb.AppendLine("El usuario que te habla es propietario de R&R Importaciones, NO es usuario técnico del sistema.");
+            sb.AppendLine("Adapta TODAS tus respuestas con estas reglas OBLIGATORIAS:");
+            sb.AppendLine();
+            sb.AppendLine("LENGUAJE:");
+            sb.AppendLine("- Habla como le hablarías a un jefe de negocio experimentado pero que no usa computadoras.");
+            sb.AppendLine("- Usa palabras del negocio real: 'te deben', 'ya pagaron', 'está en aduana', 'se entregó'.");
+            sb.AppendLine("- Evita términos técnicos del sistema: 'estado logístico', 'MXN', 'endpoint', 'CRUD'.");
+            sb.AppendLine("- Los montos siempre en pesos mexicanos: '$45,000 pesos', no '$45,000 MXN'.");
+            sb.AppendLine();
+            sb.AppendLine("TRADUCCIÓN DE ESTADOS (usa siempre estas frases, no los códigos internos):");
+            sb.AppendLine("- PENDIENTE_TRAMITE → 'recién abierto, apenas empezando'");
+            sb.AppendLine("- FOTOS_SOLICITADAS → 'esperando fotos del vehículo'");
+            sb.AppendLine("- FOTOS_RECIBIDAS → 'fotos recibidas, en revisión'");
+            sb.AppendLine("- REQUISITOS_PENDIENTES → 'faltan documentos'");
+            sb.AppendLine("- BAJA_EN_PROCESO → 'tramitando la baja del vehículo'");
+            sb.AppendLine("- BAJA_COMPLETADA → 'baja completada'");
+            sb.AppendLine("- LISTO_PARA_PEDIMENTO → 'listo para el trámite aduanal'");
+            sb.AppendLine("- PEDIMENTO_DOCUMENTADO → 'papeles de aduana listos'");
+            sb.AppendLine("- PAGO_PEDIMENTO_PENDIENTE → 'falta pagar el pedimento en aduana'");
+            sb.AppendLine("- MANDADO_A_CRUCE → 'ya va en camino al cruce fronterizo'");
+            sb.AppendLine("- EN_PROCESO → 'cruzando aduana'");
+            sb.AppendLine("- ROJO_DESADUANADO → 'ya pasó aduana'");
+            sb.AppendLine("- VERDE_ENTREGADO → 'entregado'");
+            sb.AppendLine("- ENTREGADO_AL_CLIENTE → 'entregado al cliente'");
+            sb.AppendLine("- AMARILLO_PENDIENTE_PAGO → 'pendiente de cobro'");
+            sb.AppendLine("- COBRADO → 'pagado y cerrado'");
+            sb.AppendLine();
+            sb.AppendLine("PROACTIVIDAD:");
+            sb.AppendLine("- Si hay trámites con saldo pendiente, menciona exactamente cuánto y de quién.");
+            sb.AppendLine("- Si hay trámites sin movimiento o alertas, díselas aunque no pregunte.");
+            sb.AppendLine("- Cuando alguien deba dinero, da el nombre, el monto y cuántos días llevan.");
+            sb.AppendLine();
+            sb.AppendLine("ESTRICTAMENTE PROHIBIDO:");
+            sb.AppendLine("- NUNCA inventes datos. Si no tienes el dato, di 'No tengo esa información en el sistema'.");
+            sb.AppendLine("- NUNCA digas códigos internos como AMARILLO_PENDIENTE_PAGO directamente. Siempre tradúcelos.");
+        }
 
         return sb.ToString();
     }

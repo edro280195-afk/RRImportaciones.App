@@ -49,12 +49,18 @@ export class AuthService {
   readonly isAuthenticated = signal(false);
 
   readonly isAdmin = computed(() => this.user()?.role === 'ADMIN');
+  readonly isDueno = computed(() => this.user()?.role === 'DUEÑO');
 
-  /** Devuelve true si el usuario tiene el permiso indicado. ADMIN siempre puede todo. */
+  canAccessRodri(): boolean {
+    const role = this.user()?.role;
+    return role === 'ADMIN' || role === 'DUEÑO';
+  }
+
+  /** Devuelve true si el usuario tiene el permiso indicado. ADMIN y DUEÑO tienen acceso total. */
   can(codigo: string): boolean {
     const u = this.user();
     if (!u) return false;
-    if (u.role === 'ADMIN') return true;
+    if (u.role === 'ADMIN' || u.role === 'DUEÑO') return true;
     return u.permisos.includes(codigo);
   }
 
