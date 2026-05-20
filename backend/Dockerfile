@@ -3,16 +3,13 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
 WORKDIR /src
 
-COPY ["RR.Api/RR.Api.csproj", "RR.Api/"]
-COPY ["RR.Application/RR.Application.csproj", "RR.Application/"]
-COPY ["RR.Domain/RR.Domain.csproj", "RR.Domain/"]
-COPY ["RR.Infrastructure/RR.Infrastructure.csproj", "RR.Infrastructure/"]
-COPY ["RR.Migrations/RR.Migrations.csproj", "RR.Migrations/"]
-
-RUN dotnet restore RR.Api/RR.Api.csproj
-
+# Copy entire backend source
 COPY . .
 
+# Restore dependencies using solution file
+RUN dotnet restore RR.slnx
+
+# Build and publish
 WORKDIR /src/RR.Api
 RUN dotnet publish -c Release -o /app/publish --no-restore
 
