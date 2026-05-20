@@ -1,0 +1,17 @@
+# Angular
+node_modules/
+dist/
+.angular/
+
+# IDE
+.idea/
+*.swp
+.vscode/
+
+# Build
+npm-debug.log
+yarn-error.log
+
+# Environment files (use during build via args)
+environment.ts
+environment.prod.ts

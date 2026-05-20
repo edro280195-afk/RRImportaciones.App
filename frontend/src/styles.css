@@ -1,0 +1,28 @@
+/* Tailwind v4 source — only Tailwind directives here.
+   Custom design system is in design-system.css (loaded separately by Angular). */
+@import "tailwindcss";
+
+@source "./";
+
+@theme {
+  --font-sans:  'Onest', -apple-system, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-mono:  'JetBrains Mono', monospace;
+
+  --color-rr-600:   #B0181F;
+  --color-rr-500:   #C61D26;
+  --color-rr-700:   #931218;
+  --color-rr-50:    #FDF2F2;
+  --color-bg-app:   #F6F5F7;
+  --color-border:   #E5E1E6;
+  --color-n-900:    #121012;
+  --color-n-800:    #231F23;
+  --color-n-700:    #383438;
+  --color-n-600:    #585459;
+  --color-n-500:    #7D797F;
+  --color-n-400:    #A4A0A5;
+  --color-n-300:    #C9C5CA;
+  --color-n-200:    #E2DEE2;
+  --color-n-100:    #F3F1F3;
+  --color-n-50:     #FAF8F9;
+}

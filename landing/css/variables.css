@@ -1,0 +1,36 @@
+/* ═══════════════════════════════════════════════
+   R&R Importaciones — DESIGN TOKENS v4
+   Concepto: "Light & Glass" — Vibrante y Moderno
+   ═══════════════════════════════════════════════ */
+
+:root {
+  /* ── Brand ── */
+  --red: #C61D26;
+  --red-light: #E8232D;
+  --red-dark: #8B1118;
+  --red-glow: rgba(198,29,38,0.25);
+
+  /* ── Light Palette ── */
+  --bg-main: #F4F6F8;
+  --bg-alt: #FFFFFF;
+  --text-main: #111115;
+  --text-muted: #5A5A65;
+  --white: #FFFFFF;
+  --black: #050507;
+
+  /* ── Glassmorphism ── */
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+  --glass-blur: blur(20px);
+
+  /* ── Typography ── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* ── Motion ── */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-circ: cubic-bezier(0.85, 0, 0.15, 1);
+}

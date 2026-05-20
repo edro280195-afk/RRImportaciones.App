@@ -1,0 +1,70 @@
+# ==========================================
+# SECRETS - NO SUBIR NUNCA
+# ==========================================
+SECRETS.md
+*.local.json
+appsettings.*.json
+!.gitkeep
+
+# ==========================================
+# .NET / Backend
+# ==========================================
+backend/bin/
+backend/obj/
+backend/*.user
+backend/*.suo
+backend/*.cache
+backend/logs/
+**/TestResults/
+
+# ==========================================
+# Angular / Frontend
+# ==========================================
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/.idea/
+frontend/*.swp
+frontend/npm-debug.log*
+frontend/yarn-error.log*
+frontend/package-lock.json
+
+# ==========================================
+# Landing
+# ==========================================
+landing/node_modules/
+landing/dist/
+landing/.idea/
+landing/*.swp
+landing/package-lock.json
+
+# ==========================================
+# IDEs y cachés
+# ==========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Chrome debug
+.chrome-debug/
+.chrome-debug2/
+.codex-run/
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Build outputs
+temp/
+tmp/
+dist/
+out/
+nul
+
+# .NET codex / Claude
+.claude/

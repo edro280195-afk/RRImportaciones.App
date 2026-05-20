@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="RR.Api/RR.Api.csproj" />
+  <Project Path="RR.Application/RR.Application.csproj" />
+  <Project Path="RR.Domain/RR.Domain.csproj" />
+  <Project Path="RR.Infrastructure/RR.Infrastructure.csproj" />
+  <Project Path="RR.Migrations/RR.Migrations.csproj" />
+  <Project Path="RR.DataImporter/RR.DataImporter.csproj" />
+  <Project Path="RR.Tests/RR.Tests.csproj" />
+</Solution>

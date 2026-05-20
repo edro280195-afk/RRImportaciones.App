@@ -1,0 +1,2013 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>R&R Importaciones — Mapa del Proyecto & Contexto Técnico</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ==========================================
+       DESIGN SYSTEM & VARIABLES
+       ========================================== */
+    :root {
+      /* Brand Colors */
+      --brand-red: #C61D26;
+      --brand-red-hover: #A5141C;
+      --brand-red-glow: rgba(198, 29, 38, 0.15);
+      
+      /* Neutrals Dark (Default) */
+      --bg-main: #0B0F17;
+      --bg-panel: #111622;
+      --bg-panel-hover: #161D2C;
+      --border-color: #20293C;
+      --border-focus: #3A4B6E;
+      
+      /* Typography Colors */
+      --text-title: #FFFFFF;
+      --text-body: #9EAFCE;
+      --text-muted: #6B7C9C;
+      --text-link: #4A90E2;
+      
+      /* Semantic Colors */
+      --color-success: #10B981;
+      --color-success-bg: rgba(16, 185, 129, 0.1);
+      --color-warning: #F59E0B;
+      --color-warning-bg: rgba(245, 158, 11, 0.1);
+      --color-danger: #EF4444;
+      --color-danger-bg: rgba(239, 68, 68, 0.1);
+      --color-info: #3B82F6;
+      --color-info-bg: rgba(59, 130, 246, 0.1);
+      
+      /* Layout & Spacing */
+      --sidebar-width: 260px;
+      --header-height: 70px;
+      --border-radius-sm: 6px;
+      --border-radius-md: 12px;
+      --border-radius-lg: 16px;
+      
+      /* Animations */
+      --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Light Theme Overrides */
+    body.light-theme {
+      --bg-main: #F4F6F9;
+      --bg-panel: #FFFFFF;
+      --bg-panel-hover: #F9FAFC;
+      --border-color: #E2E8F0;
+      --border-focus: #CBD5E1;
+      
+      --text-title: #0F172A;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --text-link: #3B82F6;
+      
+      --brand-red-glow: rgba(198, 29, 38, 0.1);
+      --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 8px 32px rgba(15, 23, 42, 0.12);
+    }
+
+    /* Reset & Base Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-color) transparent;
+    }
+
+    /* Scrollbar */
+    *::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    *::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+      background-color: var(--border-color);
+      border-radius: 3px;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+      background-color: var(--border-focus);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-body);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow: hidden;
+      transition: background-color var(--transition-normal), color var(--transition-normal);
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--text-title);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    /* Layout Wrapper */
+    .app-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ==========================================
+       SIDEBAR NAVIGATION
+       ========================================== */
+    .sidebar {
+      width: var(--sidebar-width);
+      background-color: var(--bg-panel);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: background-color var(--transition-normal), border-color var(--transition-normal);
+      z-index: 10;
+    }
+
+    .sidebar-header {
+      padding: 24px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo-rr {
+      font-family: 'Inter', sans-serif;
+      font-weight: 800;
+      font-size: 20px;
+      color: var(--brand-red);
+      letter-spacing: -0.05em;
+    }
+
+    .logo-amp {
+      font-family: 'Georgia', serif;
+      font-style: italic;
+      color: var(--text-title);
+      font-weight: normal;
+    }
+
+    .logo-text {
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      margin-top: 2px;
+    }
+
+    .sidebar-menu {
+      flex: 1;
+      padding: 20px 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      color: var(--text-body);
+      text-decoration: none;
+      border-radius: var(--border-radius-sm);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      border: 1px solid transparent;
+    }
+
+    .menu-item:hover {
+      background-color: var(--bg-panel-hover);
+      color: var(--text-title);
+    }
+
+    .menu-item.active {
+      background-color: var(--brand-red-glow);
+      color: var(--brand-red);
+      border-color: rgba(198, 29, 38, 0.25);
+      font-weight: 600;
+    }
+
+    .menu-item svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .theme-toggle {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition-fast);
+    }
+
+    .theme-toggle:hover {
+      background-color: var(--bg-panel-hover);
+      color: var(--text-title);
+    }
+
+    .theme-toggle svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    /* ==========================================
+       MAIN CONTENT PANEL
+       ========================================== */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .top-header {
+      height: var(--header-height);
+      background-color: var(--bg-panel);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .header-title-area h2 {
+      font-size: 18px;
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .meta-pill {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 30px;
+      background-color: var(--bg-panel-hover);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .meta-pill strong {
+      color: var(--text-title);
+    }
+
+    .meta-pill.version {
+      border-color: rgba(16, 185, 129, 0.3);
+      color: var(--color-success);
+      background-color: var(--color-success-bg);
+    }
+
+    /* View Viewports */
+    .view-pane {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px;
+      display: none;
+      height: calc(100% - var(--header-height));
+    }
+
+    .view-pane.active {
+      display: block;
+      animation: fadeIn 200ms ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ==========================================
+       DASHBOARD / GENERAL OVERVIEW
+       ========================================== */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-md);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background-color: var(--text-muted);
+    }
+
+    .stat-card.red::before { background-color: var(--brand-red); }
+    .stat-card.green::before { background-color: var(--color-success); }
+    .stat-card.blue::before { background-color: var(--color-info); }
+    .stat-card.amber::before { background-color: var(--color-warning); }
+
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text-title);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .card {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-md);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title svg {
+      width: 20px;
+      height: 20px;
+      fill: var(--brand-red);
+    }
+
+    .system-stack-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .stack-item {
+      padding: 12px 16px;
+      border-radius: var(--border-radius-sm);
+      background-color: var(--bg-main);
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stack-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .stack-value {
+      color: var(--text-title);
+      font-weight: 600;
+    }
+
+    .feature-badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background-color: var(--bg-main);
+      border: 1px solid var(--border-color);
+      color: var(--text-body);
+      margin: 2px;
+    }
+
+    /* ==========================================
+       FILE TREE EXPLORER
+       ========================================== */
+    .explorer-container {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
+      height: 100%;
+      align-items: stretch;
+    }
+
+    .tree-panel {
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-md);
+      background-color: var(--bg-panel);
+      padding: 16px;
+      overflow-y: auto;
+      max-height: 65vh;
+    }
+
+    .tree-search {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: var(--border-radius-sm);
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-main);
+      color: var(--text-title);
+      margin-bottom: 16px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color var(--transition-fast);
+    }
+
+    .tree-search:focus {
+      border-color: var(--brand-red);
+    }
+
+    .tree-node {
+      margin-left: 12px;
+    }
+
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      user-select: none;
+      transition: all var(--transition-fast);
+      font-size: 13px;
+      color: var(--text-body);
+    }
+
+    .tree-item:hover {
+      background-color: var(--bg-panel-hover);
+      color: var(--text-title);
+    }
+
+    .tree-item.selected {
+      background-color: var(--brand-red-glow);
+      color: var(--brand-red);
+      font-weight: 500;
+    }
+
+    .tree-item svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .tree-folder {
+      color: var(--text-title);
+      font-weight: 500;
+    }
+
+    .tree-folder svg {
+      fill: var(--color-warning);
+    }
+
+    .tree-file svg {
+      fill: var(--text-muted);
+    }
+
+    .tree-file.cs svg { fill: #48a548; }
+    .tree-file.html svg { fill: #e34c26; }
+    .tree-file.ts svg { fill: #2b7489; }
+    .tree-file.css svg { fill: #563d7c; }
+
+    .node-children {
+      display: block;
+      border-left: 1px dashed var(--border-color);
+      margin-left: 14px;
+    }
+
+    .node-children.collapsed {
+      display: none;
+    }
+
+    .detail-panel {
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-md);
+      background-color: var(--bg-panel);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 65vh;
+      overflow-y: auto;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .detail-title {
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .detail-path {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      background-color: var(--bg-main);
+      padding: 4px 8px;
+      border-radius: 4px;
+      word-break: break-all;
+    }
+
+    .detail-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .detail-section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .detail-text {
+      color: var(--text-body);
+      line-height: 1.6;
+    }
+
+    .tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag-badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background-color: var(--bg-main);
+      border: 1px solid var(--border-color);
+      color: var(--text-title);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ==========================================
+       DATABASE SCHEMA EXPLORER
+       ========================================== */
+    .db-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .table-list {
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-md);
+      background-color: var(--bg-panel);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
+    .table-list-item {
+      padding: 10px 12px;
+      border-radius: var(--border-radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-body);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+    }
+
+    .table-list-item:hover {
+      background-color: var(--bg-panel-hover);
+      color: var(--text-title);
+    }
+
+    .table-list-item.selected {
+      background-color: var(--brand-red-glow);
+      color: var(--brand-red);
+      font-weight: 600;
+      border-left: 3px solid var(--brand-red);
+    }
+
+    .table-type-pill {
+      font-size: 9px;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .table-type-global {
+      background-color: var(--color-info-bg);
+      color: var(--color-info);
+    }
+
+    .table-type-tenant {
+      background-color: var(--color-warning-bg);
+      color: var(--color-warning);
+    }
+
+    .table-detail-card {
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-md);
+      background-color: var(--bg-panel);
+      padding: 24px;
+      min-height: 400px;
+    }
+
+    .table-title-area {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+
+    .table-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 20px;
+      color: var(--text-title);
+    }
+
+    .table-meta-desc {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .db-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    .db-table th {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 2px solid var(--border-color);
+      color: var(--text-title);
+      font-weight: 600;
+    }
+
+    .db-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-body);
+      vertical-align: top;
+    }
+
+    .db-table tr:hover td {
+      background-color: var(--bg-panel-hover);
+    }
+
+    .col-pk {
+      color: var(--color-warning);
+      font-weight: 600;
+    }
+
+    .col-fk {
+      color: var(--color-info);
+      font-weight: 500;
+    }
+
+    .col-type {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    /* ==========================================
+       API ENDPOINTS REFERENCE
+       ========================================== */
+    .api-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .api-search {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: var(--border-radius-md);
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-panel);
+      color: var(--text-title);
+      outline: none;
+      font-size: 14px;
+      transition: border-color var(--transition-fast);
+    }
+
+    .api-search:focus {
+      border-color: var(--brand-red);
+    }
+
+    .api-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .api-row {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-sm);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      transition: all var(--transition-fast);
+    }
+
+    .api-row:hover {
+      border-color: var(--border-focus);
+      background-color: var(--bg-panel-hover);
+    }
+
+    .api-verb {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      min-width: 70px;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .api-verb.get { background-color: var(--color-success-bg); color: var(--color-success); }
+    .api-verb.post { background-color: var(--color-info-bg); color: var(--color-info); }
+    .api-verb.put { background-color: var(--color-warning-bg); color: var(--color-warning); }
+    .api-verb.delete { background-color: var(--color-danger-bg); color: var(--color-danger); }
+
+    .api-path {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      color: var(--text-title);
+      font-size: 13.5px;
+      flex: 2;
+    }
+
+    .api-desc {
+      color: var(--text-body);
+      flex: 3;
+      font-size: 13px;
+    }
+
+    .api-auth {
+      flex: 1;
+      text-align: right;
+    }
+
+    .auth-badge {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      display: inline-block;
+    }
+
+    .auth-badge.anon {
+      background-color: var(--color-success-bg);
+      color: var(--color-success);
+      border-color: rgba(16, 185, 129, 0.2);
+    }
+
+    .auth-badge.auth {
+      background-color: var(--color-info-bg);
+      color: var(--color-info);
+      border-color: rgba(59, 130, 246, 0.2);
+    }
+
+    .auth-badge.admin {
+      background-color: var(--color-danger-bg);
+      color: var(--color-danger);
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+
+    /* ==========================================
+       BUSINESS LOGIC & STATE TRANSLATOR
+       ========================================== */
+    .rules-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .formula-card {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-md);
+      padding: 20px;
+    }
+
+    .formula-title {
+      font-size: 15px;
+      font-weight: 700;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .formula-math {
+      background-color: var(--bg-main);
+      padding: 16px;
+      border-radius: var(--border-radius-sm);
+      border: 1px solid var(--border-color);
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-title);
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 14px;
+      overflow-x: auto;
+    }
+
+    /* State Machine Simulator */
+    .state-simulator {
+      grid-column: span 2;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-md);
+      padding: 24px;
+    }
+
+    .simulator-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .state-node-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .state-node-btn {
+      padding: 8px 14px;
+      border-radius: 6px;
+      background-color: var(--bg-main);
+      border: 1px solid var(--border-color);
+      color: var(--text-body);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: 'JetBrains Mono', monospace;
+      transition: all var(--transition-fast);
+    }
+
+    .state-node-btn:hover {
+      border-color: var(--border-focus);
+      color: var(--text-title);
+    }
+
+    .state-node-btn.selected {
+      background-color: var(--brand-red);
+      color: #FFF;
+      border-color: var(--brand-red);
+      box-shadow: 0 0 12px rgba(198, 29, 38, 0.4);
+    }
+
+    .state-node-btn.allowed {
+      border-color: var(--color-success);
+      color: var(--color-success);
+      background-color: var(--color-success-bg);
+    }
+
+    .simulator-results {
+      background-color: var(--bg-main);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-sm);
+      padding: 16px;
+      min-height: 120px;
+    }
+
+    .simulator-results-header {
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    /* ==========================================
+       TECHNICAL DEBT & ROADMAP
+       ========================================== */
+    .debt-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .debt-item {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-md);
+      padding: 20px;
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    .debt-severity-indicator {
+      width: 4px;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      border-top-left-radius: var(--border-radius-md);
+      border-bottom-left-radius: var(--border-radius-md);
+    }
+
+    .debt-severity-indicator.critical { background-color: var(--color-danger); }
+    .debt-severity-indicator.high { background-color: var(--color-warning); }
+    .debt-severity-indicator.medium { background-color: var(--color-info); }
+
+    .debt-icon {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .debt-item.critical .debt-icon { fill: var(--color-danger); }
+    .debt-item.high .debt-icon { fill: var(--color-warning); }
+    .debt-item.medium .debt-icon { fill: var(--color-info); }
+
+    .debt-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .debt-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .debt-desc {
+      color: var(--text-body);
+      line-height: 1.5;
+    }
+
+    .debt-impact {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .badge-severity {
+      font-size: 9px;
+      text-transform: uppercase;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+    }
+
+    .badge-severity.critical { background-color: var(--color-danger-bg); color: var(--color-danger); }
+    .badge-severity.high { background-color: var(--color-warning-bg); color: var(--color-warning); }
+    .badge-severity.medium { background-color: var(--color-info-bg); color: var(--color-info); }
+
+    /* Interactive Search boxes */
+    .search-wrapper {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .search-wrapper input {
+      width: 100%;
+      padding: 12px 16px 12px 40px;
+      border-radius: var(--border-radius-md);
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-panel);
+      color: var(--text-title);
+      font-size: 14px;
+      outline: none;
+      transition: all var(--transition-fast);
+    }
+
+    .search-wrapper input:focus {
+      border-color: var(--brand-red);
+      box-shadow: 0 0 0 2px var(--brand-red-glow);
+    }
+
+    .search-wrapper svg {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      width: 16px;
+      height: 16px;
+      fill: var(--text-muted);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- SIDEBAR NAV -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-container">
+          <div>
+            <div class="logo-rr">R<span class="logo-amp">&amp;</span>R</div>
+            <div class="logo-text">Importaciones</div>
+          </div>
+        </div>
+      </div>
+      
+      <nav class="sidebar-menu">
+        <div class="menu-item active" data-target="view-dashboard">
+          <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          General
+        </div>
+        <div class="menu-item" data-target="view-explorer">
+          <svg viewBox="0 0 24 24"><path d="M19 5.5v13h-14v-13h14m0-2h-14c-1.1 0-2 .9-2 2v13c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-13c0-1.1-.9-2-2-2zM12 10.5h3v1h-3v-1m0 3h3v1h-3v-1m-4-3h2v1H8v-1m0 3h2v1H8v-1z"/></svg>
+          Explorador de Archivos
+        </div>
+        <div class="menu-item" data-target="view-db">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 4.02 2 6.5v11c0 2.48 4.48 4.5 10 4.5s10-2.02 10-4.5v-11C22 4.02 17.52 2 12 2zm12 3c4.14 0 7 1.21 7 1.5S16.14 8 12 8s-7-.93-7-1.5S7.86 5 12 5zm0 13c-4.14 0-7-.93-7-1.5V13c1.35.85 3.89 1.5 7 1.5s5.65-.65 7-1.5v3.5c0 .57-2.86 1.5-7 1.5zm0-5c-4.14 0-7-.93-7-1.5V8c1.35.85 3.89 1.5 7 1.5s5.65-.65 7-1.5v3.5c0 .57-2.86 1.5-7 1.5z"/></svg>
+          Base de Datos
+        </div>
+        <div class="menu-item" data-target="view-api">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          Endpoints API
+        </div>
+        <div class="menu-item" data-target="view-rules">
+          <svg viewBox="0 0 24 24"><path d="M19.36 10.04L20.5 9l-3-3-1.04 1.14c-.1-.13-.21-.24-.34-.34L15 4.5l-3 3 1.14 1.04c.1-.13.21-.24.34-.34L14.64 9l3 3 1.04-1.14c.1.13.21.24.34.34L20.5 12l3-3-1.14-1.04c-.1.13-.21.24-.34.34zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7c1.93 0 3.68.78 4.95 2.05l1.41-1.41C16.76 3.96 14.51 3 12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c2.51 0 4.76-.96 6.36-2.55l-1.41-1.41C15.68 18.22 13.93 19 12 19z"/></svg>
+          Reglas de Negocio
+        </div>
+        <div class="menu-item" data-target="view-debt">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          Deuda &amp; Roadmap
+        </div>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <span style="font-size: 11px; color: var(--text-muted);">Antigravity © 2026</span>
+        <button class="theme-toggle" id="theme-toggle-btn" title="Alternar tema">
+          <svg viewBox="0 0 24 24" id="theme-icon"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN PANEL -->
+    <main class="main-content">
+      <header class="top-header">
+        <div class="header-title-area">
+          <h2 id="view-title">Dashboard General</h2>
+        </div>
+        <div class="header-meta">
+          <span class="meta-pill">Stack: <strong>Angular 19 + .NET 10 + PG16</strong></span>
+          <span class="meta-pill version">Estado: <strong>SaaS MVP Listo</strong></span>
+        </div>
+      </header>
+
+      <!-- ==========================================
+           1. VIEW: DASHBOARD
+           ========================================== -->
+      <div class="view-pane active" id="view-dashboard">
+        <div class="stat-grid">
+          <div class="stat-card green">
+            <span class="stat-label">Módulos Finalizados</span>
+            <span class="stat-value">12 / 12</span>
+            <span class="stat-desc">Roadmap completo + extras</span>
+          </div>
+          <div class="stat-card red">
+            <span class="stat-label">Servicios Backend</span>
+            <span class="stat-value">28</span>
+            <span class="stat-desc">Clean Architecture inyectados</span>
+          </div>
+          <div class="stat-card blue">
+            <span class="stat-label">Entidades Dominio</span>
+            <span class="stat-value">37</span>
+            <span class="stat-desc">Mapeo EF Core</span>
+          </div>
+          <div class="stat-card amber">
+            <span class="stat-label">Páginas Frontend</span>
+            <span class="stat-value">17</span>
+            <span class="stat-desc">Componentes Standalone</span>
+          </div>
+        </div>
+
+        <div class="dashboard-layout">
+          <div class="left-col">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">
+                  <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
+                  ¿Qué es R&amp;R Importaciones?
+                </h3>
+              </div>
+              <p style="margin-bottom: 12px; line-height: 1.6;">
+                Un sistema de gestión operativa y financiera multi-tenant diseñado específicamente para agencias de importación vehicular en la frontera México-EEUU (Cliente principal: <strong>Nuevo Laredo</strong>).
+              </p>
+              <p style="line-height: 1.6;">
+                El sistema sustituye las hojas de cálculo heredadas por flujos automatizados de: decodificación de vehículos vía API de la NHTSA, cotización con lookup del tabulador fiscal oficial del Anexo 2, control de pedimentos y sus rectificaciones (R1-R3), control de cobros parciales por transferencias/efectivo, y un portal web público de seguimiento para los clientes finales.
+              </p>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">
+                  <svg viewBox="0 0 24 24"><path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5.89 12.55L12 15.89l6.11-3.34c.66-.36 1.07-1.05 1.07-1.81V9.75L12 13.75 4.82 9.75v1c0 .75.41 1.44 1.07 1.8z"/></svg>
+                  Arquitectura &amp; Stack Tecnológico
+                </h3>
+              </div>
+              <div class="system-stack-list">
+                <div class="stack-item">
+                  <span class="stack-title">Frontend Framework</span>
+                  <span class="stack-value">Angular 19.2 (Standalone, Signals)</span>
+                </div>
+                <div class="stack-item">
+                  <span class="stack-title">Backend API</span>
+                  <span class="stack-value">.NET 10 (Clean Architecture, REST)</span>
+                </div>
+                <div class="stack-item">
+                  <span class="stack-title">Base de datos</span>
+                  <span class="stack-value">PostgreSQL 16 (Dapper + EF Core)</span>
+                </div>
+                <div class="stack-item">
+                  <span class="stack-title">UI &amp; Estilos</span>
+                  <span class="stack-value">PrimeNG 19 &amp; Tailwind CSS v4</span>
+                </div>
+                <div class="stack-item">
+                  <span class="stack-title">Integraciones core</span>
+                  <span class="stack-value">API NHTSA (VIN) &amp; API Banxico (FIX)</span>
+                </div>
+                <div class="stack-item">
+                  <span class="stack-title">Servicio de IA</span>
+                  <span class="stack-value">Google Gemini API (Agente Rodri)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="right-col">
+            <div class="card" style="margin-bottom: 20px;">
+              <div class="card-header">
+                <h3 class="card-title">Conceptos Clave del Dominio</h3>
+              </div>
+              <ul style="list-style: none; display: flex; flex-direction: column; gap: 12px;">
+                <li>
+                  <strong style="color: var(--text-title); display: block; margin-bottom: 2px;">Apodos de Clientes</strong>
+                  <span>Se priorizan los nombres de uso informal ("KIKO", "DOMINGO") sobre razones sociales formalizadas.</span>
+                </li>
+                <li>
+                  <strong style="color: var(--text-title); display: block; margin-bottom: 2px;">VIN Completo &amp; Corto</strong>
+                  <span>Almacenamiento de 17 caracteres. Búsqueda y visualización por los últimos 6 a 8 (VIN Corto).</span>
+                </li>
+                <li>
+                  <strong style="color: var(--text-title); display: block; margin-bottom: 2px;">Gasto Hormiga Cargable</strong>
+                  <span>Gastos en patio de flete, pensión o copias se pueden transferir al saldo del cliente final.</span>
+                </li>
+                <li>
+                  <strong style="color: var(--text-title); display: block; margin-bottom: 2px;">Comprobantes Obligatorios</strong>
+                  <span>No se puede registrar un pago sin comprobante PDF/Imagen inyectado. Sin excepciones.</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Funcionalidades Extra</h3>
+              </div>
+              <div class="tags-container">
+                <span class="feature-badge">Portal del Cliente</span>
+                <span class="feature-badge">Yardero Tareas Campo</span>
+                <span class="feature-badge">SignalR Realtime Notifier</span>
+                <span class="feature-badge">Copiloto IA Rodri</span>
+                <span class="feature-badge">Bancos e Impuestos custom</span>
+                <span class="feature-badge">QuestPDF Cotización PDF</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           2. VIEW: INTERACTIVE FILE TREE
+           ========================================== -->
+      <div class="view-pane" id="view-explorer">
+        <div class="explorer-container">
+          <div class="tree-panel">
+            <input type="text" class="tree-search" id="file-search-input" placeholder="Buscar archivos (ej. Service)...">
+            <div id="file-tree-root"></div>
+          </div>
+          
+          <div class="detail-panel">
+            <div class="detail-header">
+              <h3 class="detail-title" id="node-detail-title">Selecciona un archivo</h3>
+              <span id="node-detail-type" class="meta-pill">Ninguno</span>
+            </div>
+            <div id="node-detail-path" class="detail-path">Haz clic en cualquier archivo en el árbol para ver su documentación</div>
+            
+            <div class="detail-section">
+              <span class="detail-section-title">Propósito &amp; Funcionalidad</span>
+              <div class="detail-text" id="node-detail-purpose">N/A</div>
+            </div>
+            
+            <div class="detail-section">
+              <span class="detail-section-title">Clases / Interfaces</span>
+              <div id="node-detail-classes" class="tags-container">
+                <span class="tag-badge">Ninguna</span>
+              </div>
+            </div>
+            
+            <div class="detail-section">
+              <span class="detail-section-title">Reglas de Negocio Asociadas</span>
+              <div class="detail-text" id="node-detail-rules">N/A</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           3. VIEW: DATABASE SCHEMA
+           ========================================== -->
+      <div class="view-pane" id="view-db">
+        <div class="search-wrapper">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          <input type="text" id="db-search-input" placeholder="Buscar tablas, columnas o llaves (ej. tenant_id, cotizacion)...">
+        </div>
+        <div class="db-layout">
+          <div class="table-list" id="db-table-list"></div>
+          
+          <div class="table-detail-card">
+            <div class="table-title-area">
+              <h3 class="table-name" id="selected-table-name">tabla_ejemplo</h3>
+              <span id="selected-table-type" class="table-type-pill table-type-global">Global</span>
+            </div>
+            <div class="table-meta-desc" id="selected-table-desc">
+              Selecciona una tabla de la lista de la izquierda para ver su estructura detallada de columnas, tipos de datos y relaciones de llaves foráneas.
+            </div>
+            
+            <table class="db-table">
+              <thead>
+                <tr>
+                  <th>Columna</th>
+                  <th>Tipo</th>
+                  <th>Llave</th>
+                  <th>Restricciones / Relaciones</th>
+                  <th>Descripción</th>
+                </tr>
+              </thead>
+              <tbody id="selected-table-tbody">
+                <tr>
+                  <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">No hay columnas seleccionadas.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           4. VIEW: API ENDPOINTS
+           ========================================== -->
+      <div class="view-pane" id="view-api">
+        <div class="api-header">
+          <div class="search-wrapper" style="flex: 1; margin-bottom: 0;">
+            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input type="text" id="api-search-input" placeholder="Buscar endpoints por path, descripción o rol de acceso (ej. /auth, admin)...">
+          </div>
+        </div>
+
+        <div class="api-grid" id="api-endpoints-container"></div>
+      </div>
+
+      <!-- ==========================================
+           5. VIEW: BUSINESS RULES
+           ========================================== -->
+      <div class="view-pane" id="view-rules">
+        <div class="rules-grid">
+          <div class="formula-card">
+            <div class="formula-title">
+              <span>Cálculo Fiscal: POST_2017 (Año modelo &gt;= 2017)</span>
+              <span class="meta-pill">Nacional</span>
+            </div>
+            <div class="formula-math">
+impuestos_total = IGI + DTA + IVA + PREV
+- IGI = valor_pesos * 10%
+- DTA = Max(valor_pesos * 0.8%, $202)
+- PREV = $161 (Prevalidación fija)
+- IVA = (valor_pesos + IGI + DTA) * 16%
+- PRV = $0
+            </div>
+            <p style="font-size: 13px; line-height: 1.5;">
+              <strong>Base Gravable de IVA:</strong> Suma únicamente el valor del vehículo en pesos, el IGI y el DTA. Las prevalidaciones (PREV, PRV) no forman parte de la base según reglas vigentes del SAT.
+            </p>
+          </div>
+
+          <div class="formula-card">
+            <div class="formula-title">
+              <span>Cálculo Fiscal: PRE_2016 (Año modelo &lt;= 2016)</span>
+              <span class="meta-pill">Histórico/Frontera</span>
+            </div>
+            <div class="formula-math">
+impuestos_total = IGI + DTA + PREV + IVA + PRV
+- IGI = valor_pesos * 50%
+- DTA = $408 (Derecho de Trámite Aduanero fijo)
+- PREV = $240 (Prevalidación fija)
+- PRV = $290 (Contraprestación fija)
+- IVA = (valor_pesos + IGI + DTA + PREV) * 16%
+            </div>
+            <p style="font-size: 13px; line-height: 1.5;">
+              <strong>IGI al 50%:</strong> Tasa impositiva elevada aplicable a vehículos anteriores a las reglas de libre comercio del 2017. El DTA, PREV y PRV son de cuotas fijas establecidas.
+            </p>
+          </div>
+
+          <!-- STATE MACHINE SIMULATOR -->
+          <div class="state-simulator">
+            <h3 class="simulator-title">Simulador de Transiciones del Trámite (Máquina de Estados)</h3>
+            <p style="font-size: 13px; margin-bottom: 16px; line-height: 1.6;">
+              Haz clic en cualquier estado para ver las transiciones válidas hacia adelante y hacia atrás, así como las restricciones lógicas que aplican para permitir dicho cambio.
+            </p>
+            
+            <div class="state-node-grid" id="simulator-nodes"></div>
+            
+            <div class="simulator-results">
+              <div class="simulator-results-header" id="sim-selected-state-title">Ningún estado seleccionado</div>
+              <div id="sim-state-rules-text">N/A</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           6. VIEW: TECHNICAL DEBT & ROADMAP
+           ========================================== -->
+      <div class="view-pane" id="view-debt">
+        <h3 style="margin-bottom: 16px; font-size: 18px;">Deuda Técnica Detectada</h3>
+        <p style="margin-bottom: 24px; line-height: 1.6; max-width: 800px;">
+          Análisis de las dependencias, configuraciones e implementaciones que representan cuellos de botella o vulnerabilidades que bloquean el despliegue del MVP a un entorno de producción formal.
+        </p>
+
+        <div class="debt-list" id="debt-items-container"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==========================================
+       JAVASCRIPT: ARCHITECTURE DATABASE & RUNTIME
+       ========================================== -->
+  <script>
+    // Theme logic
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    const themeIcon = document.getElementById('theme-icon');
+    
+    themeToggleBtn.addEventListener('click', () => {
+      document.body.classList.toggle('light-theme');
+      if (document.body.classList.contains('light-theme')) {
+        themeIcon.innerHTML = `<path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-12.37c-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06c-.39-.39-1.03-.39-1.41 0zm-12.37 12.37c-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06c-.39-.39-1.03-.39-1.41 0z"/>`;
+      } else {
+        themeIcon.innerHTML = `<path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>`;
+      }
+    });
+
+    // Navigation logic
+    const menuItems = document.querySelectorAll('.menu-item');
+    const viewPanes = document.querySelectorAll('.view-pane');
+    const viewTitle = document.getElementById('view-title');
+
+    menuItems.forEach(item => {
+      item.addEventListener('click', () => {
+        menuItems.forEach(m => m.classList.remove('active'));
+        viewPanes.forEach(v => v.classList.remove('active'));
+        
+        item.classList.add('active');
+        const targetId = item.getAttribute('data-target');
+        const targetPane = document.getElementById(targetId);
+        targetPane.classList.add('active');
+        
+        // Update Title
+        viewTitle.textContent = item.innerText.trim();
+      });
+    });
+
+    // ==========================================
+    // DATA MODEL: FILE SYSTEM DESCRIPTION
+    // ==========================================
+    const projectFiles = {
+      name: "RRImportaciones",
+      type: "folder",
+      children: [
+        {
+          name: "backend",
+          type: "folder",
+          children: [
+            {
+              name: "RR.Domain",
+              type: "folder",
+              children: [
+                {
+                  name: "Calculators",
+                  type: "folder",
+                  children: [
+                    { name: "FiscalCalculator.cs", type: "file", extension: "cs", purpose: "Contiene la lógica pura matemática para los cálculos de impuestos vehiculares bajo esquemas POST_2017, PRE_2016 y AMPARO. Libre de acoplamiento de persistencia, altamente testeable.", classes: ["FiscalCalculator"], rules: "Mapea reglas de base de IVA, topes de DTA y prevalidaciones fijas." }
+                  ]
+                },
+                {
+                  name: "Entities",
+                  type: "folder",
+                  children: [
+                    { name: "Cliente.cs", type: "file", extension: "cs", purpose: "Entidad de cliente multi-tenant. Identificado por un 'apodo' único y campos fiscales.", classes: ["Cliente"], rules: "Apodo inmutable si ya tiene trámites asignados." },
+                    { name: "Vehiculo.cs", type: "file", extension: "cs", purpose: "Representa el automóvil o maquinaria a importar. Enlaza VIN, Marca, Modelo y estado pre-trámite.", classes: ["Vehiculo"], rules: "VIN de 17 caracteres único por tenant. Auto-genera el VIN corto de 6 a 8 dígitos." },
+                    { name: "Tramite.cs", type: "file", extension: "cs", purpose: "Clase núcleo de la operación. Asocia un Vehículo con un Cliente, Aduana y Tramitador. Maneja estados y costes.", classes: ["Tramite"], rules: "Consecutivo autoincremental único por Tenant. Impide edición del cobro si ya posee pagos verificados." },
+                    { name: "Pago.cs", type: "file", extension: "cs", purpose: "Registro de flujo de caja del cliente. Exige una URL física de comprobante y requiere verificación por rango (Gerente+).", classes: ["Pago"], rules: "Verificación de pagos cambia estado del trámite a COBRADO al liquidar saldo." }
+                  ]
+                }
+              ]
+            },
+            {
+              name: "RR.Application",
+              type: "folder",
+              children: [
+                {
+                  name: "Services",
+                  type: "folder",
+                  children: [
+                    { name: "CotizadorService.cs", type: "file", extension: "cs", purpose: "Implementa lookup en catálogos del Anexo 2, consume decodificador NHTSA, Banxico, y gestiona la conversión de cotizaciones en trámites.", classes: ["CotizadorService", "ICotizadorService"], rules: "lookup jerárquico Específico -> Marca -> Genérico para calcular base arancelaria." },
+                    { name: "TramiteStateService.cs", type: "file", extension: "cs", purpose: "Controla la máquina de estados. Define transiciones permitidas hacia adelante y restringe retrocesos a rol ADMIN.", classes: ["TramiteStateService", "ITramiteStateService"], rules: "Máquina de estados estricta (16 estados)." }
+                  ]
+                }
+              ]
+            },
+            {
+              name: "RR.Infrastructure",
+              type: "folder",
+              children: [
+                {
+                  name: "Data",
+                  type: "folder",
+                  children: [
+                    { name: "AppDbContext.cs", type: "file", extension: "cs", purpose: "Contexto de base de datos de EF Core. Configura el QueryFilter global para exclusión automática por tenant_id e implementa Interceptors para auditoría de cambios.", classes: ["AppDbContext"], rules: "Inyección automática de tenant_id en queries y escrituras." }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          name: "frontend",
+          type: "folder",
+          children: [
+            {
+              name: "src",
+              type: "folder",
+              children: [
+                {
+                  name: "app",
+                  type: "folder",
+                  children: [
+                    { name: "app.routes.ts", type: "file", extension: "ts", purpose: "Mapeo de rutas Angular 19. Define accesos por guards de autenticación (JWT) y autorizaciones por permisos de rol (CLIENTES_VER, etc.).", classes: ["routes"], rules: "Protección de rutas administrativas con adminGuard." },
+                    {
+                      name: "pages",
+                      type: "folder",
+                      children: [
+                        { name: "portal-tramite.component.ts", type: "file", extension: "ts", purpose: "Página pública accesible sin autenticación para que el cliente rastree el estatus de su importación paso a paso.", classes: ["PortalTramiteComponent"], rules: "Visualización simplificada con estados explicativos en español." },
+                        { name: "campo-tareas.component.ts", type: "file", extension: "ts", purpose: "Panel para el personal en patio (yarderos) para asignación de tomas fotográficas del estado del vehículo.", classes: ["CampoTareasComponent"], rules: "Lógica de subida asíncrona de imágenes al storage." }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    // Render File Tree Function
+    function renderTree(node, container, query = "") {
+      const isFolder = node.type === "folder";
+      const matchQuery = !query || node.name.toLowerCase().includes(query.toLowerCase()) || 
+                         (node.children && node.children.some(c => c.name.toLowerCase().includes(query.toLowerCase())));
+      
+      if (query && !matchQuery) return;
+
+      const nodeEl = document.createElement("div");
+      nodeEl.className = "tree-node";
+      
+      const itemEl = document.createElement("div");
+      itemEl.className = `tree-item ${isFolder ? 'tree-folder' : 'tree-file ' + (node.extension || '')}`;
+      
+      let icon = "";
+      if (isFolder) {
+        icon = `<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`;
+      } else {
+        icon = `<svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`;
+      }
+      
+      itemEl.innerHTML = `${icon} <span>${node.name}</span>`;
+      nodeEl.appendChild(itemEl);
+      
+      if (isFolder && node.children) {
+        const childrenContainer = document.createElement("div");
+        childrenContainer.className = "node-children";
+        node.children.forEach(child => renderTree(child, childrenContainer, query));
+        nodeEl.appendChild(childrenContainer);
+        
+        itemEl.addEventListener("click", () => {
+          childrenContainer.classList.toggle("collapsed");
+        });
+      } else {
+        itemEl.addEventListener("click", () => {
+          document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+          itemEl.classList.add('selected');
+          showNodeDetails(node);
+        });
+      }
+      
+      container.appendChild(nodeEl);
+    }
+
+    function showNodeDetails(node) {
+      document.getElementById("node-detail-title").textContent = node.name;
+      document.getElementById("node-detail-type").textContent = node.extension ? node.extension.toUpperCase() : "Directorio";
+      document.getElementById("node-detail-path").textContent = `RRImportaciones/.../${node.name}`;
+      document.getElementById("node-detail-purpose").textContent = node.purpose || "No documentado.";
+      document.getElementById("node-detail-rules").textContent = node.rules || "No hay reglas de negocio especiales asociadas.";
+      
+      const classesContainer = document.getElementById("node-detail-classes");
+      classesContainer.innerHTML = "";
+      if (node.classes && node.classes.length > 0) {
+        node.classes.forEach(c => {
+          const span = document.createElement("span");
+          span.className = "tag-badge";
+          span.textContent = c;
+          classesContainer.appendChild(span);
+        });
+      } else {
+        classesContainer.innerHTML = `<span class="tag-badge">Ninguna</span>`;
+      }
+    }
+
+    // Initialize File Tree
+    const treeRoot = document.getElementById("file-tree-root");
+    renderTree(projectFiles, treeRoot);
+
+    // Search File Tree
+    document.getElementById("file-search-input").addEventListener("input", (e) => {
+      treeRoot.innerHTML = "";
+      renderTree(projectFiles, treeRoot, e.target.value);
+    });
+
+    // ==========================================
+    // DATA MODEL: DATABASE TABLES
+    // ==========================================
+    const dbTables = [
+      {
+        name: "tenants",
+        type: "global",
+        desc: "Define los suscriptores/organizaciones dentro del ecosistema SaaS. Aunque el arranque es single-tenant, la base es multi-tenant.",
+        columns: [
+          { name: "id", type: "UUID", key: "PK", notes: "Default gen_random_uuid()" },
+          { name: "nombre", type: "VARCHAR(120)", key: "", notes: "Not Null" },
+          { name: "razon_social", type: "VARCHAR(180)", key: "", notes: "" },
+          { name: "rfc", type: "VARCHAR(13)", key: "", notes: "" },
+          { name: "activo", type: "BOOLEAN", key: "", notes: "Default True" },
+          { name: "creado_en", type: "TIMESTAMPTZ", key: "", notes: "Default Now()" },
+          { name: "configuracion", type: "JSONB", key: "", notes: "Opciones de marca y colores" }
+        ]
+      },
+      {
+        name: "clientes",
+        type: "tenant",
+        desc: "Contiene la información de los importadores. La clave identificadora del negocio es el apodo informal.",
+        columns: [
+          { name: "id", type: "UUID", key: "PK", notes: "Default gen_random_uuid()" },
+          { name: "tenant_id", type: "UUID", key: "FK", notes: "Ref tenants(id). QueryFilter Global." },
+          { name: "apodo", type: "VARCHAR(80)", key: "", notes: "Único por Tenant, Not Null" },
+          { name: "nombre_completo", type: "VARCHAR(180)", key: "", notes: "" },
+          { name: "rfc", type: "VARCHAR(13)", key: "", notes: "" },
+          { name: "telefono", type: "VARCHAR(20)", key: "", notes: "" },
+          { name: "deleted_at", type: "TIMESTAMPTZ", key: "", notes: "Soft Delete" }
+        ]
+      },
+      {
+        name: "vehiculos",
+        type: "tenant",
+        desc: "Flota vehicular. Enlaza el coche a importar con su cliente. Controla checkpoints de estado físico antes de iniciar el trámite formal.",
+        columns: [
+          { name: "id", type: "UUID", key: "PK", notes: "" },
+          { name: "cliente_id", type: "UUID", key: "FK", notes: "Ref clientes(id)" },
+          { name: "vin", type: "VARCHAR(17)", key: "", notes: "Único por Tenant. Validación obligatoria de 17 caracteres." },
+          { name: "vin_corto", type: "VARCHAR(8)", key: "", notes: "Últimos 6-8 caracteres indexados para búsqueda rápida." },
+          { name: "cumplio_requisitos", type: "BOOLEAN", key: "", notes: "Checkpoint Yarda 1" },
+          { name: "tiene_sello_aduanal", type: "BOOLEAN", key: "", notes: "Checkpoint Yarda 2" },
+          { name: "fecha_pedimento_proforma", type: "DATE", key: "", notes: "Checkpoint Yarda 3" }
+        ]
+      },
+      {
+        name: "tramites",
+        type: "tenant",
+        desc: "Proceso de importación formal. Módulo central de la operación del broker.",
+        columns: [
+          { name: "id", type: "UUID", key: "PK", notes: "" },
+          { name: "tenant_id", type: "UUID", key: "FK", notes: "Filtro Tenant" },
+          { name: "numero_consecutivo", type: "INTEGER", key: "", notes: "Autogenerado (consecutivo secuencial del tenant)" },
+          { name: "vehiculo_id", type: "UUID", key: "FK", notes: "Ref vehiculos(id)" },
+          { name: "estado", type: "VARCHAR(30)", key: "", notes: "Máquina de 16 estados (PENDIENTE, EN_PROCESO, VERDE, etc.)" },
+          { name: "cobro_total", type: "NUMERIC(14,2)", key: "", notes: "Inmutable si ya posee algún pago." }
+        ]
+      },
+      {
+        name: "pagos",
+        type: "tenant",
+        desc: "Ingresos del cliente. Requiere auditoría y comprobante.",
+        columns: [
+          { name: "id", type: "UUID", key: "PK", notes: "" },
+          { name: "tramite_id", type: "UUID", key: "FK", notes: "Ref tramites(id)" },
+          { name: "monto", type: "NUMERIC(14,2)", key: "", notes: "" },
+          { name: "moneda", type: "CHAR(3)", key: "", notes: "MXN o USD" },
+          { name: "comprobante_url", type: "VARCHAR(500)", key: "", notes: "Física (Obligatoria, not null/empty)" },
+          { name: "verificado", type: "BOOLEAN", key: "", notes: "Verificación obligatoria de Gerente+ para cobro final." }
+        ]
+      }
+    ];
+
+    // Render DB Tables List
+    const dbListContainer = document.getElementById("db-table-list");
+    
+    function renderDbTables(tables, query = "") {
+      dbListContainer.innerHTML = "";
+      const filtered = tables.filter(t => {
+        const matchName = t.name.toLowerCase().includes(query.toLowerCase());
+        const matchCols = t.columns.some(c => c.name.toLowerCase().includes(query.toLowerCase()));
+        return matchName || matchCols;
+      });
+
+      filtered.forEach((table, index) => {
+        const item = document.createElement("div");
+        item.className = "table-list-item";
+        if (index === 0 && !query) item.classList.add("selected");
+        
+        item.innerHTML = `
+          <span>${table.name}</span>
+          <span class="table-type-pill table-type-${table.type}">${table.type}</span>
+        `;
+        
+        item.addEventListener("click", () => {
+          document.querySelectorAll('.table-list-item').forEach(el => el.classList.remove('selected'));
+          item.classList.add('selected');
+          showTableDetails(table);
+        });
+        
+        dbListContainer.appendChild(item);
+      });
+
+      if (filtered.length > 0 && !query) {
+        showTableDetails(filtered[0]);
+      }
+    }
+
+    function showTableDetails(table) {
+      document.getElementById("selected-table-name").textContent = table.name;
+      const typeSpan = document.getElementById("selected-table-type");
+      typeSpan.textContent = table.type;
+      typeSpan.className = `table-type-pill table-type-${table.type}`;
+      document.getElementById("selected-table-desc").textContent = table.desc;
+      
+      const tbody = document.getElementById("selected-table-tbody");
+      tbody.innerHTML = "";
+      
+      table.columns.forEach(col => {
+        const tr = document.createElement("tr");
+        let keyClass = "";
+        if (col.key === "PK") keyClass = "col-pk";
+        if (col.key === "FK") keyClass = "col-fk";
+        
+        tr.innerHTML = `
+          <td class="${keyClass}">${col.name}</td>
+          <td class="col-type">${col.type}</td>
+          <td><span style="font-weight:600; font-size:11px;">${col.key}</span></td>
+          <td>${col.notes}</td>
+          <td>-</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    renderDbTables(dbTables);
+
+    document.getElementById("db-search-input").addEventListener("input", (e) => {
+      renderDbTables(dbTables, e.target.value);
+    });
+
+    // ==========================================
+    // DATA MODEL: API ENDPOINTS
+    // ==========================================
+    const apiEndpoints = [
+      { verb: "post", path: "/api/auth/login", desc: "Inicia sesión con credenciales básicas de usuario. Retorna token JWT y Refresh Token.", auth: "Anónimo" },
+      { verb: "post", path: "/api/auth/refresh", desc: "Rotación automática de tokens mediante refresh token inyectado en cabecera.", auth: "Anónimo" },
+      { verb: "post", path: "/api/auth/logout", desc: "Revoca el refresh token activo del usuario para cerrar la sesión.", auth: "Anónimo" },
+      { verb: "get", path: "/api/clientes", desc: "Obtiene lista paginada y filtrada de clientes. Búsqueda por Apodo y RFC.", auth: "Auth" },
+      { verb: "post", path: "/api/clientes", desc: "Crea un nuevo cliente. Valida unicidad de Apodo por Tenant.", auth: "Auth" },
+      { verb: "get", path: "/api/vehiculos/inventario", desc: "Retorna los vehículos en patio de la aduana (sin trámite activo) para checklist visual.", auth: "Auth" },
+      { verb: "patch", path: "/api/vehiculos/:id/inventario", desc: "Actualiza los checkpoints pre-trámite en la yarda.", auth: "Auth" },
+      { verb: "post", path: "/api/cotizaciones/calcular", desc: "Cálculo en tiempo real sin persistencia en base de datos. Usado en simulador del cotizador.", auth: "Auth" },
+      { verb: "post", path: "/api/cotizaciones/:id/convertir-a-tramite", desc: "Flujo automático que genera el Trámite y el primer Pedimento Original a partir de cotización aprobada.", auth: "Auth" },
+      { verb: "post", path: "/api/pagos/:id/verificar", desc: "Marca el pago como verificado en el banco. Acción de nivel Gerente o Administrador.", auth: "Admin" },
+      { verb: "get", path: "/api/portal/tramites/:id", desc: "Retorna el estatus simplificado e histórico de un trámite para acceso de cliente final público.", auth: "Anónimo" }
+    ];
+
+    const apiContainer = document.getElementById("api-endpoints-container");
+
+    function renderApi(endpoints, query = "") {
+      apiContainer.innerHTML = "";
+      const filtered = endpoints.filter(e => 
+        e.path.toLowerCase().includes(query.toLowerCase()) || 
+        e.desc.toLowerCase().includes(query.toLowerCase()) ||
+        e.auth.toLowerCase().includes(query.toLowerCase())
+      );
+
+      filtered.forEach(e => {
+        const row = document.createElement("div");
+        row.className = "api-row";
+        
+        let authClass = "auth";
+        if (e.auth.toLowerCase() === "anónimo") authClass = "anon";
+        if (e.auth.toLowerCase() === "admin") authClass = "admin";
+
+        row.innerHTML = `
+          <span class="api-verb ${e.verb.toLowerCase()}">${e.verb}</span>
+          <span class="api-path">${e.path}</span>
+          <span class="api-desc">${e.desc}</span>
+          <div class="api-auth">
+            <span class="auth-badge ${authClass}">${e.auth}</span>
+          </div>
+        `;
+        apiContainer.appendChild(row);
+      });
+    }
+
+    renderApi(apiEndpoints);
+    document.getElementById("api-search-input").addEventListener("input", (e) => {
+      renderApi(apiEndpoints, e.target.value);
+    });
+
+    // ==========================================
+    // STATE MACHINE SIMULATOR DATA & LOGIC
+    // ==========================================
+    const states = {
+      "PENDIENTE_TRAMITE": {
+        allowed: ["FOTOS_SOLICITADAS", "CANCELADO"],
+        desc: "El trámite ha sido creado pero no se ha iniciado la recolección de fotos del vehículo."
+      },
+      "FOTOS_SOLICITADAS": {
+        allowed: ["FOTOS_RECIBIDAS", "CANCELADO"],
+        desc: "Se solicitó al personal de campo (yardero) tomar la evidencia física en la yarda."
+      },
+      "FOTOS_RECIBIDAS": {
+        allowed: ["REQUISITOS_PENDIENTES", "CANCELADO"],
+        desc: "Las fotos han sido cargadas en el sistema. El área administrativa revisa documentos."
+      },
+      "REQUISITOS_PENDIENTES": {
+        allowed: ["BAJA_EN_PROCESO", "LISTO_PARA_PEDIMENTO", "CANCELADO"],
+        desc: "El vehículo tiene observaciones o le faltan documentos (Bill of Sale, título)."
+      },
+      "BAJA_EN_PROCESO": {
+        allowed: ["BAJA_COMPLETADA", "CANCELADO"],
+        desc: "Se inició el trámite de baja ante las autoridades aduanales."
+      },
+      "BAJA_COMPLETADA": {
+        allowed: ["LISTO_PARA_PEDIMENTO", "CANCELADO"],
+        desc: "Baja vehicular concluida de manera legal."
+      },
+      "LISTO_PARA_PEDIMENTO": {
+        allowed: ["PEDIMENTO_DOCUMENTADO", "CANCELADO"],
+        desc: "Aprobación de checkpoints. Listo para envío a la patente aduanal asignada."
+      },
+      "PEDIMENTO_DOCUMENTADO": {
+        allowed: ["PAGO_PEDIMENTO_PENDIENTE", "CANCELADO"],
+        desc: "La patente cargó el pedimento con firma electrónica. En espera de cobro de impuestos."
+      },
+      "PAGO_PEDIMENTO_PENDIENTE": {
+        allowed: ["MANDADO_A_CRUCE", "CANCELADO"],
+        desc: "Impuestos listos. En espera de salida para cruce por puente fronterizo."
+      },
+      "MANDADO_A_CRUCE": {
+        allowed: ["ROJO_DESADUANADO", "VERDE_ENTREGADO", "CANCELADO"],
+        desc: "El vehículo está cruzando el puente hacia México."
+      },
+      "ROJO_DESADUANADO": {
+        allowed: ["VERDE_ENTREGADO"],
+        desc: "Sometido a reconocimiento aduanero (semáforo rojo). Retraso operativo temporal."
+      },
+      "VERDE_ENTREGADO": {
+        allowed: ["AMARILLO_PENDIENTE_PAGO", "COBRADO"],
+        desc: "Vehículo despachado sin incidencias. Entregado al transportista."
+      },
+      "AMARILLO_PENDIENTE_PAGO": {
+        allowed: ["COBRADO"],
+        desc: "El cliente recibió el coche pero aún presenta saldo deudor de trámites."
+      },
+      "COBRADO": {
+        allowed: [],
+        desc: "Trámite finalizado con saldo verificado en ceros."
+      },
+      "CANCELADO": {
+        allowed: [],
+        desc: "El trámite fue anulado (solo permitido por administrador)."
+      }
+    };
+
+    const simNodes = document.getElementById("simulator-nodes");
+    const simTitle = document.getElementById("sim-selected-state-title");
+    const simRules = document.getElementById("sim-state-rules-text");
+
+    function renderSimulator() {
+      simNodes.innerHTML = "";
+      Object.keys(states).forEach(state => {
+        const btn = document.createElement("button");
+        btn.className = "state-node-btn";
+        btn.textContent = state;
+        
+        btn.addEventListener("click", () => {
+          document.querySelectorAll('.state-node-btn').forEach(b => {
+            b.classList.remove('selected', 'allowed');
+          });
+          
+          btn.classList.add('selected');
+          simTitle.textContent = state;
+          simRules.innerHTML = `
+            <p style="margin-bottom:8px;">${states[state].desc}</p>
+            <p><strong>Transiciones Válidas Siguientes:</strong></p>
+            <ul style="margin-left: 20px; margin-top: 6px;">
+              ${states[state].allowed.map(a => `<li>${a}</li>`).join('') || "<li>Ninguna (Estado Terminal)</li>"}
+            </ul>
+          `;
+          
+          // Mark allowed buttons
+          states[state].allowed.forEach(allowedState => {
+            const allowedBtn = Array.from(simNodes.children).find(b => b.textContent === allowedState);
+            if (allowedBtn) allowedBtn.classList.add('allowed');
+          });
+        });
+        
+        simNodes.appendChild(btn);
+      });
+    }
+
+    renderSimulator();
+
+    // ==========================================
+    // TECHNICAL DEBT & ROADMAP DATA
+    // ==========================================
+    const debtItems = [
+      {
+        severity: "critical",
+        title: "Secretos expuestos en appsettings.json",
+        desc: "Credenciales de Neon PostgreSQL, Banxico API Token y Gemini API Key se encuentran hardcodeadas en texto plano en el repositorio del proyecto.",
+        impact: "Cualquier persona con acceso de lectura al repositorio puede controlar la base de datos y consumir crédito de las APIs externas de producción."
+      },
+      {
+        severity: "critical",
+        title: "Almacenamiento Cloudflare R2 sin conexión real",
+        desc: "La infraestructura posee credenciales R2 en el archivo de texto en la raíz, pero el FileStorageService inyectado en el API opera bajo el esquema Local en backend/storage.",
+        impact: "En un despliegue multi-instancia de nube, los comprobantes de pago subidos se perderán y las URLs públicas expuestas al cliente no serán alcanzables."
+      },
+      {
+        severity: "high",
+        title: "SMTP apuntando a Mailtrap en Sandbox",
+        desc: "El servicio de email carece de parámetros de producción (SMTP con dominio oficial). Los correos de cotizaciones fallarán silenciosamente.",
+        impact: "El cotizador no puede operar de forma automatizada real."
+      },
+      {
+        severity: "high",
+        title: "Sin cobertura de pruebas automatizadas",
+        desc: "No existe un proyecto de pruebas configurado en backend. La calculadora fiscal no está blindada contra errores manuales de edición de tasas.",
+        impact: "Un error en la tasa fiscal del Anexo 2 al modificar parámetros de ADMIN puede costar miles de dólares a la importadora."
+      },
+      {
+        severity: "medium",
+        title: "Uso ineficiente del Prompt de IA en RodriService",
+        desc: "El chatbot de IA lee todas las tablas asociadas del DbContext en memoria en cada interacción, incrementando masivamente los tokens consumidos.",
+        impact: "Inoperable si la base de datos supera los 500 registros debido a limitaciones físicas del tamaño del prompt (Context Overflow)."
+      }
+    ];
+
+    const debtContainer = document.getElementById("debt-items-container");
+
+    debtItems.forEach(item => {
+      const card = document.createElement("div");
+      card.className = `debt-item ${item.severity}`;
+      
+      card.innerHTML = `
+        <div class="debt-severity-indicator ${item.severity}"></div>
+        <svg class="debt-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+        <div class="debt-body">
+          <div class="debt-title">${item.title} <span class="badge-severity ${item.severity}">${item.severity}</span></div>
+          <div class="debt-desc">${item.desc}</div>
+          <div class="debt-impact"><strong>Impacto Operativo:</strong> ${item.impact}</div>
+        </div>
+      `;
+      debtContainer.appendChild(card);
+    });
+  </script>
+</body>
+</html>

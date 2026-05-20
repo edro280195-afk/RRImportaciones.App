@@ -1,0 +1,48 @@
+namespace RR.Application.DTOs.Campo;
+
+public class TareaCampoDto
+{
+    public Guid Id { get; set; }
+    public Guid TramiteId { get; set; }
+    public string NumeroConsecutivo { get; set; } = string.Empty;
+    public string? ClienteNombre { get; set; }
+    public string VehiculoResumen { get; set; } = string.Empty;
+    public string? Vin { get; set; }
+    public string? VinCorto { get; set; }
+    public string Tipo { get; set; } = "FOTOS_YARDA";
+    public string Estatus { get; set; } = "ABIERTA";
+    public Guid? PersonalCampoId { get; set; }
+    public string? PersonalCampoNombre { get; set; }
+    public Guid? UsuarioCampoId { get; set; }
+    public string? UsuarioCampoNombre { get; set; }
+    public string? Ubicacion { get; set; }
+    public string? VinConfirmado { get; set; }
+    public string[] FotosUrls { get; set; } = [];
+    public string? Incidencia { get; set; }
+    public DateTime FechaCreacion { get; set; }
+    public DateTime? FechaTomada { get; set; }
+    public DateTime? FechaCompletada { get; set; }
+}
+
+public class CrearTareaCampoRequest
+{
+    public Guid TramiteId { get; set; }
+    [Obsolete("Campo ahora usa el usuario autenticado. Mantener solo por compatibilidad con clientes antiguos.")]
+    public Guid? PersonalCampoId { get; set; }
+    public string Tipo { get; set; } = "FOTOS_YARDA";
+    public string? Ubicacion { get; set; }
+}
+
+public class TomarTareaCampoRequest
+{
+    [Obsolete("Campo ahora usa el usuario autenticado. Mantener solo por compatibilidad con clientes antiguos.")]
+    public Guid? PersonalCampoId { get; set; }
+}
+
+public class CompletarTareaCampoRequest
+{
+    public string? Ubicacion { get; set; }
+    public string? VinConfirmado { get; set; }
+    public string[] FotosUrls { get; set; } = [];
+    public string? Incidencia { get; set; }
+}

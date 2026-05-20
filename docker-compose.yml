@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # Base de datos - Desarrollo
+  postgres:
+    image: postgres:16-alpine
+    container_name: rr-postgres
+    environment:
+      POSTGRES_DB: RRImportaciones
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend API - Desarrollo
+  api:
+    build:
+      context: ./backend
+      dockerfile: RR.Api/Dockerfile
+    container_name: rr-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=RRImportaciones;Username=postgres;Password=postgres
+    ports:
+      - "5198:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Frontend SaaS - Desarrollo
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rr-frontend
+    ports:
+      - "4200:8080"
+    environment:
+      - API_URL=http://api:8080
+
+  # Landing Page - Desarrollo
+  landing:
+    build:
+      context: ./landing
+      dockerfile: Dockerfile
+    container_name: rr-landing
+    ports:
+      - "3000:8080"
+
+volumes:
+  pgdata:
