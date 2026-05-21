@@ -12,7 +12,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AuthService } from '../../services/auth.service';
-import { RodriService, RodriMessage, RodriProviderInfo } from '../../services/rodri.service';
+import { RodriService, RodriMessage } from '../../services/rodri.service';
 
 interface ChatMessage {
   role: 'user' | 'model';
@@ -368,8 +368,7 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   @ViewChild('chatContainer') chatContainer!: ElementRef;
   @ViewChild('inputRef') inputRef!: ElementRef<HTMLTextAreaElement>;
 
-  providers = signal<RodriProviderInfo[]>([]);
-  readonly provider = signal('openai'); // Don Ricardo siempre usa OpenAI — sin toggle
+  readonly provider = 'openai'; // Don Ricardo siempre usa OpenAI — fijo, sin toggle ni override
   loading = signal(false);
   inputText = '';
 
@@ -408,15 +407,6 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   // LIFECYCLE
   // ─────────────────────────────────────────────────────────────────────
   ngOnInit(): void {
-    this.rodriService.getProviders().subscribe({
-      next: (res) => {
-        const available = res.providers.filter(p => p.isAvailable);
-        this.providers.set(available);
-        const def = res.providers.find(p => p.id === res.default);
-        if (def?.isAvailable) this.provider.set(def.id);
-        else if (available.length > 0) this.provider.set(available[0].id);
-      },
-    });
     this.initSpeech();
   }
 
@@ -711,7 +701,7 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
       .slice(0, -1).slice(-6)   // últimos 3 intercambios (6 mensajes) para ahorrar tokens
       .map(m => ({ role: m.role, texto: m.texto }));
 
-    this.rodriService.chat(texto, historial, this.provider()).subscribe({
+    this.rodriService.chat(texto, historial, this.provider).subscribe({
       next: (res) => {
         this.loading.set(false);
         this.allMessages.update(msgs => [...msgs, {
