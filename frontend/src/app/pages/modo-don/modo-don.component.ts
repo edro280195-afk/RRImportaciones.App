@@ -104,8 +104,7 @@ interface QuickCard {
       <!-- ══ ÁREA DE CHAT ══ -->
       <div
         #chatContainer
-        class="flex-1 overflow-y-auto px-3 py-4 space-y-2"
-        style="background-image: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"60\" height=\"60\"><rect width=\"60\" height=\"60\" fill=\"%23E5DDD5\"/><circle cx=\"30\" cy=\"30\" r=\"1.5\" fill=\"%23D4C8BF\" opacity=\"0.6\"/></svg>');"
+        class="chat-area flex-1 overflow-y-auto px-3 py-4 space-y-2"
       >
 
         <!-- Saludo de Rodri -->
@@ -367,6 +366,13 @@ interface QuickCard {
       50% { opacity: 0.4; transform: scale(1.4); }
     }
     .recording-pulse { animation: rec-pulse 1s ease infinite; }
+
+    /* Fondo tipo WhatsApp — definido en CSS para evitar que el parser del template
+       interprete el </svg> de la data URL como un tag HTML. */
+    .chat-area {
+      background-color: #E5DDD5;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23E5DDD5'/%3E%3Ccircle cx='30' cy='30' r='1.5' fill='%23D4C8BF' opacity='0.6'/%3E%3C/svg%3E");
+    }
   `],
 })
 export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
