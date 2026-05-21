@@ -125,6 +125,9 @@ builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.Con
 builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ConsultarPagosRecientesTool>();
 builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ConsultarUbicacionVehiculosTool>();
 builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ConsultarDocumentosPendientesTool>();
+// Rodri tools — escritura (requieren confirmación del usuario)
+builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.RegistrarPagoTramiteTool>();
+builder.Services.AddScoped<IRodriTool, RR.Infrastructure.Services.RodriTools.ActualizarEstadoTramiteTool>();
 
 builder.Services.AddSignalR();
 builder.Services.AddHttpClient<IBanxicoService, BanxicoService>();

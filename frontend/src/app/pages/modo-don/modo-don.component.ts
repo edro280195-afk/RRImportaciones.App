@@ -661,6 +661,8 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
       consultar_pagos_recientes:       'Pagos revisados',
       consultar_ubicacion_vehiculos:   'Ubicación de carros revisada',
       consultar_documentos_pendientes: 'Pendientes revisados',
+      registrar_pago_tramite:          'Pago registrado ✅',
+      actualizar_estado_tramite:       'Estado actualizado ✅',
     };
     return labels[name] ?? name;
   }

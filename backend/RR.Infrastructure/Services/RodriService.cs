@@ -29,7 +29,24 @@ public class RodriService : IRodriService
     private static readonly ConcurrentDictionary<string, List<DateTime>> _requestLog = new();
     private const int MaxRequestsPerMinute = 20;
 
-    // Estados activos
+    // Estados donde el vehículo aún está en proceso (no entregado al cliente)
+    private static readonly string[] EstadosOperativos =
+    [
+        "PENDIENTE_TRAMITE", "FOTOS_SOLICITADAS", "FOTOS_RECIBIDAS",
+        "REQUISITOS_PENDIENTES", "BAJA_EN_PROCESO", "BAJA_COMPLETADA",
+        "LISTO_PARA_PEDIMENTO", "PEDIMENTO_DOCUMENTADO", "PAGO_PEDIMENTO_PENDIENTE",
+        "MANDADO_A_CRUCE", "EN_PROCESO", "ROJO_DESADUANADO"
+    ];
+
+    // Estados post-entrega: el vehículo ya salió de aduana o se entregó al cliente,
+    // pero puede haber saldo pendiente de cobro. Un trámite aquí con saldo=0
+    // debería moverse a COBRADO manualmente.
+    private static readonly string[] EstadosPostEntrega =
+    [
+        "VERDE_ENTREGADO", "ENTREGADO_AL_CLIENTE", "AMARILLO_PENDIENTE_PAGO"
+    ];
+
+    // Todos los estados no cerrados (para queries generales)
     private static readonly string[] EstadosActivos =
     [
         "PENDIENTE_TRAMITE", "FOTOS_SOLICITADAS", "FOTOS_RECIBIDAS",
@@ -543,10 +560,12 @@ public class RodriService : IRodriService
         sb.AppendLine("══════════════════════════════════════════════════════");
         sb.AppendLine("RESUMEN EJECUTIVO DEL NEGOCIO");
         sb.AppendLine("══════════════════════════════════════════════════════");
-        sb.AppendLine($"Trámites activos: {tramitesActivos.Count}");
+        sb.AppendLine($"Trámites en proceso (no entregados): {tramitesActivos.Count(t => EstadosOperativos.Contains(t.EstadoLogistico))}");
+        sb.AppendLine($"Entregados pendientes de cobro: {tramitesActivos.Count(t => EstadosPostEntrega.Contains(t.EstadoLogistico) && (t.CobroTotal - pagosPorTramite.GetValueOrDefault(t.Id, 0)) > 0)}");
+        sb.AppendLine($"Entregados ya cobrados (pendientes de cerrar): {tramitesActivos.Count(t => EstadosPostEntrega.Contains(t.EstadoLogistico) && (t.CobroTotal - pagosPorTramite.GetValueOrDefault(t.Id, 0)) <= 0)}");
         foreach (var kv in tramitesPorEstatus.OrderByDescending(kv => kv.Value))
             sb.AppendLine($"  {FormatEstatus(kv.Key)}: {kv.Value}");
-        sb.AppendLine($"Saldo total por cobrar: ${saldoTotalPendiente:N2} MXN");
+        sb.AppendLine($"Saldo total por cobrar (solo trámites con saldo>0): ${saldoTotalPendiente:N2} MXN");
         sb.AppendLine($"Clientes registrados: {clientesCount}");
         sb.AppendLine($"Cotizaciones activas: {cotizacionesActivas.Count}");
         sb.AppendLine($"  └ En espera de respuesta: {cotizacionesActivas.Count(c => c.EstadoLogistico == "ENVIADA")}");
@@ -579,27 +598,94 @@ public class RodriService : IRodriService
             sb.AppendLine();
         }
 
+        // Separar trámites en grupos para el prompt
+        var tramitesEnProceso = tramitesActivos
+            .Where(t => EstadosOperativos.Contains(t.EstadoLogistico))
+            .ToList();
+
+        var tramitesPostEntrega = tramitesActivos
+            .Where(t => EstadosPostEntrega.Contains(t.EstadoLogistico))
+            .Select(t =>
+            {
+                var pagado = pagosPorTramite.GetValueOrDefault(t.Id, 0m);
+                return (tramite: t, pagado, saldo: t.CobroTotal - pagado);
+            })
+            .ToList();
+
+        var entregadosPendientesCobro = tramitesPostEntrega.Where(x => x.saldo > 0).ToList();
+        var entregadosYaCobrados     = tramitesPostEntrega.Where(x => x.saldo <= 0).ToList();
+
         // ════════════════════════════════════════════════
-        // 5. TRÁMITES ACTIVOS
+        // 5. TRÁMITES EN PROCESO
         // ════════════════════════════════════════════════
         sb.AppendLine("══════════════════════════════════════════════════════");
-        sb.AppendLine($"TRÁMITES ACTIVOS ({tramitesActivos.Count})");
+        sb.AppendLine($"TRÁMITES EN PROCESO — AÚN NO ENTREGADOS ({tramitesEnProceso.Count})");
         sb.AppendLine("══════════════════════════════════════════════════════");
-        foreach (var t in tramitesActivos)
+        if (tramitesEnProceso.Count == 0)
         {
-            var pagado = pagosPorTramite.GetValueOrDefault(t.Id, 0);
-            var saldo = t.CobroTotal - pagado;
-            var dias = t.FechaEstadoActual.HasValue ? (int)(now - t.FechaEstadoActual.Value).TotalDays : 0;
-            var vehiculo = t.Vehiculo != null
-                ? $"{t.Vehiculo.Anno} {t.Vehiculo.Marca?.Nombre ?? ""} [{t.Vehiculo.VinCorto ?? "—"}]".Trim()
-                : "—";
-            var tramitador = t.Tramitador?.Nombre ?? "sin tramitador";
-            sb.AppendLine(
-                $"[{t.NumeroConsecutivo}] {t.Cliente?.Nombre ?? "—"} | {vehiculo} | " +
-                $"{FormatEstatus(t.EstadoLogistico)} ({dias}d) | " +
-                $"${t.CobroTotal:N0}/${pagado:N0}/${saldo:N0} | {tramitador}");
+            sb.AppendLine("  (ninguno en proceso actualmente)");
+        }
+        else
+        {
+            foreach (var t in tramitesEnProceso)
+            {
+                var pagado = pagosPorTramite.GetValueOrDefault(t.Id, 0);
+                var saldo = t.CobroTotal - pagado;
+                var dias = t.FechaEstadoActual.HasValue ? (int)(now - t.FechaEstadoActual.Value).TotalDays : 0;
+                var vehiculo = t.Vehiculo != null
+                    ? $"{t.Vehiculo.Anno} {t.Vehiculo.Marca?.Nombre ?? ""} [{t.Vehiculo.VinCorto ?? "—"}]".Trim()
+                    : "—";
+                var tramitador = t.Tramitador?.Nombre ?? "sin tramitador";
+                sb.AppendLine(
+                    $"[{t.NumeroConsecutivo}] {t.Cliente?.Nombre ?? "—"} | {vehiculo} | " +
+                    $"{FormatEstatus(t.EstadoLogistico)} ({dias}d) | " +
+                    $"${t.CobroTotal:N0}/${pagado:N0}/saldo:${saldo:N0} | {tramitador}");
+            }
         }
         sb.AppendLine();
+
+        // ════════════════════════════════════════════════
+        // 5b. ENTREGADOS — PENDIENTES DE COBRO
+        // ════════════════════════════════════════════════
+        if (entregadosPendientesCobro.Count > 0)
+        {
+            sb.AppendLine("══════════════════════════════════════════════════════");
+            sb.AppendLine($"ENTREGADOS CON SALDO PENDIENTE ({entregadosPendientesCobro.Count})");
+            sb.AppendLine("══════════════════════════════════════════════════════");
+            foreach (var (t, pagado, saldo) in entregadosPendientesCobro)
+            {
+                var dias = t.FechaEstadoActual.HasValue ? (int)(now - t.FechaEstadoActual.Value).TotalDays : 0;
+                var vehiculo = t.Vehiculo != null
+                    ? $"{t.Vehiculo.Anno} {t.Vehiculo.Marca?.Nombre ?? ""}".Trim()
+                    : "—";
+                sb.AppendLine(
+                    $"[{t.NumeroConsecutivo}] {t.Cliente?.Nombre ?? "—"} | {vehiculo} | " +
+                    $"{FormatEstatus(t.EstadoLogistico)} ({dias}d) | SALDO PENDIENTE: ${saldo:N0}");
+            }
+            sb.AppendLine();
+        }
+
+        // ════════════════════════════════════════════════
+        // 5c. ENTREGADOS YA COBRADOS (pendientes de cerrar)
+        // ════════════════════════════════════════════════
+        if (entregadosYaCobrados.Count > 0)
+        {
+            sb.AppendLine("══════════════════════════════════════════════════════");
+            sb.AppendLine($"ENTREGADOS Y COBRADOS — PENDIENTES DE MARCAR COMO COBRADO ({entregadosYaCobrados.Count})");
+            sb.AppendLine("══════════════════════════════════════════════════════");
+            sb.AppendLine("IMPORTANTE: Estos trámites ya tienen saldo $0 pero su estado no ha sido actualizado a COBRADO.");
+            sb.AppendLine("Si alguien pregunta por trámites 'abiertos' que ya se entregaron y pagaron, aquí están.");
+            sb.AppendLine("Puedes usar la herramienta actualizar_estado_tramite para cerrarlos.");
+            foreach (var (t, pagado, _) in entregadosYaCobrados)
+            {
+                var dias = t.FechaEstadoActual.HasValue ? (int)(now - t.FechaEstadoActual.Value).TotalDays : 0;
+                var vehiculo = t.Vehiculo != null
+                    ? $"{t.Vehiculo.Anno} {t.Vehiculo.Marca?.Nombre ?? ""}".Trim()
+                    : "—";
+                sb.AppendLine($"[{t.NumeroConsecutivo}] {t.Cliente?.Nombre ?? "—"} | {vehiculo} | estado: {FormatEstatus(t.EstadoLogistico)} | ✅ Saldado — falta cambiar a COBRADO");
+            }
+            sb.AppendLine();
+        }
 
         // ════════════════════════════════════════════════
         // 6. COTIZACIONES ACTIVAS
