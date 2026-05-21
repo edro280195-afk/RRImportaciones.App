@@ -72,22 +72,6 @@ interface QuickCard {
           </button>
         }
 
-        <!-- Provider toggle -->
-        @if (providers().length > 1) {
-          <div class="flex items-center gap-1 bg-white/10 rounded-lg p-0.5">
-            @for (p of providers(); track p.id) {
-              <button
-                (click)="provider.set(p.id)"
-                [disabled]="!p.isAvailable"
-                class="px-2 py-1 text-[10px] font-semibold rounded-md transition-all whitespace-nowrap"
-                [class]="provider() === p.id
-                  ? 'bg-white text-[#C61D26]'
-                  : p.isAvailable ? 'text-white/70 hover:text-white' : 'text-white/30 cursor-not-allowed'"
-              >{{ p.label }}</button>
-            }
-          </div>
-        }
-
         @if (!showCards()) {
           <button
             (click)="clearChat()"
@@ -385,7 +369,7 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   @ViewChild('inputRef') inputRef!: ElementRef<HTMLTextAreaElement>;
 
   providers = signal<RodriProviderInfo[]>([]);
-  provider = signal('openai');
+  readonly provider = signal('openai'); // Don Ricardo siempre usa OpenAI — sin toggle
   loading = signal(false);
   inputText = '';
 

@@ -96,7 +96,7 @@ public class ActualizarEstadoTramiteTool : IRodriTool
         var esNumero = identificador.StartsWith("RR-", StringComparison.OrdinalIgnoreCase)
                     || identificador.All(c => char.IsDigit(c) || c == '-');
 
-        List<Domain.Entities.Tramite> candidatos;
+        List<Tramite> candidatos;
         if (esNumero)
         {
             candidatos = await query
