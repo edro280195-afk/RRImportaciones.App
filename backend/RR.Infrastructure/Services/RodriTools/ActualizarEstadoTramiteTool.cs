@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using RR.Application.Interfaces;
+using RR.Domain.Entities;
 using RR.Infrastructure.Data;
 
 namespace RR.Infrastructure.Services.RodriTools;
