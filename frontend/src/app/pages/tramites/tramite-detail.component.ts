@@ -305,7 +305,7 @@ import { environment } from '../../../environments/environment';
                       <p class="text-[13px] font-semibold text-[#0D1017]">{{ doc.nombre }}</p>
                       <p class="text-[11px] text-[#9EA3AE]">{{ doc.descripcion }}</p>
                     </div>
-                    <span class="px-2 py-1 rounded-lg text-[11px] font-semibold" [style]="documentoPill(actual?.estatus || 'PENDIENTE')">{{ actual?.estatus || 'PENDIENTE' }}</span>
+                    <span class="px-2 py-1 rounded-lg text-[11px] font-semibold" [style]="documentoPill(actual?.estadoLogistico || 'PENDIENTE')">{{ actual?.estadoLogistico || 'PENDIENTE' }}</span>
                   </div>
                   <div class="flex flex-col gap-3 mt-3">
                     @if (actual?.archivoUrl) {
@@ -340,15 +340,15 @@ import { environment } from '../../../environments/environment';
 
                     <!-- Solo botón Validar: verde, deshabilitado al validar, vuelve a activarse si reemplazan el archivo -->
                     <button
-                      (click)="guardarDocumento(t.id, doc.tipoDocumento, 'VALIDADO', actual?.archivoUrl)"
-                      [disabled]="!actual?.archivoUrl || actual?.estatus === 'VALIDADO'"
-                      [style]="actual?.estatus === 'VALIDADO'
+                      (click)="guardarDocumento(t.id, doc.tipoDocumento, 'VALIDADO', actual?.archivoUrl!)"
+                      [disabled]="!actual?.archivoUrl || actual?.estadoLogistico === 'VALIDADO'"
+                      [style]="actual?.estadoLogistico === 'VALIDADO'
                         ? 'background:#DCFCE7;color:#166534;border:1px solid #BBF7D0;cursor:default;'
                         : actual?.archivoUrl
                           ? 'background:#16A34A;color:white;'
                           : 'background:#F3F4F6;color:#9EA3AE;cursor:not-allowed;'"
                       class="w-full mt-1 flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-semibold transition-colors">
-                      @if (actual?.estatus === 'VALIDADO') {
+                      @if (actual?.estadoLogistico === 'VALIDADO') {
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                         Validado
                       } @else {
@@ -1182,9 +1182,9 @@ export class TramiteDetailComponent implements OnInit {
     return t.documentos.find(d => d.tipoDocumento === tipoDocumento);
   }
 
-  guardarDocumento(tramiteId: string, tipoDocumento: string, estatus: string, archivoUrl?: string | null) {
-    if (estatus === 'VALIDADO' && !archivoUrl) {
-      this.notifications.error('Debe subir un archivo (Requerido) para poder marcar el documento como Validado.');
+  guardarDocumento(tramiteId: string, tipoDocumento: string, estadoLogistico: string, archivoUrl?: string | null) {
+    if (estadoLogistico === 'VALIDADO' && !archivoUrl) {
+      this.notifications.error('Debe subir un archivo antes de poder validar el documento.');
       return;
     }
 
@@ -1192,12 +1192,27 @@ export class TramiteDetailComponent implements OnInit {
     this.tramiteService.guardarDocumento(tramiteId, {
       tipoDocumento,
       nombre: base?.nombre,
-      estatus,
+      estadoLogistico,   // ← nombre correcto para el backend
       esRequerido: true,
       archivoUrl
     }).subscribe({
-      next: () => {
-        this.notifications.success(`Documento actualizado a ${estatus}.`);
+      next: (updatedDoc) => {
+        this.notifications.success(
+          estadoLogistico === 'VALIDADO' ? 'Documento validado correctamente ✓' : 'Documento actualizado.'
+        );
+        // Actualización optimista: no esperar a loadTramite para que el botón cambie al instante
+        this.tramite.update(t => {
+          if (!t) return t;
+          const idx = t.documentos.findIndex(d => d.tipoDocumento === tipoDocumento);
+          const newDocs = [...t.documentos];
+          if (idx >= 0) {
+            newDocs[idx] = updatedDoc;
+          } else {
+            newDocs.push(updatedDoc);
+          }
+          return { ...t, documentos: newDocs };
+        });
+        // Recarga completa en background para sincronizar cualquier otro cambio
         this.loadTramite(tramiteId);
       },
       error: err => this.notifications.fromHttpError(err, 'Error al actualizar documento'),

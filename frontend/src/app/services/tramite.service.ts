@@ -95,7 +95,7 @@ export interface TramiteDocumentoDto {
   tramiteId: string;
   tipoDocumento: string;
   nombre: string;
-  estatus: string;
+  estadoLogistico: string;   // ← backend serializa EstadoLogistico como estadoLogistico (no "estatus")
   esRequerido: boolean;
   archivoUrl: string | null;
   notas: string | null;
@@ -270,7 +270,7 @@ export class TramiteService {
   guardarDocumento(id: string, request: {
     tipoDocumento: string;
     nombre?: string;
-    estatus: string;
+    estadoLogistico: string;  // ← debe coincidir con la propiedad del backend GuardarDocumentoTramiteRequest
     esRequerido: boolean;
     archivoUrl?: string | null;
     notas?: string | null;
