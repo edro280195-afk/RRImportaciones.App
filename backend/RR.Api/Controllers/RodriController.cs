@@ -92,7 +92,10 @@ public class RodriController : ControllerBase
         if (!response.IsSuccessStatusCode)
         {
             var err = await response.Content.ReadAsStringAsync();
-            return StatusCode((int)response.StatusCode, new { error = "Error de ElevenLabs", detalle = err });
+            // Siempre 502 — NUNCA proxificar status de ElevenLabs directo.
+            // Un 401 de ElevenLabs (API key inválida) o 429 (rate limit) jamás debe llegar
+            // al frontend como 401, o el interceptor de auth lo confundirá con sesión expirada.
+            return StatusCode(502, new { error = "Error de ElevenLabs", detalle = err });
         }
 
         var audioBytes = await response.Content.ReadAsByteArrayAsync();

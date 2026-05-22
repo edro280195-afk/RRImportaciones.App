@@ -13,7 +13,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
   const token = localStorage.getItem('token');
 
-  if (token) {
+  // No agregar JWT a la llamada de refresh — no lo necesita y evita bucles circulares
+  const isRefreshCall = req.url.includes('/api/auth/refresh');
+
+  if (token && !isRefreshCall) {
     req = req.clone({
       setHeaders: { Authorization: `Bearer ${token}` },
     });
@@ -21,7 +24,8 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((err) => {
-      if (!(err instanceof HttpErrorResponse && err.status === 401 && token))
+      // Solo procesar 401 con token, y nunca en la llamada de refresh misma
+      if (!(err instanceof HttpErrorResponse && err.status === 401 && token && !isRefreshCall))
         return throwError(() => err);
 
       // Si ya estamos refrescando, esperar a que termine
@@ -44,14 +48,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       isRefreshing = true;
       refreshSubject.next(null);
 
+      // IMPORTANTE: catchError va ANTES de switchMap para que solo atrape fallas del
+      // refresh token en sí, NO errores de la petición reintentada. Si la petición
+      // reintentada falla (ej. ElevenLabs devuelve error), el error llega normalmente
+      // al suscriptor del componente sin cerrar sesión.
       return auth.refreshToken().pipe(
-        switchMap((res) => {
-          isRefreshing = false;
-          refreshSubject.next(true);
-          return next(req.clone({
-            setHeaders: { Authorization: `Bearer ${res.token}` },
-          }));
-        }),
         catchError(() => {
           isRefreshing = false;
           refreshSubject.next(false);
@@ -62,6 +63,13 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
             router.navigate(['/login'], { queryParams: { session_expired: 'true' } });
           }
           return throwError(() => new Error('Sesion expirada'));
+        }),
+        switchMap((res) => {
+          isRefreshing = false;
+          refreshSubject.next(true);
+          return next(req.clone({
+            setHeaders: { Authorization: `Bearer ${res.token}` },
+          }));
         }),
       );
     }),

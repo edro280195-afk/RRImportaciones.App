@@ -278,10 +278,16 @@ public class RodriService : IRodriService
         var toolsEjecutados = new List<string>();
         var finalResponse = await ExecuteFunctionCallingLoopAsync(messages, toolDefs, toolsEjecutados, 0);
 
+        // Si la respuesta es un mensaje de error, marcar Error=true para que el frontend
+        // no llame a speak() ni TTS con texto de error
+        var isError = finalResponse.StartsWith("Error de OpenAI")
+                   || finalResponse.StartsWith("El asistente llegó al límite");
+
         return new RodriChatResponse
         {
             Respuesta = finalResponse,
-            ToolCallsEjecutados = toolsEjecutados.Count > 0 ? toolsEjecutados : null,
+            Error = isError,
+            ToolCallsEjecutados = !isError && toolsEjecutados.Count > 0 ? toolsEjecutados : null,
             Provider = "openai",
             ProviderLabel = "GPT-4"
         };
