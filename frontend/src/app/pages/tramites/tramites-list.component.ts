@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { TramiteService, TramiteListDto } from '../../services/tramite.service';
+import { ExcelExportService } from '../../services/excel-export.service';
 import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
 
@@ -28,17 +29,38 @@ interface EstadoTab {
             Trámites
           </h1>
         </div>
-        @if (auth.can('TRAMITES_CREAR')) {
+        <div class="flex items-center gap-2 flex-wrap">
           <button
-            (click)="router.navigate(['/cotizaciones/nueva'])"
-            class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
+            (click)="exportarExcel()"
+            [disabled]="exportando()"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-medium transition-all duration-150"
+            style="background: #F3F4F6; color: #4B5162; border: 1px solid #E4E7EC;"
           >
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-            </svg>
-            Nueva cotización
+            @if (exportando()) {
+              <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Exportando...
+            } @else {
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              Excel
+            }
           </button>
-        }
+          @if (auth.can('TRAMITES_CREAR')) {
+            <button
+              (click)="router.navigate(['/cotizaciones/nueva'])"
+              class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+              </svg>
+              Nueva cotización
+            </button>
+          }
+        </div>
       </div>
 
       <!-- State tabs -->
@@ -185,6 +207,7 @@ interface EstadoTab {
 })
 export class TramitesListComponent {
   private tramiteService = inject(TramiteService);
+  private excelExport = inject(ExcelExportService);
   router = inject(Router);
   auth = inject(AuthService);
 
@@ -194,6 +217,7 @@ export class TramitesListComponent {
   pageSize = signal(20);
   totalPages = signal(0);
   loading = signal(true);
+  exportando = signal(false);
   search = signal('');
   selectedTab = signal('');
   tramitadorFiltro = signal('');
@@ -295,6 +319,27 @@ export class TramitesListComponent {
     if (tp > 1) pages.push(tp);
     return pages;
   };
+
+  exportarExcel(): void {
+    if (this.exportando()) return;
+    this.exportando.set(true);
+    this.tramiteService.getList({
+      search: this.search() || undefined,
+      estado: this.selectedTab() || undefined,
+      tramitadorId: this.tramitadorFiltro() || undefined,
+      aduanaId: this.aduanaFiltro() || undefined,
+      orderBy: this.sortColumn(),
+      orderDir: this.sortDir(),
+      page: 1,
+      pageSize: 9999,
+    }).subscribe({
+      next: (res) => {
+        this.excelExport.exportTramitesList(res.items, this.selectedTab() || undefined);
+        this.exportando.set(false);
+      },
+      error: () => this.exportando.set(false),
+    });
+  }
 
   estadoPill(estatus: string): string {
     const colors: Record<string, string> = {

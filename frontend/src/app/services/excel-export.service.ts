@@ -7,6 +7,7 @@ import type {
   GastoHormigaResumenDto,
   ConversionCotizacionesDto,
 } from './reporte.service';
+import type { TramiteListDto } from './tramite.service';
 
 @Injectable({ providedIn: 'root' })
 export class ExcelExportService {
@@ -200,6 +201,60 @@ export class ExcelExportService {
 
     XLSX.utils.book_append_sheet(wb, ws, 'Cotizaciones');
     XLSX.writeFile(wb, `RR_Cotizaciones_${desde}_${hasta}.xlsx`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // TRÁMITES LIST
+  // ─────────────────────────────────────────────────────────────────────
+  exportTramitesList(tramites: TramiteListDto[], filtroEstado?: string): void {
+    const wb = XLSX.utils.book_new();
+    const label = filtroEstado ? ` [${filtroEstado}]` : '';
+
+    const header = [
+      '#', 'Fecha', 'Cliente', 'Vehículo', 'Aduana', 'Tramitador',
+      'Cobro Total', 'Saldo Pendiente', 'Estado', 'Días en Estado',
+    ];
+
+    const rows = tramites.map(t => [
+      t.numeroConsecutivo,
+      t.fechaCreacion ? new Date(t.fechaCreacion) : '',
+      t.clienteApodo || t.clienteNombre || '—',
+      t.vehiculoMarcaModelo || t.vehiculoVinCorto || '—',
+      t.aduanaNombre || '—',
+      t.tramitadorNombre || '—',
+      t.cobroTotal,
+      t.saldoPendiente,
+      t.estatus,
+      t.diasEnEstado,
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([
+      [`R&R Importaciones — Trámites${label}`],
+      [`Generado: ${new Date().toLocaleDateString('es-MX')} · ${tramites.length} registros`],
+      [],
+      header,
+      ...rows,
+    ]);
+
+    ws['!cols'] = [
+      { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 22 },
+      { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 26 }, { wch: 16 },
+    ];
+
+    // Formato de fecha en columna B (fila 5 en adelante, índice 4)
+    rows.forEach((_, i) => {
+      const rowNum = i + 5;
+      const bCell = `B${rowNum}`;
+      if (ws[bCell] && rows[i][1] instanceof Date) ws[bCell].z = 'dd/mm/yyyy';
+      const gCell = `G${rowNum}`;
+      if (ws[gCell]) ws[gCell].z = this.MXN;
+      const hCell = `H${rowNum}`;
+      if (ws[hCell]) ws[hCell].z = this.MXN;
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Trámites');
+    const fecha = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `RR_Tramites_${fecha}.xlsx`);
   }
 
   // ─────────────────────────────────────────────────────────────────────
