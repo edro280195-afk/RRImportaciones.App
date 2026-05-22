@@ -7,6 +7,7 @@ interface AuditFilters {
   accion: string;
   desde: string;
   hasta: string;
+  usuarioNombre: string;
 }
 
 interface JsonRow {
@@ -43,10 +44,14 @@ interface JsonRow {
       </div>
 
       <div class="card-elevated rounded-2xl p-4">
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_150px_150px_auto_auto]">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-[1fr_1fr_1fr_130px_130px_auto_auto]">
           <div>
             <label class="label-field">Entidad</label>
             <input [(ngModel)]="filtros.entidad" class="input-field" placeholder="Trámite, Cotización, Pago..." (keyup.enter)="buscar()" />
+          </div>
+          <div>
+            <label class="label-field">Usuario</label>
+            <input [(ngModel)]="filtros.usuarioNombre" class="input-field" placeholder="Nombre del usuario..." (keyup.enter)="buscar()" />
           </div>
           <div>
             <label class="label-field">Acción</label>
@@ -198,7 +203,7 @@ export class AuditoriaComponent {
   page = signal(1);
   readonly pageSize = 50;
 
-  filtros: AuditFilters = { entidad: '', accion: '', desde: '', hasta: '' };
+  filtros: AuditFilters = { entidad: '', accion: '', desde: '', hasta: '', usuarioNombre: '' };
 
   constructor() {
     this.buscar();
@@ -210,7 +215,7 @@ export class AuditoriaComponent {
   }
 
   limpiar(): void {
-    this.filtros = { entidad: '', accion: '', desde: '', hasta: '' };
+    this.filtros = { entidad: '', accion: '', desde: '', hasta: '', usuarioNombre: '' };
     this.detalleId.set(null);
     this.buscar();
   }
@@ -222,6 +227,7 @@ export class AuditoriaComponent {
       accion: this.filtros.accion || undefined,
       desde: this.filtros.desde || undefined,
       hasta: this.filtros.hasta || undefined,
+      usuarioNombre: this.filtros.usuarioNombre || undefined,
       page: this.page(),
       pageSize: this.pageSize,
     }).subscribe({

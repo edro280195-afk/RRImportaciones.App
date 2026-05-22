@@ -1,14 +1,15 @@
 import { Component, signal, inject, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { DatePipe } from '@angular/common';
+import { DatePipe, CurrencyPipe } from '@angular/common';
 import { ClienteService, ClienteDetailDto } from '../../services/cliente.service';
+import { ReporteService, EstadoCuentaClienteDto } from '../../services/reporte.service';
 import { ClienteFormDialogComponent } from './cliente-form-dialog.component';
 import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-clientes-detail',
   standalone: true,
-  imports: [RouterLink, DatePipe, ClienteFormDialogComponent],
+  imports: [RouterLink, DatePipe, CurrencyPipe, ClienteFormDialogComponent],
   template: `
     <div style="font-family: var(--font-body);">
 
@@ -84,7 +85,110 @@ import { NotificationService } from '../../services/notification.service';
           </div>
         }
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-item" style="animation-delay: 80ms;">
+        <!-- Estado de Cuenta -->
+        <div class="card-elevated rounded-2xl overflow-hidden mb-6 stagger-item" style="animation-delay: 80ms;">
+          <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#E4E7EC]">
+            <div class="flex items-center gap-2">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2 text-[#B0181F]">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+              </svg>
+              <span class="text-[13px] font-semibold text-[#1E2330]">Estado de Cuenta</span>
+            </div>
+            @if (!estadoCuenta() && !loadingCuenta()) {
+              <button (click)="loadEstadoCuenta()" class="text-[12px] font-semibold text-[#B0181F] hover:underline">
+                Cargar
+              </button>
+            }
+          </div>
+
+          @if (loadingCuenta()) {
+            <div class="p-8 text-center">
+              <svg class="w-5 h-5 text-[#9EA3AE] animate-spin mx-auto mb-2" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <p class="text-[13px] text-[#9EA3AE]">Cargando estado de cuenta…</p>
+            </div>
+          } @else if (estadoCuenta()) {
+            @let ec = estadoCuenta()!;
+            <!-- KPI summary row -->
+            <div class="grid grid-cols-3 divide-x divide-[#F0F2F5] border-b border-[#F0F2F5]">
+              <div class="px-5 py-4">
+                <p class="text-[10px] font-bold uppercase tracking-[0.7px] text-[#9EA3AE] mb-1">Total Facturado</p>
+                <p class="text-[18px] font-semibold text-[#0D1017]">{{ ec.totalFacturado | currency:'MXN':'symbol':'1.2-2':'es-MX' }}</p>
+              </div>
+              <div class="px-5 py-4">
+                <p class="text-[10px] font-bold uppercase tracking-[0.7px] text-[#9EA3AE] mb-1">Total Pagado</p>
+                <p class="text-[18px] font-semibold text-[#166534]">{{ ec.totalPagado | currency:'MXN':'symbol':'1.2-2':'es-MX' }}</p>
+              </div>
+              <div class="px-5 py-4">
+                <p class="text-[10px] font-bold uppercase tracking-[0.7px] text-[#9EA3AE] mb-1">Saldo Pendiente</p>
+                <p class="text-[18px] font-semibold" [style.color]="ec.saldoPendiente > 0 ? '#B0181F' : '#166534'">
+                  {{ ec.saldoPendiente | currency:'MXN':'symbol':'1.2-2':'es-MX' }}
+                </p>
+              </div>
+            </div>
+
+            <!-- Trámites table -->
+            @if (ec.tramites.length > 0) {
+              <div class="overflow-x-auto">
+                <table class="w-full text-[12.5px]">
+                  <thead>
+                    <tr class="border-b border-[#F0F2F5] bg-[#F8FAFC]">
+                      <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Trámite</th>
+                      <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Vehículo</th>
+                      <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Estatus</th>
+                      <th class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Cobro</th>
+                      <th class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Pagado</th>
+                      <th class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Saldo</th>
+                      <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (t of ec.tramites; track t.id) {
+                      <tr
+                        class="border-b border-[#F0F2F5] hover:bg-[#FAFBFC] cursor-pointer transition-colors"
+                        (click)="router.navigate(['/tramites', t.id])"
+                      >
+                        <td class="px-4 py-2.5 font-semibold text-[#0D1017] font-mono-data">{{ t.numeroConsecutivo }}</td>
+                        <td class="px-4 py-2.5 text-[#6B717F] max-w-[140px] truncate">{{ t.vehiculo || '—' }}</td>
+                        <td class="px-4 py-2.5">
+                          <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold" [style]="statusStyle(t.estatus)">
+                            {{ t.estatus }}
+                          </span>
+                        </td>
+                        <td class="px-4 py-2.5 text-right font-mono-data text-[#374151]">
+                          {{ t.cobroTotal | currency:'MXN':'symbol':'1.2-2':'es-MX' }}
+                        </td>
+                        <td class="px-4 py-2.5 text-right font-mono-data text-[#166534]">
+                          {{ t.totalPagado | currency:'MXN':'symbol':'1.2-2':'es-MX' }}
+                        </td>
+                        <td class="px-4 py-2.5 text-right font-mono-data font-semibold"
+                            [style.color]="t.saldo > 0 ? '#B0181F' : '#166534'">
+                          {{ t.saldo | currency:'MXN':'symbol':'1.2-2':'es-MX' }}
+                        </td>
+                        <td class="px-4 py-2.5 text-[#9EA3AE] font-mono-data">
+                          {{ t.fechaCreacion | date:'dd/MM/yyyy' }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <div class="p-8 text-center">
+                <p class="text-[13px] text-[#9EA3AE]">Sin trámites registrados para este cliente.</p>
+              </div>
+            }
+          } @else {
+            <div class="p-6 text-center">
+              <p class="text-[13px] text-[#9EA3AE]">Haz clic en "Cargar" para ver el estado de cuenta detallado.</p>
+            </div>
+          }
+        </div>
+
+        <!-- Vehicles + Trámites grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-item" style="animation-delay: 100ms;">
 
           <!-- Vehicles -->
           <div class="card-elevated rounded-2xl overflow-hidden">
@@ -116,7 +220,7 @@ import { NotificationService } from '../../services/notification.service';
             }
           </div>
 
-          <!-- Tramites -->
+          <!-- Últimos trámites -->
           <div class="card-elevated rounded-2xl overflow-hidden">
             <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#E4E7EC]">
               <span class="text-[13px] font-semibold text-[#1E2330]">Últimos trámites</span>
@@ -177,13 +281,16 @@ import { NotificationService } from '../../services/notification.service';
 export class ClientesDetailComponent {
   private route = inject(ActivatedRoute);
   private service = inject(ClienteService);
+  private reporteService = inject(ReporteService);
   private notifications = inject(NotificationService);
   router = inject(Router);
 
   @ViewChild('formDialog') formDialog!: ClienteFormDialogComponent;
 
   cliente = signal<ClienteDetailDto | null>(null);
+  estadoCuenta = signal<EstadoCuentaClienteDto | null>(null);
   loading = signal(true);
+  loadingCuenta = signal(false);
   error = signal('');
   deleting = signal(false);
 
@@ -212,10 +319,27 @@ export class ClientesDetailComponent {
           { label: 'Facturado', value: c.totalFacturado > 0 ? `$${c.totalFacturado.toFixed(2)}` : '$0.00' },
         ];
         this.loading.set(false);
+        // Auto-cargar estado de cuenta
+        this.loadEstadoCuenta();
       },
       error: (err) => {
         this.error.set(err.error?.message || 'Error al cargar cliente');
         this.loading.set(false);
+      },
+    });
+  }
+
+  loadEstadoCuenta(): void {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id || this.loadingCuenta()) return;
+    this.loadingCuenta.set(true);
+    this.reporteService.estadoCuentaCliente(id).subscribe({
+      next: (ec) => {
+        this.estadoCuenta.set(ec);
+        this.loadingCuenta.set(false);
+      },
+      error: () => {
+        this.loadingCuenta.set(false);
       },
     });
   }

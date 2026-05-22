@@ -21,6 +21,7 @@ public class AuditoriaController : ControllerBase
         [FromQuery] string? accion = null,
         [FromQuery] DateTime? desde = null,
         [FromQuery] DateTime? hasta = null,
+        [FromQuery] string? usuarioNombre = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
@@ -37,6 +38,17 @@ public class AuditoriaController : ControllerBase
 
         if (hasta.HasValue)
             query = query.Where(l => l.Fecha <= hasta.Value.ToUniversalTime());
+
+        if (!string.IsNullOrWhiteSpace(usuarioNombre))
+        {
+            var nameLower = usuarioNombre.ToLower();
+            var matchingUserIds = await _db.Usuarios
+                .Where(u => u.Nombre.ToLower().Contains(nameLower) ||
+                            (u.Apellidos != null && u.Apellidos.ToLower().Contains(nameLower)))
+                .Select(u => (Guid?)u.Id)
+                .ToListAsync();
+            query = query.Where(l => l.UsuarioId.HasValue && matchingUserIds.Contains(l.UsuarioId));
+        }
 
         var total = await query.CountAsync();
         var items = await query

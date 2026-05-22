@@ -27,6 +27,7 @@ export interface AuditoriaFiltros {
   accion?: string;
   desde?: string;
   hasta?: string;
+  usuarioNombre?: string;
   page?: number;
   pageSize?: number;
 }
@@ -43,6 +44,7 @@ export class AuditoriaService {
     if (filtros.accion) params = params.set('accion', filtros.accion);
     if (filtros.desde) params = params.set('desde', filtros.desde);
     if (filtros.hasta) params = params.set('hasta', filtros.hasta);
+    if (filtros.usuarioNombre) params = params.set('usuarioNombre', filtros.usuarioNombre);
     if (filtros.page) params = params.set('page', filtros.page.toString());
     if (filtros.pageSize) params = params.set('pageSize', filtros.pageSize.toString());
     return this.http.get<AuditoriaPagedResult>(this.baseUrl, { params });
