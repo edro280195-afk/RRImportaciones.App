@@ -8,6 +8,7 @@ import type {
   ConversionCotizacionesDto,
 } from './reporte.service';
 import type { TramiteListDto } from './tramite.service';
+import type { CotizacionListDto } from './cotizacion.service';
 
 @Injectable({ providedIn: 'root' })
 export class ExcelExportService {
@@ -201,6 +202,54 @@ export class ExcelExportService {
 
     XLSX.utils.book_append_sheet(wb, ws, 'Cotizaciones');
     XLSX.writeFile(wb, `RR_Cotizaciones_${desde}_${hasta}.xlsx`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // COTIZACIONES LIST
+  // ─────────────────────────────────────────────────────────────────────
+  exportCotizacionesList(cotizaciones: CotizacionListDto[]): void {
+    const wb = XLSX.utils.book_new();
+
+    const header = ['Folio', 'Estado', 'Cliente', 'Vehículo', 'Año', 'Total', 'Trámite', 'Fecha Creación', 'Fecha Expiración'];
+
+    const rows = cotizaciones.map(c => [
+      c.folio || '—',
+      c.estado,
+      c.clienteNombre || 'Sin cliente',
+      c.vehiculo || c.vin || '—',
+      c.anno || '',
+      c.total,
+      c.tramiteNumero || '—',
+      c.fechaCreacion ? new Date(c.fechaCreacion) : '',
+      c.fechaExpiracion ? new Date(c.fechaExpiracion) : '',
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['R&R Importaciones — Cotizaciones'],
+      [`Generado: ${new Date().toLocaleDateString('es-MX')} · ${cotizaciones.length} registros`],
+      [],
+      header,
+      ...rows,
+    ]);
+
+    ws['!cols'] = [
+      { wch: 14 }, { wch: 12 }, { wch: 22 }, { wch: 22 },
+      { wch: 8 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
+    ];
+
+    rows.forEach((_, i) => {
+      const rowNum = i + 5;
+      const fCell = `F${rowNum}`;
+      if (ws[fCell]) ws[fCell].z = this.MXN;
+      const hCell = `H${rowNum}`;
+      if (ws[hCell] && rows[i][7] instanceof Date) ws[hCell].z = 'dd/mm/yyyy';
+      const iCell = `I${rowNum}`;
+      if (ws[iCell] && rows[i][8] instanceof Date) ws[iCell].z = 'dd/mm/yyyy';
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Cotizaciones');
+    const fecha = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `RR_Cotizaciones_Lista_${fecha}.xlsx`);
   }
 
   // ─────────────────────────────────────────────────────────────────────
