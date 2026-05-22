@@ -1,6 +1,5 @@
 import {
   Component, signal, inject, OnInit, OnDestroy,
-  ViewChild, ElementRef,
 } from '@angular/core';
 import { CurrencyPipe, DecimalPipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -155,7 +154,7 @@ const GRID_LIGHT  = { lineStyle: { color: '#F3F4F6', type: 'dashed' as const } }
             <h2 class="text-[15px] font-semibold text-[#0D1017]">Evolución Mensual — Cobrado Verificado</h2>
           </div>
           @if (fin.evolucionMensual.length > 0) {
-            <div #chartFin class="h-[260px] w-full"></div>
+            <div id="chart-fin" class="h-[260px] w-full"></div>
           } @else {
             <p class="text-center text-[13px] text-[#8B93A1] py-10">Sin datos de evolución en el período seleccionado.</p>
           }
@@ -211,7 +210,7 @@ const GRID_LIGHT  = { lineStyle: { color: '#F3F4F6', type: 'dashed' as const } }
         <div class="card-elevated rounded-2xl p-5">
           <h2 class="text-[15px] font-semibold text-[#0D1017] mb-1">Trámites por Estado</h2>
           <p class="text-[12px] text-[#8B93A1] mb-4">Clic en una barra para ver los trámites de ese estado</p>
-          <div #chartPipe class="h-[320px] w-full"></div>
+          <div id="chart-pipe" class="h-[320px] w-full"></div>
         </div>
 
         <div class="card-elevated rounded-2xl overflow-hidden">
@@ -252,7 +251,7 @@ const GRID_LIGHT  = { lineStyle: { color: '#F3F4F6', type: 'dashed' as const } }
         <div class="card-elevated rounded-2xl p-5">
           <h2 class="text-[15px] font-semibold text-[#0D1017] mb-4">Productividad por Tramitador</h2>
           @if (prod.tramitadores.length > 0) {
-            <div #chartProd class="h-[260px] w-full"></div>
+            <div id="chart-prod" class="h-[260px] w-full"></div>
           } @else {
             <p class="text-center text-[13px] text-[#8B93A1] py-10">Sin datos en el período seleccionado.</p>
           }
@@ -313,7 +312,7 @@ const GRID_LIGHT  = { lineStyle: { color: '#F3F4F6', type: 'dashed' as const } }
           <div class="card-elevated rounded-2xl p-5">
             <h2 class="text-[15px] font-semibold text-[#0D1017] mb-4">Distribución por Categoría</h2>
             @if (g.porCategoria.length > 0) {
-              <div #chartGastos class="h-[260px] w-full"></div>
+              <div id="chart-gastos" class="h-[260px] w-full"></div>
             } @else {
               <p class="text-center text-[13px] text-[#8B93A1] py-10">Sin datos.</p>
             }
@@ -407,7 +406,7 @@ const GRID_LIGHT  = { lineStyle: { color: '#F3F4F6', type: 'dashed' as const } }
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="card-elevated rounded-2xl p-5">
             <h2 class="text-[15px] font-semibold text-[#0D1017] mb-4">Resultado de Cotizaciones</h2>
-            <div #chartCot class="h-[260px] w-full"></div>
+            <div id="chart-cot" class="h-[260px] w-full"></div>
           </div>
 
           <div class="card-elevated rounded-2xl p-5">
@@ -497,13 +496,6 @@ export class ReportesComponent implements OnInit, OnDestroy {
   private readonly service = inject(ReporteService);
   private readonly exportService = inject(ExcelExportService);
   private readonly router = inject(Router);
-
-  // Chart element refs
-  @ViewChild('chartFin')    chartFinEl?: ElementRef<HTMLDivElement>;
-  @ViewChild('chartPipe')   chartPipeEl?: ElementRef<HTMLDivElement>;
-  @ViewChild('chartProd')   chartProdEl?: ElementRef<HTMLDivElement>;
-  @ViewChild('chartGastos') chartGastosEl?: ElementRef<HTMLDivElement>;
-  @ViewChild('chartCot')    chartCotEl?: ElementRef<HTMLDivElement>;
 
   // Filtros
   desde = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
@@ -661,7 +653,9 @@ export class ReportesComponent implements OnInit, OnDestroy {
   // ─────────────────────────────────────────────────────────────────────
   // GRÁFICAS — INICIALIZACIÓN / ACTUALIZACIÓN
   // ─────────────────────────────────────────────────────────────────────
-  private async getChart(el: HTMLDivElement, key: string): Promise<any> {
+  private async getChart(elId: string, key: string): Promise<any | null> {
+    const el = document.getElementById(elId) as HTMLDivElement | null;
+    if (!el) return null;
     const echarts = await import('echarts');
     let inst = this.charts.get(key);
     if (!inst || inst.isDisposed()) {
@@ -673,9 +667,10 @@ export class ReportesComponent implements OnInit, OnDestroy {
 
   private async renderFinanciero(): Promise<void> {
     const fin = this.financiero();
-    if (!this.chartFinEl?.nativeElement || !fin || fin.evolucionMensual.length === 0) return;
+    if (!fin || fin.evolucionMensual.length === 0) return;
 
-    const inst = await this.getChart(this.chartFinEl.nativeElement, 'fin');
+    const inst = await this.getChart('chart-fin', 'fin');
+    if (!inst) return;
     inst.setOption({
       tooltip: {
         trigger: 'axis',
@@ -703,14 +698,16 @@ export class ReportesComponent implements OnInit, OnDestroy {
         emphasis: { itemStyle: { color: '#A01520' } },
       }],
     }, true);
+    inst.resize();
   }
 
   private async renderPipeline(): Promise<void> {
     const pipe = this.pipelineData();
-    if (!this.chartPipeEl?.nativeElement || !pipe || pipe.estados.length === 0) return;
+    if (!pipe || pipe.estados.length === 0) return;
 
     const sorted = [...pipe.estados].sort((a, b) => a.cantidad - b.cantidad);
-    const inst   = await this.getChart(this.chartPipeEl.nativeElement, 'pipe');
+    const inst   = await this.getChart('chart-pipe', 'pipe');
+    if (!inst) return;
 
     inst.setOption({
       tooltip: {
@@ -739,6 +736,7 @@ export class ReportesComponent implements OnInit, OnDestroy {
         emphasis: { itemStyle: { color: '#A01520' } },
       }],
     }, true);
+    inst.resize();
 
     // Click → navegar a tramites
     inst.off('click');
@@ -750,9 +748,10 @@ export class ReportesComponent implements OnInit, OnDestroy {
 
   private async renderProductividad(): Promise<void> {
     const prod = this.productividad();
-    if (!this.chartProdEl?.nativeElement || !prod || prod.tramitadores.length === 0) return;
+    if (!prod || prod.tramitadores.length === 0) return;
 
-    const inst = await this.getChart(this.chartProdEl.nativeElement, 'prod');
+    const inst = await this.getChart('chart-prod', 'prod');
+    if (!inst) return;
     inst.setOption({
       tooltip: { trigger: 'axis' },
       legend: { data: ['Activos', 'Cerrados'], bottom: 0, textStyle: TEXT_STYLE },
@@ -787,13 +786,15 @@ export class ReportesComponent implements OnInit, OnDestroy {
         },
       ],
     }, true);
+    inst.resize();
   }
 
   private async renderGastos(): Promise<void> {
     const g = this.gastos();
-    if (!this.chartGastosEl?.nativeElement || !g || g.porCategoria.length === 0) return;
+    if (!g || g.porCategoria.length === 0) return;
 
-    const inst = await this.getChart(this.chartGastosEl.nativeElement, 'gastos');
+    const inst = await this.getChart('chart-gastos', 'gastos');
+    if (!inst) return;
     inst.setOption({
       tooltip: {
         trigger: 'item',
@@ -814,17 +815,19 @@ export class ReportesComponent implements OnInit, OnDestroy {
         emphasis: { itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,.15)' } },
       }],
     }, true);
+    inst.resize();
   }
 
   private async renderCotizaciones(): Promise<void> {
     const cot = this.cotizaciones();
-    if (!this.chartCotEl?.nativeElement || !cot) return;
+    if (!cot) return;
 
     const pendientes = Math.max(0,
       cot.totalEmitidas - cot.totalAceptadas - cot.totalRechazadas - cot.totalExpiradas
     );
 
-    const inst = await this.getChart(this.chartCotEl.nativeElement, 'cot');
+    const inst = await this.getChart('chart-cot', 'cot');
+    if (!inst) return;
     inst.setOption({
       tooltip: {
         trigger: 'item',
@@ -845,6 +848,7 @@ export class ReportesComponent implements OnInit, OnDestroy {
         emphasis: { itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,.15)' } },
       }],
     }, true);
+    inst.resize();
   }
 
   // ─────────────────────────────────────────────────────────────────────
