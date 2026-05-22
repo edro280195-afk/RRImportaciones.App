@@ -103,7 +103,7 @@ const GRID_LIGHT  = { lineStyle: { color: '#F3F4F6', type: 'dashed' as const } }
           </div>
           <div class="kpi">
             <span class="kpi-label">Por Cobrar</span>
-            <strong class="kpi-val" [class.text-[#D97706]]="fin.porCobrarTotal > 0">{{ fin.porCobrarTotal | currency:'MXN':'symbol':'1.0-0' }}</strong>
+            <strong class="kpi-val" [style.color]="fin.porCobrarTotal > 0 ? '#D97706' : null">{{ fin.porCobrarTotal | currency:'MXN':'symbol':'1.0-0' }}</strong>
             @if (comparativoActivo() && financieroAnt()) {
               <span class="kpi-delta" [ngClass]="deltaPositive(fin.porCobrarTotal, financieroAnt()!.porCobrarTotal, false) ? 'text-[#16A34A]' : 'text-[#C61D26]'">
                 {{ deltaStr(fin.porCobrarTotal, financieroAnt()!.porCobrarTotal) }}
@@ -145,7 +145,7 @@ const GRID_LIGHT  = { lineStyle: { color: '#F3F4F6', type: 'dashed' as const } }
           </div>
           <div class="kpi kpi-sm">
             <span class="kpi-label">Pend. verificar</span>
-            <strong class="kpi-val-sm" [class.text-[#D97706]]="fin.pagosPendientesVerificacion > 0">{{ fin.pagosPendientesVerificacion }}</strong>
+            <strong class="kpi-val-sm" [style.color]="fin.pagosPendientesVerificacion > 0 ? '#D97706' : null">{{ fin.pagosPendientesVerificacion }}</strong>
           </div>
         </div>
 
