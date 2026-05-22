@@ -206,6 +206,57 @@ import { CotizacionDashboardDto, CotizacionService } from '../../services/cotiza
         </section>
       </div>
 
+      <!-- Trámites atrasados -->
+      @if (!loading() && tramitesAtrasados.length > 0) {
+        <section class="card-elevated rounded-2xl overflow-hidden stagger-item mb-5" style="animation-delay:185ms;">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-[#B0181F] animate-pulse"></div>
+              <div>
+                <p class="text-[13px] font-semibold text-[var(--n-800)]">Trámites sin avance</p>
+                <p class="text-[12px] text-[var(--n-400)]">Activos con más de 7 días en el mismo estado</p>
+              </div>
+            </div>
+            <button (click)="router.navigate(['/tramites'])" class="text-[12px] font-medium text-[var(--rr-600)] hover:text-[var(--rr-700)] transition-colors">Ver todos</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-[12.5px]">
+              <thead>
+                <tr class="border-b border-[var(--n-100)] bg-[#FFFBFB]">
+                  <th class="text-left px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">#</th>
+                  <th class="text-left px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Cliente</th>
+                  <th class="text-left px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Tramitador</th>
+                  <th class="text-left px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Estado</th>
+                  <th class="text-center px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Días</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of tramitesAtrasados; track t.id) {
+                  <tr (click)="router.navigate(['/tramites', t.id])"
+                    class="border-b border-[var(--n-100)] hover:bg-[#FAFBFC] cursor-pointer transition-colors last:border-0">
+                    <td class="px-5 py-3 font-mono-data font-semibold text-[#0D1017]">{{ t.numeroConsecutivo }}</td>
+                    <td class="px-5 py-3 text-[#374151]">{{ t.clienteApodo || '—' }}</td>
+                    <td class="px-5 py-3 text-[#6B717F]">{{ t.tramitadorNombre || '—' }}</td>
+                    <td class="px-5 py-3">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold" [class]="statusBadgeClass(t.estatus)">
+                        {{ t.estatus }}
+                      </span>
+                    </td>
+                    <td class="px-5 py-3 text-center">
+                      <span class="inline-flex items-center justify-center w-10 h-6 rounded-lg text-[11px] font-bold"
+                        [style.background]="t.diasEnEstado >= 30 ? '#FEE2E2' : t.diasEnEstado >= 15 ? '#FEF3C7' : '#F3F4F6'"
+                        [style.color]="t.diasEnEstado >= 30 ? '#991B1B' : t.diasEnEstado >= 15 ? '#92400E' : '#4B5162'">
+                        {{ t.diasEnEstado }}d
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+
       <!-- Gastos hormiga -->
       <section class="card-elevated rounded-2xl overflow-hidden stagger-item" style="animation-delay:200ms;">
         <div class="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
@@ -326,9 +377,12 @@ export class DashboardComponent implements OnInit {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
+  readonly estadosTerminales = new Set(['VERDE_ENTREGADO', 'ENTREGADO_AL_CLIENTE', 'COBRADO', 'CANCELADO']);
+
   dash: TramiteDashboardDto = { activos: 0, verdesEsteMes: 0, amarillosPendientePago: 0, cobradoMes: 0, porCobrar: 0, vehiculosEnPatio: 0 };
   cotDash: CotizacionDashboardDto = { pendientesRespuesta: 0, porExpirar: 0, aceptadasListas: [] };
   tramitesRecientes: TramiteListDto[] = [];
+  tramitesAtrasados: TramiteListDto[] = [];
   pagosPendientes: PagoListDto[] = [];
   gastosRecientes: GastoHormigaListDto[] = [];
 
@@ -337,6 +391,7 @@ export class DashboardComponent implements OnInit {
       dash: this.tramiteService.getDashboard(),
       cotDash: this.cotizacionService.getDashboard(),
       tramites: this.tramiteService.getList({ pageSize: 5 }),
+      atrasados: this.tramiteService.getList({ orderBy: 'fechaestado', orderDir: 'asc', pageSize: 20 }),
       pagos: this.pagoService.getList({ verificado: false, pageSize: 5 }),
       gastos: this.gastoService.getList({ pageSize: 3 })
     }).subscribe({
@@ -344,6 +399,9 @@ export class DashboardComponent implements OnInit {
         this.dash = res.dash;
         this.cotDash = res.cotDash;
         this.tramitesRecientes = res.tramites.items;
+        this.tramitesAtrasados = res.atrasados.items
+          .filter(t => !this.estadosTerminales.has(t.estatus) && t.diasEnEstado >= 7)
+          .slice(0, 6);
         this.pagosPendientes = res.pagos.items;
         this.gastosRecientes = res.gastos.items;
       },

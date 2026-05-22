@@ -72,6 +72,8 @@ public class TramiteService : ITramiteService
                 ? query.OrderByDescending(t => t.NumeroConsecutivo) : query.OrderBy(t => t.NumeroConsecutivo),
             "monto" => string.Equals(orderDir, "desc", StringComparison.OrdinalIgnoreCase)
                 ? query.OrderByDescending(t => t.CobroTotal) : query.OrderBy(t => t.CobroTotal),
+            "fechaestado" => string.Equals(orderDir, "desc", StringComparison.OrdinalIgnoreCase)
+                ? query.OrderByDescending(t => t.FechaEstadoActual) : query.OrderBy(t => t.FechaEstadoActual),
             _ => query.OrderByDescending(t => t.FechaCreacion),
         };
 
