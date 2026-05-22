@@ -2,6 +2,13 @@
    Custom design system is in design-system.css (loaded separately by Angular). */
 @import "tailwindcss";
 
+/* Utilidad global para ocultar scrollbar manteniendo scroll funcional */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
 @source "./";
 
 @theme {

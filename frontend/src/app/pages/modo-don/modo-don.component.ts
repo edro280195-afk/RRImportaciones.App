@@ -383,7 +383,7 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   @ViewChild('chatContainer') chatContainer!: ElementRef;
   @ViewChild('inputRef') inputRef!: ElementRef<HTMLTextAreaElement>;
 
-  provider = signal<'openai' | 'gemini'>('openai'); // Toggle manual — nunca se llama getProviders()
+  provider = signal<'openai' | 'gemini'>('gemini'); // Toggle manual — nunca se llama getProviders()
   loading = signal(false);
   inputText = '';
 

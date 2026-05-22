@@ -145,12 +145,12 @@ import { environment } from '../../../environments/environment';
           </div>
         }
 
-        <!-- Tabs -->
-        <div class="flex items-center gap-1 mb-4">
+        <!-- Tabs — scroll horizontal en móvil para no desbordar -->
+        <div class="flex items-center gap-1 mb-4 overflow-x-auto pb-1 scrollbar-hide">
           @for (tab of tabs; track tab.key) {
             <button (click)="activeTab.set(tab.key)"
-              class="px-4 py-2 rounded-lg text-[12.5px] font-medium transition-all duration-150"
-              [style]="activeTab() === tab.key ? 'background: #0D1017; color: #fff;' : 'color: #6B717F; hover:background: #F3F4F6;'">
+              class="shrink-0 whitespace-nowrap px-4 py-2 rounded-lg text-[12.5px] font-medium transition-all duration-150"
+              [style]="activeTab() === tab.key ? 'background: #0D1017; color: #fff;' : 'color: #6B717F;'">
               {{ tab.label }}
             </button>
           }
@@ -320,7 +320,7 @@ import { environment } from '../../../environments/environment';
                               <svg class="w-4 h-4 animate-spin text-[#0D1017]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                             } @else {
                               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                              <input type="file" class="hidden" accept=".pdf,.jpg,.jpeg,.png" (change)="onDocumentoFileSelected($event, doc.tipoDocumento, actual?.estatus || 'RECIBIDO')">
+                              <input type="file" class="hidden" accept=".pdf,.jpg,.jpeg,.png" (change)="onDocumentoFileSelected($event, doc.tipoDocumento, 'RECIBIDO')">
                             }
                           </label>
                         </div>
@@ -338,10 +338,23 @@ import { environment } from '../../../environments/environment';
                       </label>
                     }
 
-                    <div class="grid grid-cols-2 gap-2 mt-1">
-                      <button (click)="guardarDocumento(t.id, doc.tipoDocumento, 'RECIBIDO', actual?.archivoUrl)" [disabled]="!actual?.archivoUrl" [class.opacity-50]="!actual?.archivoUrl" class="rounded-xl border border-[#E4E7EC] px-3 py-2 text-[12px] font-medium hover:bg-[#F9FAFB] transition-colors">Recibido</button>
-                      <button (click)="guardarDocumento(t.id, doc.tipoDocumento, 'VALIDADO', actual?.archivoUrl)" [disabled]="!actual?.archivoUrl" [class.opacity-50]="!actual?.archivoUrl" class="rounded-xl bg-[#0D1017] px-3 py-2 text-[12px] font-medium text-white hover:bg-[#1F2937] transition-colors">Validado</button>
-                    </div>
+                    <!-- Solo botón Validar: verde, deshabilitado al validar, vuelve a activarse si reemplazan el archivo -->
+                    <button
+                      (click)="guardarDocumento(t.id, doc.tipoDocumento, 'VALIDADO', actual?.archivoUrl)"
+                      [disabled]="!actual?.archivoUrl || actual?.estatus === 'VALIDADO'"
+                      [style]="actual?.estatus === 'VALIDADO'
+                        ? 'background:#DCFCE7;color:#166534;border:1px solid #BBF7D0;cursor:default;'
+                        : actual?.archivoUrl
+                          ? 'background:#16A34A;color:white;'
+                          : 'background:#F3F4F6;color:#9EA3AE;cursor:not-allowed;'"
+                      class="w-full mt-1 flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-semibold transition-colors">
+                      @if (actual?.estatus === 'VALIDADO') {
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                        Validado
+                      } @else {
+                        Validar documento
+                      }
+                    </button>
                   </div>
                 </div>
               }

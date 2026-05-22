@@ -235,6 +235,15 @@ import { ConfirmDialogComponent } from './confirm-dialog.component';
     }
 
     @media (max-width: 640px) {
+      /* En móvil los toasts van abajo para no tener que subir a verlos */
+      .feedback-toasts {
+        top: auto;
+        bottom: 20px;
+        right: 12px;
+        left: 12px;
+        width: auto;
+      }
+
       .feedback-modal {
         grid-template-columns: 1fr;
       }
