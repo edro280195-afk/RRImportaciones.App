@@ -23,6 +23,7 @@ public class LoteImportacionService : ILoteImportacionService
     public async Task<PagedResult<LoteListDto>> GetListAsync(string? search, string? estado, Guid? clienteId, int page, int pageSize)
     {
         var query = _db.LotesImportacion
+            .Where(l => l.DeletedAt == null)
             .Include(l => l.Cliente)
             .Include(l => l.Aduana)
             .Include(l => l.Tramitador)
@@ -206,9 +207,66 @@ public class LoteImportacionService : ILoteImportacionService
         return (await GetByIdAsync(lote.Id))!;
     }
 
+    public async Task CancelarLoteAsync(Guid id)
+    {
+        var lote = await _db.LotesImportacion
+            .Include(l => l.Tramites)
+            .FirstOrDefaultAsync(l => l.Id == id)
+            ?? throw new KeyNotFoundException("Lote no encontrado");
+
+        if (lote.Estado == "CANCELADO") return;
+        if (lote.Estado == "CERRADO") throw new InvalidOperationException("No se puede cancelar un lote cerrado");
+
+        lote.Estado = "CANCELADO";
+        lote.FechaModificacion = DateTime.UtcNow;
+        lote.DeletedAt = DateTime.UtcNow;
+
+        foreach (var tramite in lote.Tramites)
+        {
+            if (tramite.EstadoLogistico != "ENTREGADO_AL_CLIENTE" && tramite.EstadoLogistico != "CANCELADO")
+            {
+                tramite.EstadoLogistico = "CANCELADO";
+                tramite.FechaEstadoActual = DateTime.UtcNow;
+                _db.Eventos.Add(new Evento
+                {
+                    Id = Guid.NewGuid(),
+                    TramiteId = tramite.Id,
+                    Tipo = "ACTUALIZACION",
+                    Contenido = $"Tramite cancelado porque se cancelo el Lote {lote.FolioLote}",
+                    EstadoNuevo = "CANCELADO",
+                    FechaEvento = DateTime.UtcNow,
+                    CreadoPor = _currentUser.UserId ?? Guid.Empty,
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task RemoverVehiculoAsync(Guid loteId, Guid tramiteId)
+    {
+        var lote = await _db.LotesImportacion.Include(l => l.Tramites).FirstOrDefaultAsync(l => l.Id == loteId)
+            ?? throw new KeyNotFoundException("Lote no encontrado");
+
+        if (lote.Estado == "CANCELADO" || lote.Estado == "CERRADO")
+            throw new InvalidOperationException("No se pueden remover vehiculos de un lote cerrado o cancelado");
+
+        var tramite = lote.Tramites.FirstOrDefault(t => t.Id == tramiteId)
+            ?? throw new KeyNotFoundException("Tramite no pertenece a este lote");
+
+        if (tramite.EstadoLogistico != "PENDIENTE_TRAMITE")
+            throw new InvalidOperationException("Solo se pueden remover tramites que esten en estado Pendiente");
+
+        _db.Tramites.Remove(tramite);
+        lote.FechaModificacion = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync();
+    }
+
     private IQueryable<LoteImportacion> BuildDetailQuery()
     {
         return _db.LotesImportacion
+            .Where(l => l.DeletedAt == null)
             .Include(l => l.Cliente)
             .Include(l => l.Aduana)
             .Include(l => l.Tramitador)

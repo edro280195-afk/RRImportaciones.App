@@ -10,4 +10,6 @@ public interface ILoteImportacionService
     Task<LoteDetailDto> CreateAsync(CreateLoteRequest request);
     Task<LoteDetailDto> UpdateAsync(Guid id, UpdateLoteRequest request);
     Task<LoteDetailDto> AgregarVehiculoAsync(Guid id, AgregarVehiculoALoteRequest request);
+    Task CancelarLoteAsync(Guid id);
+    Task RemoverVehiculoAsync(Guid loteId, Guid tramiteId);
 }

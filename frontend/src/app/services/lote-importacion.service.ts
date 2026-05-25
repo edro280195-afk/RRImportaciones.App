@@ -111,4 +111,20 @@ export class LoteImportacionService {
   create(request: CreateLoteRequest): Observable<LoteDetailDto> {
     return this.http.post<LoteDetailDto>(this.baseUrl, request);
   }
+
+  cancelar(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
+
+  removerVehiculo(loteId: string, tramiteId: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${loteId}/vehiculos/${tramiteId}`);
+  }
+
+  descargarPdf(id: string): void {
+    window.open(`${this.baseUrl}/${id}/pdf`, '_blank');
+  }
+
+  enviarWhatsApp(id: string, telefono: string, mensajePersonalizado?: string): Observable<{ pdfUrl: string, mensaje: string, whatsappUrl: string }> {
+    return this.http.post<{ pdfUrl: string, mensaje: string, whatsappUrl: string }>(`${this.baseUrl}/${id}/whatsapp`, { telefono, mensajePersonalizado });
+  }
 }

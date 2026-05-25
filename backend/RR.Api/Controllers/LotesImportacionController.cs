@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RR.Application.DTOs.LotesImportacion;
 using RR.Application.Interfaces;
+using RR.Application.DTOs.Cotizaciones;
 
 namespace RR.Api.Controllers;
 
@@ -11,10 +12,17 @@ namespace RR.Api.Controllers;
 public class LotesImportacionController : ControllerBase
 {
     private readonly ILoteImportacionService _loteService;
+    private readonly ILotePdfService _pdfService;
+    private readonly IWhatsAppLoteService _whatsappService;
 
-    public LotesImportacionController(ILoteImportacionService loteService)
+    public LotesImportacionController(
+        ILoteImportacionService loteService,
+        ILotePdfService pdfService,
+        IWhatsAppLoteService whatsappService)
     {
         _loteService = loteService;
+        _pdfService = pdfService;
+        _whatsappService = whatsappService;
     }
 
     [HttpGet]
@@ -86,6 +94,75 @@ public class LotesImportacionController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> CancelarLote(Guid id)
+    {
+        try
+        {
+            await _loteService.CancelarLoteAsync(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id:guid}/vehiculos/{tramiteId:guid}")]
+    public async Task<IActionResult> RemoverVehiculo(Guid id, Guid tramiteId)
+    {
+        try
+        {
+            await _loteService.RemoverVehiculoAsync(id, tramiteId);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/pdf")]
+    [AllowAnonymous]
+    public async Task<IActionResult> DescargarPdf(Guid id)
+    {
+        try
+        {
+            var pdfBytes = await _pdfService.GeneratePdfAsync(id);
+            return File(pdfBytes, "application/pdf", $"lote-{id}.pdf");
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:guid}/whatsapp")]
+    public async Task<IActionResult> EnviarWhatsApp(Guid id, [FromBody] WhatsAppLinkRequest request)
+    {
+        try
+        {
+            var link = await _whatsappService.GenerateLinkAsync(id, request);
+            return Ok(link);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return UnprocessableEntity(new { message = ex.Message });
         }
     }
 }
