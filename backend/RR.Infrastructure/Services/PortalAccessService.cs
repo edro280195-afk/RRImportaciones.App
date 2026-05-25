@@ -39,7 +39,7 @@ public class PortalAccessService : IPortalAccessService
             else if (mod == 3) padded += "=";
             var combined = Convert.FromBase64String(padded);
 
-            if (combined.Length != 32)
+            if (combined.Length != 48)
                 return null;
 
             var idBytes = combined[..16];
