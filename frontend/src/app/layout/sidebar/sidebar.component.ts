@@ -365,6 +365,7 @@ export class SidebarComponent implements OnInit {
             permiso: 'TRAMITES_VER',
           },
           { label: 'Trámites', icon: icons.tramites, route: '/tramites', permiso: 'TRAMITES_VER' },
+          { label: 'Lotes', icon: icons.inventario, route: '/lotes', permiso: 'TRAMITES_VER' },
           { label: 'Campo', icon: icons.personal, route: '/campo', permiso: 'CAMPO_USAR' },
           {
             label: 'Pedimentos',

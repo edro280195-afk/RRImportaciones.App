@@ -19,4 +19,5 @@ public class Tenant
     public ICollection<Tramite> Tramites { get; set; } = new List<Tramite>();
     public ICollection<Cotizacion> Cotizaciones { get; set; } = new List<Cotizacion>();
     public ICollection<Pago> Pagos { get; set; } = new List<Pago>();
+    public ICollection<LoteImportacion> LotesImportacion { get; set; } = new List<LoteImportacion>();
 }

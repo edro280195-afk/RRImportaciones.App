@@ -31,6 +31,12 @@ public class TramiteStateService : ITramiteStateService
             return false;
         }
 
+        if (estadoActual == EstadoLogistico.ENTREGADO_AL_CLIENTE)
+        {
+            razon = "El tramite ya fue entregado y finalizo su ciclo logistico.";
+            return false;
+        }
+
         if (nuevoEstado == EstadoLogistico.CANCELADO)
         {
             return true;

@@ -5,6 +5,8 @@ import { Observable } from 'rxjs';
 export interface TramiteListDto {
   id: string;
   numeroConsecutivo: string;
+  loteId: string | null;
+  folioLote: string | null;
   fechaCreacion: string;
   clienteApodo: string | null;
   clienteNombre: string | null;
@@ -120,6 +122,8 @@ export interface TramiteTareaCampoDto {
 export interface TramiteDetailDto {
   id: string;
   numeroConsecutivo: string;
+  loteId: string | null;
+  folioLote: string | null;
   clienteId: string | null;
   clienteApodo: string | null;
   clienteNombre: string | null;
@@ -200,6 +204,7 @@ export class TramiteService {
     tramitadorId?: string;
     clienteId?: string;
     aduanaId?: string;
+    loteId?: string;
     fechaDesde?: string;
     fechaHasta?: string;
     orderBy?: string;
@@ -213,6 +218,7 @@ export class TramiteService {
     if (params.tramitadorId) p = p.set('tramitadorId', params.tramitadorId);
     if (params.clienteId) p = p.set('clienteId', params.clienteId);
     if (params.aduanaId) p = p.set('aduanaId', params.aduanaId);
+    if (params.loteId) p = p.set('loteId', params.loteId);
     if (params.fechaDesde) p = p.set('fechaDesde', params.fechaDesde);
     if (params.fechaHasta) p = p.set('fechaHasta', params.fechaHasta);
     if (params.orderBy) p = p.set('orderBy', params.orderBy);

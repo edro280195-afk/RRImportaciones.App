@@ -118,12 +118,22 @@ public class GastoHormigaService : IGastoHormigaService
         var tipoGasto = await _db.TiposGastoHormiga.FindAsync(request.TipoGastoId)
             ?? throw new KeyNotFoundException("Tipo de gasto no encontrado");
 
+        Tramite? tramite = null;
+        if (request.TramiteId.HasValue)
+        {
+            tramite = await _db.Tramites
+                .Include(t => t.Cliente)
+                .Include(t => t.Vehiculo)
+                .FirstOrDefaultAsync(t => t.Id == request.TramiteId.Value)
+                ?? throw new KeyNotFoundException("Trámite no encontrado");
+        }
+
         var gasto = new GastoHormiga
         {
             Id = Guid.NewGuid(),
             TramiteId = request.TramiteId,
-            ClienteId = request.ClienteId,
-            VehiculoId = request.VehiculoId,
+            ClienteId = tramite?.ClienteId,
+            VehiculoId = tramite?.VehiculoId,
             TipoGastoId = request.TipoGastoId,
             Concepto = request.Concepto,
             Monto = request.Monto,
@@ -156,9 +166,19 @@ public class GastoHormigaService : IGastoHormigaService
 
         var before = SnapshotGasto(gasto);
 
+        Tramite? tramite = null;
+        if (request.TramiteId.HasValue)
+        {
+            tramite = await _db.Tramites
+                .Include(t => t.Cliente)
+                .Include(t => t.Vehiculo)
+                .FirstOrDefaultAsync(t => t.Id == request.TramiteId.Value)
+                ?? throw new KeyNotFoundException("Trámite no encontrado");
+        }
+
         gasto.TramiteId = request.TramiteId;
-        gasto.ClienteId = request.ClienteId;
-        gasto.VehiculoId = request.VehiculoId;
+        gasto.ClienteId = tramite?.ClienteId;
+        gasto.VehiculoId = tramite?.VehiculoId;
         gasto.TipoGastoId = request.TipoGastoId;
         gasto.Concepto = request.Concepto;
         gasto.Monto = request.Monto;

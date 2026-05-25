@@ -7,6 +7,8 @@ public class TramiteDetailDto
 {
     public Guid Id { get; set; }
     public string NumeroConsecutivo { get; set; } = string.Empty;
+    public Guid? LoteId { get; set; }
+    public string? FolioLote { get; set; }
     public Guid? ClienteId { get; set; }
     public string? ClienteApodo { get; set; }
     public string? ClienteNombre { get; set; }

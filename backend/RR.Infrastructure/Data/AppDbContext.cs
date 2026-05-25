@@ -54,6 +54,7 @@ public class AppDbContext : DbContext
     public DbSet<PersonalCampo> PersonalCampo => Set<PersonalCampo>();
     public DbSet<PartnerExterno> PartnersExternos => Set<PartnerExterno>();
     public DbSet<Banco> Bancos => Set<Banco>();
+    public DbSet<LoteImportacion> LotesImportacion => Set<LoteImportacion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -158,6 +159,23 @@ public class AppDbContext : DbContext
             e.HasQueryFilter(e => e.TenantId == CurrentTenantId && e.DeletedAt == null);
         });
 
+        modelBuilder.Entity<LoteImportacion>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.FolioLote).HasMaxLength(50).IsRequired();
+            e.Property(x => x.TipoTramite).HasMaxLength(30).HasDefaultValue("NORMAL");
+            e.Property(x => x.Estado).HasMaxLength(30).HasDefaultValue("EN_PROGRESO");
+            e.Property(x => x.Notas).HasColumnType("text");
+            e.HasIndex(x => new { x.TenantId, x.FolioLote }).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.ClienteId });
+            e.HasIndex(x => new { x.TenantId, x.Estado });
+            e.HasOne(x => x.Tenant).WithMany(t => t.LotesImportacion).HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.Cliente).WithMany().HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Aduana).WithMany().HasForeignKey(x => x.AduanaId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Tramitador).WithMany().HasForeignKey(x => x.TramitadorId).OnDelete(DeleteBehavior.SetNull);
+            e.HasQueryFilter(e => e.TenantId == CurrentTenantId && e.DeletedAt == null);
+        });
+
         modelBuilder.Entity<Tramite>(e =>
         {
             e.HasKey(x => x.Id);
@@ -174,7 +192,9 @@ public class AppDbContext : DbContext
             e.Property(x => x.CotizacionOrigenId);
             e.HasIndex(x => new { x.TenantId, x.NumeroConsecutivo }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.NumeroLegacy }).IsUnique().HasFilter("\"NumeroLegacy\" IS NOT NULL");
+            e.HasIndex(x => new { x.TenantId, x.LoteId });
             e.HasOne(x => x.Tenant).WithMany(t => t.Tramites).HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.Lote).WithMany(l => l.Tramites).HasForeignKey(x => x.LoteId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.Cliente).WithMany(c => c.Tramites).HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.Vehiculo).WithMany(v => v.Tramites).HasForeignKey(x => x.VehiculoId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.Aduana).WithMany().HasForeignKey(x => x.AduanaId).OnDelete(DeleteBehavior.SetNull);

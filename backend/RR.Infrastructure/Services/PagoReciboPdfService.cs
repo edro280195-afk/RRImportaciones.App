@@ -87,7 +87,7 @@ public class PagoReciboPdfService : IPagoReciboPdfService
             
             column.Item().Element(x => ComposeReceiptCopy(x, pago, totalRequerido, logo, "COPIA CLIENTE"));
             
-            column.Item().BorderBottom(1).BorderColor("#9CA3AF").BorderDashPattern(new float[] { 4, 4 }).Padding(0);
+            column.Item().BorderBottom(1).BorderColor("#9CA3AF");
             
             column.Item().Element(x => ComposeReceiptCopy(x, pago, totalRequerido, logo, "COPIA ARCHIVO"));
         });
@@ -105,7 +105,7 @@ public class PagoReciboPdfService : IPagoReciboPdfService
                 
                 row.ConstantItem(80).AlignMiddle().AlignRight()
                     .Background("#F3F4F6").Border(1).BorderColor("#D1D5DB")
-                    .Padding(4, 2)
+                    .PaddingHorizontal(4).PaddingVertical(2)
                     .Text(tipoCopia)
                     .Bold().FontSize(8.5f).FontColor("#374151");
             });

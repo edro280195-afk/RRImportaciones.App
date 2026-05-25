@@ -86,6 +86,7 @@ builder.Services.AddScoped<IClienteService, ClienteService>();
 builder.Services.AddScoped<IVehiculoService, VehiculoService>();
 builder.Services.AddScoped<IMarcaService, MarcaService>();
 builder.Services.AddScoped<ITramiteService, TramiteService>();
+builder.Services.AddScoped<ILoteImportacionService, LoteImportacionService>();
 builder.Services.AddScoped<ITramiteStateService, TramiteStateService>();
 builder.Services.AddScoped<ITramitadorService, TramitadorService>();
 builder.Services.AddScoped<IPersonalCampoService, PersonalCampoService>();

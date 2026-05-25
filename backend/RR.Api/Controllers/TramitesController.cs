@@ -29,6 +29,7 @@ public class TramitesController : ControllerBase
         [FromQuery] Guid? tramitadorId,
         [FromQuery] Guid? clienteId,
         [FromQuery] Guid? aduanaId,
+        [FromQuery] Guid? loteId,
         [FromQuery] DateTime? fechaDesde,
         [FromQuery] DateTime? fechaHasta,
         [FromQuery] string? orderBy,
@@ -36,7 +37,7 @@ public class TramitesController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        var result = await _tramiteService.GetListAsync(search, estado, tramitadorId, clienteId, aduanaId, fechaDesde, fechaHasta, orderBy, orderDir, page, pageSize);
+        var result = await _tramiteService.GetListAsync(search, estado, tramitadorId, clienteId, aduanaId, fechaDesde, fechaHasta, orderBy, orderDir, page, pageSize, loteId);
         return Ok(result);
     }
 

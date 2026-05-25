@@ -8,6 +8,7 @@ public class Tramite : ITenantEntity
     public Guid TenantId { get; set; }
     public string NumeroConsecutivo { get; set; } = string.Empty;
     public string? NumeroLegacy { get; set; }
+    public Guid? LoteId { get; set; }
     public Guid? ClienteId { get; set; }
     public Guid? VehiculoId { get; set; }
     public Guid? AduanaId { get; set; }
@@ -29,6 +30,7 @@ public class Tramite : ITenantEntity
     public DateTime? FechaModificacion { get; set; }
 
     public Tenant Tenant { get; set; } = null!;
+    public LoteImportacion? Lote { get; set; }
     public Cliente? Cliente { get; set; }
     public Vehiculo? Vehiculo { get; set; }
     public Aduana? Aduana { get; set; }

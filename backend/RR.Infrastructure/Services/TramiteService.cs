@@ -23,9 +23,10 @@ public class TramiteService : ITramiteService
         _realtime = realtime;
     }
 
-    public async Task<PagedResult<TramiteListDto>> GetListAsync(string? search, string? estado, Guid? tramitadorId, Guid? clienteId, Guid? aduanaId, DateTime? fechaDesde, DateTime? fechaHasta, string? orderBy, string? orderDir, int page, int pageSize)
+    public async Task<PagedResult<TramiteListDto>> GetListAsync(string? search, string? estado, Guid? tramitadorId, Guid? clienteId, Guid? aduanaId, DateTime? fechaDesde, DateTime? fechaHasta, string? orderBy, string? orderDir, int page, int pageSize, Guid? loteId = null)
     {
         var query = _db.Tramites
+            .Include(t => t.Lote)
             .Include(t => t.Cliente)
             .Include(t => t.Vehiculo)
             .Include(t => t.Aduana)
@@ -60,6 +61,9 @@ public class TramiteService : ITramiteService
         if (aduanaId.HasValue)
             query = query.Where(t => t.AduanaId == aduanaId);
 
+        if (loteId.HasValue)
+            query = query.Where(t => t.LoteId == loteId);
+
         if (fechaDesde.HasValue)
             query = query.Where(t => t.FechaCreacion >= fechaDesde.Value);
 
@@ -86,6 +90,8 @@ public class TramiteService : ITramiteService
             {
                 Id = t.Id,
                 NumeroConsecutivo = t.NumeroConsecutivo,
+                LoteId = t.LoteId,
+                FolioLote = t.Lote != null ? t.Lote.FolioLote : null,
                 FechaCreacion = t.FechaCreacion,
                 ClienteApodo = t.Cliente != null ? t.Cliente.Apodo : null,
                 ClienteNombre = t.Cliente != null ? t.Cliente.NombreCompleto : null,
@@ -123,6 +129,7 @@ public class TramiteService : ITramiteService
     public async Task<TramiteDetailDto?> GetByIdAsync(Guid id)
     {
         return await _db.Tramites
+            .Include(t => t.Lote)
             .Include(t => t.Cliente)
             .Include(t => t.Vehiculo).ThenInclude(v => v.Marca)
             .Include(t => t.Vehiculo).ThenInclude(v => v.Modelo)
@@ -143,6 +150,8 @@ public class TramiteService : ITramiteService
             {
                 Id = t.Id,
                 NumeroConsecutivo = t.NumeroConsecutivo,
+                LoteId = t.LoteId,
+                FolioLote = t.Lote != null ? t.Lote.FolioLote : null,
                 ClienteId = t.ClienteId,
                 ClienteApodo = t.Cliente != null ? t.Cliente.Apodo : null,
                 ClienteNombre = t.Cliente != null ? t.Cliente.NombreCompleto : null,

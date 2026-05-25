@@ -96,6 +96,24 @@ export const routes: Routes = [
         canActivate: [permissionGuard('TRAMITES_VER')],
       },
       {
+        path: 'lotes',
+        canActivate: [permissionGuard('TRAMITES_VER')],
+        loadComponent: () =>
+          import('./pages/lotes/lotes-list.component').then(m => m.LotesListComponent),
+      },
+      {
+        path: 'lotes/nuevo',
+        canActivate: [permissionGuard('TRAMITES_CREAR')],
+        loadComponent: () =>
+          import('./pages/lotes/lote-form.component').then(m => m.LoteFormComponent),
+      },
+      {
+        path: 'lotes/:id',
+        canActivate: [permissionGuard('TRAMITES_VER')],
+        loadComponent: () =>
+          import('./pages/lotes/lote-detail.component').then(m => m.LoteDetailComponent),
+      },
+      {
         path: 'tramites/:id',
         component: TramiteDetailComponent,
         canActivate: [permissionGuard('TRAMITES_VER')],

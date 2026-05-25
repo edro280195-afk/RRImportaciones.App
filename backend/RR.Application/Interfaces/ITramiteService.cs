@@ -6,7 +6,7 @@ namespace RR.Application.Interfaces;
 
 public interface ITramiteService
 {
-    Task<PagedResult<TramiteListDto>> GetListAsync(string? search, string? estado, Guid? tramitadorId, Guid? clienteId, Guid? aduanaId, DateTime? fechaDesde, DateTime? fechaHasta, string? orderBy, string? orderDir, int page, int pageSize);
+    Task<PagedResult<TramiteListDto>> GetListAsync(string? search, string? estado, Guid? tramitadorId, Guid? clienteId, Guid? aduanaId, DateTime? fechaDesde, DateTime? fechaHasta, string? orderBy, string? orderDir, int page, int pageSize, Guid? loteId = null);
     Task<TramiteDetailDto?> GetByIdAsync(Guid id);
     Task<TramiteDetailDto> CreateAsync(CreateTramiteRequest request);
     Task<TramiteDetailDto> UpdateAsync(Guid id, UpdateTramiteRequest request);
