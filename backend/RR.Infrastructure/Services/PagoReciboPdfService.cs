@@ -81,15 +81,35 @@ public class PagoReciboPdfService : IPagoReciboPdfService
 
     private static void ComposeReceiptSheet(IContainer container, Pago pago, decimal totalRequerido, string? logo)
     {
-        ComposeReceiptCopy(container, pago, totalRequerido, logo);
+        container.Column(column =>
+        {
+            column.Spacing(12);
+            
+            column.Item().Element(x => ComposeReceiptCopy(x, pago, totalRequerido, logo, "COPIA CLIENTE"));
+            
+            column.Item().BorderBottom(1).BorderColor("#9CA3AF").BorderDashPattern(new float[] { 4, 4 }).Padding(0);
+            
+            column.Item().Element(x => ComposeReceiptCopy(x, pago, totalRequerido, logo, "COPIA ARCHIVO"));
+        });
     }
 
-    private static void ComposeReceiptCopy(IContainer container, Pago pago, decimal totalRequerido, string? logo)
+    private static void ComposeReceiptCopy(IContainer container, Pago pago, decimal totalRequerido, string? logo, string tipoCopia)
     {
         container.Border(1).BorderColor("#D7DCE4").Padding(10).Column(column =>
         {
             column.Spacing(6);
-            column.Item().Element(x => ComposeHeader(x, pago, logo));
+            
+            column.Item().Row(row =>
+            {
+                row.RelativeItem().Element(x => ComposeHeader(x, pago, logo));
+                
+                row.ConstantItem(80).AlignMiddle().AlignRight()
+                    .Background("#F3F4F6").Border(1).BorderColor("#D1D5DB")
+                    .Padding(4, 2)
+                    .Text(tipoCopia)
+                    .Bold().FontSize(8.5f).FontColor("#374151");
+            });
+            
             column.Item().Element(x => ComposeContent(x, pago, totalRequerido));
             column.Item().Element(x => ComposeFooter(x, pago));
         });
