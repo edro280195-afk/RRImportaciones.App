@@ -71,28 +71,28 @@ export class AuthService {
 
   constructor(
     private http: HttpClient,
-    private router: Router,
+    private router: Router
   ) {
     this.loadSession();
   }
 
   login(request: LoginRequest): Observable<LoginResponse> {
     return this.http.post<LoginResponse>(`${this.apiUrl}/login`, request).pipe(
-      tap((res) => this.setSession(res)),
-      catchError((err) => {
+      tap(res => this.setSession(res)),
+      catchError(err => {
         const msg = err.error?.message || 'Error al iniciar sesión';
         return throwError(() => new Error(msg));
-      }),
+      })
     );
   }
 
   pinLogin(request: PinLoginRequest): Observable<LoginResponse> {
     return this.http.post<LoginResponse>(`${this.apiUrl}/pin-login`, request).pipe(
-      tap((res) => this.setSession(res)),
-      catchError((err) => {
+      tap(res => this.setSession(res)),
+      catchError(err => {
         const msg = err.error?.message || 'PIN incorrecto';
         return throwError(() => new Error(msg));
-      }),
+      })
     );
   }
 
@@ -101,13 +101,15 @@ export class AuthService {
   }
 
   setInitialCampoPin(username: string, newPin: string): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.apiUrl}/initial-campo-pin`, { username, newPin }).pipe(
-      tap((res) => this.setSession(res)),
-      catchError((err) => {
-        const msg = err.error?.message || 'Error al guardar el PIN';
-        return throwError(() => new Error(msg));
-      }),
-    );
+    return this.http
+      .post<LoginResponse>(`${this.apiUrl}/initial-campo-pin`, { username, newPin })
+      .pipe(
+        tap(res => this.setSession(res)),
+        catchError(err => {
+          const msg = err.error?.message || 'Error al guardar el PIN';
+          return throwError(() => new Error(msg));
+        })
+      );
   }
 
   getCampoUsers(): Observable<CampoUserDto[]> {
@@ -121,8 +123,7 @@ export class AuthService {
   logout(): void {
     const refreshToken = localStorage.getItem('refreshToken');
     if (refreshToken) {
-      this.http.post(`${this.apiUrl}/logout`, { refreshToken })
-        .subscribe({ error: () => {} }); // fire-and-forget, ignora errores
+      this.http.post(`${this.apiUrl}/logout`, { refreshToken }).subscribe({ error: () => {} }); // fire-and-forget, ignora errores
     }
     this.clearSession();
     this.router.navigate(['/login']);
@@ -134,15 +135,13 @@ export class AuthService {
       this.clearSession();
       return throwError(() => new Error('No refresh token'));
     }
-    return this.http
-      .post<LoginResponse>(`${this.apiUrl}/refresh`, { refreshToken })
-      .pipe(
-        tap((res) => this.setSession(res)),
-        catchError((err) => {
-          this.clearSession();
-          return throwError(() => err);
-        }),
-      );
+    return this.http.post<LoginResponse>(`${this.apiUrl}/refresh`, { refreshToken }).pipe(
+      tap(res => this.setSession(res)),
+      catchError(err => {
+        this.clearSession();
+        return throwError(() => err);
+      })
+    );
   }
 
   private setSession(res: LoginResponse): void {

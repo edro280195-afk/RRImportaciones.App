@@ -1,4 +1,14 @@
-import { Component, signal, computed, inject, OnInit, OnDestroy, AfterViewInit, ElementRef, ViewChild } from '@angular/core';
+import {
+  Component,
+  signal,
+  computed,
+  inject,
+  OnInit,
+  OnDestroy,
+  AfterViewInit,
+  ElementRef,
+  ViewChild,
+} from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService, CampoUserDto } from '../../services/auth.service';
 
@@ -10,13 +20,12 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
   imports: [RouterLink],
   template: `
     <div class="login-wrapper" style="font-family: var(--font-body);">
-      
       <!-- Panel Izquierdo: Animación Interactiva y Marca (Idéntica a Login) -->
       <div class="left-panel">
         <canvas #networkCanvas class="network-canvas"></canvas>
         <div class="brand-overlay">
           <div class="logo-box animate-fade-in-down">
-            <img src="assets/imagenes/rr_logo.png" alt="R&R Logo" class="brand-logo">
+            <img src="assets/imagenes/rr_logo.png" alt="R&R Logo" class="brand-logo" />
             <div class="brand-text">
               <span class="company-name">R&R Importaciones</span>
               <span class="company-sub">Terminal de Campo</span>
@@ -25,11 +34,10 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
 
           <div class="headline-container animate-fade-in">
             <span class="system-tag">Módulo Operaciones</span>
-            <h1 class="headline-title">
-              Registro de datos e inspección en patio.
-            </h1>
+            <h1 class="headline-title">Registro de datos e inspección en patio.</h1>
             <p class="headline-desc">
-              Acceso rápido mediante PIN para operadores de yarda, verificación de unidades y captura de evidencias en tiempo real.
+              Acceso rápido mediante PIN para operadores de yarda, verificación de unidades y
+              captura de evidencias en tiempo real.
             </p>
           </div>
 
@@ -43,12 +51,15 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
       <!-- Panel Derecho: Interfaz de PIN -->
       <div class="right-panel">
         <div class="bg-glow"></div>
-        
-        <div class="form-container" [class.shake]="shaking()" style="animation: fadeUp .32s cubic-bezier(.16,1,.3,1)">
-          
+
+        <div
+          class="form-container"
+          [class.shake]="shaking()"
+          style="animation: fadeUp .32s cubic-bezier(.16,1,.3,1)"
+        >
           <!-- Logo móvil (oculto en pantallas grandes) -->
           <div class="mobile-logo-box">
-            <img src="assets/imagenes/rr_logo.png" alt="R&R Logo" class="mobile-logo">
+            <img src="assets/imagenes/rr_logo.png" alt="R&R Logo" class="mobile-logo" />
             <div>
               <span class="mobile-brand-title">R&R Campo</span>
               <span class="mobile-brand-sub">Acceso por PIN</span>
@@ -65,7 +76,7 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
             <div class="pin-card user-card-list">
               @if (loadingUsers()) {
                 <div class="user-list-skeleton">
-                  @for (i of [1,2,3]; track i) {
+                  @for (i of [1, 2, 3]; track i) {
                     <div class="user-row-skeleton"></div>
                   }
                 </div>
@@ -75,16 +86,27 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
                     <button class="user-row" (click)="selectUser(u)">
                       <div class="user-avatar">{{ initial(u.nombre) }}</div>
                       <div class="user-info">
-                        <span class="user-name">{{ u.nombre }}{{ u.apellidos ? ' ' + u.apellidos : '' }}</span>
-                        <span class="user-status">{{ u.tienePin ? 'PIN configurado' : 'Necesita configurar PIN' }}</span>
+                        <span class="user-name"
+                          >{{ u.nombre }}{{ u.apellidos ? ' ' + u.apellidos : '' }}</span
+                        >
+                        <span class="user-status">{{
+                          u.tienePin ? 'PIN configurado' : 'Necesita configurar PIN'
+                        }}</span>
                       </div>
-                      <svg class="user-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6"/>
+                      <svg
+                        class="user-chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" />
                       </svg>
                     </button>
-                  }
-                  @empty {
-                    <p class="no-users">No hay usuarios de campo configurados.<br>Contacta al administrador.</p>
+                  } @empty {
+                    <p class="no-users">
+                      No hay usuarios de campo configurados.<br />Contacta al administrador.
+                    </p>
                   }
                 </div>
               }
@@ -93,8 +115,18 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
             <!-- Botón para ir al portal administrativo -->
             <div class="action-footer">
               <a routerLink="/login" class="back-to-portal-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="arrow-icon-back">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  class="arrow-icon-back"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+                  />
                 </svg>
                 <span>Volver al Portal Administrativo</span>
               </a>
@@ -105,14 +137,18 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
           @if (screen() === 'enter-pin') {
             <div class="pin-header-box">
               <button class="back-to-list-btn" (click)="goBack()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 12H5m7 7-7-7 7-7"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 12H5m7 7-7-7 7-7" />
+                </svg>
                 <span>Volver a lista de operadores</span>
               </button>
 
               <div class="user-badge-header">
                 <div class="avatar-large">{{ initial(selectedUser()?.nombre || '') }}</div>
                 <div class="user-badge-details">
-                  <p class="avatar-name">{{ selectedUser()?.nombre }} {{ selectedUser()?.apellidos || '' }}</p>
+                  <p class="avatar-name">
+                    {{ selectedUser()?.nombre }} {{ selectedUser()?.apellidos || '' }}
+                  </p>
                   <p class="avatar-username">{{ '@' + selectedUser()?.username }}</p>
                 </div>
               </div>
@@ -120,7 +156,7 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
 
             <div class="pin-card text-center">
               <div class="dots-row" [class.dots-error]="pinError()">
-                @for (i of [0,1,2,3,4,5]; track i) {
+                @for (i of [0, 1, 2, 3, 4, 5]; track i) {
                   <div class="dot" [class.dot-filled]="pin().length > i"></div>
                 }
               </div>
@@ -135,12 +171,60 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
               <div class="keypad">
                 @for (key of keys; track key) {
                   @if (key === 'backspace') {
-                    <button class="key key-action" (click)="pressKey(key)" [disabled]="pin().length === 0" aria-label="Borrar">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7l5 7-5 7z"/><path stroke-linecap="round" stroke-linejoin="round" d="m15 12-3 3m0-3 3 3"/></svg>
+                    <button
+                      class="key key-action"
+                      (click)="pressKey(key)"
+                      [disabled]="pin().length === 0"
+                      aria-label="Borrar"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M12 19H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7l5 7-5 7z"
+                        />
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="m15 12-3 3m0-3 3 3"
+                        />
+                      </svg>
                     </button>
                   } @else if (key === 'bio') {
-                    <button class="key key-action key-bio" (click)="triggerBiometric()" [disabled]="true" title="Próximamente: biometría">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 12s1 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9" stroke-linecap="round" stroke-width="2"/><line x1="15" y1="9" x2="15.01" y2="9" stroke-linecap="round" stroke-width="2"/></svg>
+                    <button
+                      class="key key-action key-bio"
+                      (click)="triggerBiometric()"
+                      [disabled]="true"
+                      title="Próximamente: biometría"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"
+                        />
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M8 12s1 2 4 2 4-2 4-2"
+                        />
+                        <line
+                          x1="9"
+                          y1="9"
+                          x2="9.01"
+                          y2="9"
+                          stroke-linecap="round"
+                          stroke-width="2"
+                        />
+                        <line
+                          x1="15"
+                          y1="9"
+                          x2="15.01"
+                          y2="9"
+                          stroke-linecap="round"
+                          stroke-width="2"
+                        />
+                      </svg>
                     </button>
                   } @else {
                     <button class="key" (click)="pressKey(key)">
@@ -158,12 +242,23 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
                     <span class="reset-alert-icon">✓</span>
                     <div>
                       <p class="reset-alert-title">Solicitud enviada</p>
-                      <p class="reset-alert-text">Tu administrador ha sido notificado. Solicítale tu nuevo PIN.</p>
+                      <p class="reset-alert-text">
+                        Tu administrador ha sido notificado. Solicítale tu nuevo PIN.
+                      </p>
                     </div>
                   </div>
                 } @else {
-                  <button type="button" class="forgot-pin-btn" (click)="requestPinReset()" [disabled]="requestingReset()">
-                    {{ requestingReset() ? 'Enviando solicitud...' : '¿Olvidaste tu PIN? Solicitar restablecer' }}
+                  <button
+                    type="button"
+                    class="forgot-pin-btn"
+                    (click)="requestPinReset()"
+                    [disabled]="requestingReset()"
+                  >
+                    {{
+                      requestingReset()
+                        ? 'Enviando solicitud...'
+                        : '¿Olvidaste tu PIN? Solicitar restablecer'
+                    }}
                   </button>
                 }
               </div>
@@ -174,13 +269,23 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
           @if (screen() === 'set-pin' || screen() === 'confirm-pin') {
             <div class="pin-header-box">
               <button class="back-to-list-btn" (click)="goBack()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 12H5m7 7-7-7 7-7"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 12H5m7 7-7-7 7-7" />
+                </svg>
                 <span>Volver a lista de operadores</span>
               </button>
 
               <div class="setup-header-details">
-                <h1 class="pin-title">{{ screen() === 'set-pin' ? 'Crea tu PIN' : 'Confirma tu PIN' }}</h1>
-                <p class="pin-sub">{{ screen() === 'set-pin' ? 'Elige 6 dígitos de seguridad' : 'Re-ingresa los 6 dígitos elegidos' }}</p>
+                <h1 class="pin-title">
+                  {{ screen() === 'set-pin' ? 'Crea tu PIN' : 'Confirma tu PIN' }}
+                </h1>
+                <p class="pin-sub">
+                  {{
+                    screen() === 'set-pin'
+                      ? 'Elige 6 dígitos de seguridad'
+                      : 'Re-ingresa los 6 dígitos elegidos'
+                  }}
+                </p>
                 <div class="setup-user-badge">
                   Operador: {{ selectedUser()?.nombre }} ({{ '@' + selectedUser()?.username }})
                 </div>
@@ -189,7 +294,7 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
 
             <div class="pin-card text-center">
               <div class="dots-row" [class.dots-error]="pinError()">
-                @for (i of [0,1,2,3,4,5]; track i) {
+                @for (i of [0, 1, 2, 3, 4, 5]; track i) {
                   <div class="dot" [class.dot-filled]="pin().length > i"></div>
                 }
               </div>
@@ -201,8 +306,24 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
               <div class="keypad">
                 @for (key of keys; track key) {
                   @if (key === 'backspace') {
-                    <button class="key key-action" (click)="pressKey(key)" [disabled]="pin().length === 0" aria-label="Borrar">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7l5 7-5 7z"/><path stroke-linecap="round" stroke-linejoin="round" d="m15 12-3 3m0-3 3 3"/></svg>
+                    <button
+                      class="key key-action"
+                      (click)="pressKey(key)"
+                      [disabled]="pin().length === 0"
+                      aria-label="Borrar"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M12 19H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h7l5 7-5 7z"
+                        />
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="m15 12-3 3m0-3 3 3"
+                        />
+                      </svg>
                     </button>
                   } @else if (key === 'bio') {
                     <button class="key key-action" style="opacity:0;pointer-events:none"></button>
@@ -237,714 +358,787 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
           <p class="copyright">
             &copy; {{ currentYear }} R&amp;R Importaciones. Terminal de Campo.
           </p>
-
         </div>
       </div>
     </div>
   `,
-  styles: [`
-    .login-wrapper {
-      min-height: 100dvh;
-      display: flex;
-      background: #FFFFFF;
-    }
-
-    /* Panel Izquierdo */
-    .left-panel {
-      display: none;
-      width: 460px;
-      position: relative;
-      background: #090B0F;
-      overflow: hidden;
-      flex-shrink: 0;
-    }
-    @media (min-width: 1024px) {
-      .left-panel {
-        display: block;
+  styles: [
+    `
+      .login-wrapper {
+        min-height: 100dvh;
+        display: flex;
+        background: #ffffff;
       }
-    }
 
-    .network-canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 1;
-      opacity: 0.85;
-    }
+      /* Panel Izquierdo */
+      .left-panel {
+        display: none;
+        width: 460px;
+        position: relative;
+        background: #090b0f;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      @media (min-width: 1024px) {
+        .left-panel {
+          display: block;
+        }
+      }
 
-    .brand-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 2;
-      display: flex;
-      flex-direction: column;
-      padding: 48px;
-      justify-content: space-between;
-      pointer-events: none;
-      background: linear-gradient(to bottom, rgba(9,11,15,0.45) 0%, rgba(9,11,15,0.9) 100%);
-    }
+      .network-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        opacity: 0.85;
+      }
 
-    .logo-box {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-    .brand-logo {
-      width: 44px;
-      height: 44px;
-      object-fit: contain;
-    }
-    .brand-text {
-      display: flex;
-      flex-direction: column;
-    }
-    .company-name {
-      color: #FFFFFF;
-      font-size: 16px;
-      font-weight: 800;
-      letter-spacing: -0.3px;
-      line-height: 1.2;
-    }
-    .company-sub {
-      color: rgba(255, 255, 255, 0.45);
-      font-size: 10.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1.8px;
-    }
+      .brand-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        padding: 48px;
+        justify-content: space-between;
+        pointer-events: none;
+        background: linear-gradient(to bottom, rgba(9, 11, 15, 0.45) 0%, rgba(9, 11, 15, 0.9) 100%);
+      }
 
-    .headline-container {
-      max-width: 340px;
-      margin-top: 40px;
-      margin-bottom: auto;
-    }
-    .system-tag {
-      display: inline-block;
-      background: rgba(198, 29, 38, 0.15);
-      border: 1px solid rgba(198, 29, 38, 0.35);
-      color: #FF5A5F;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 5px 12px;
-      border-radius: 20px;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 18px;
-    }
-    .headline-title {
-      color: #FFFFFF;
-      font-size: 28px;
-      font-weight: 800;
-      line-height: 1.25;
-      letter-spacing: -0.8px;
-      margin-bottom: 14px;
-    }
-    .headline-desc {
-      color: rgba(255, 255, 255, 0.55);
-      font-size: 14px;
-      line-height: 1.55;
-    }
+      .logo-box {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .brand-logo {
+        width: 44px;
+        height: 44px;
+        object-fit: contain;
+      }
+      .brand-text {
+        display: flex;
+        flex-direction: column;
+      }
+      .company-name {
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: -0.3px;
+        line-height: 1.2;
+      }
+      .company-sub {
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 10.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.8px;
+      }
 
-    .connection-status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: rgba(255,255,255,0.45);
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .pulse-dot {
-      width: 6px;
-      height: 6px;
-      background: #10B981;
-      border-radius: 50%;
-      box-shadow: 0 0 8px #10B981;
-      animation: pulseAnim 2.2s infinite;
-    }
-    @keyframes pulseAnim {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
+      .headline-container {
+        max-width: 340px;
+        margin-top: 40px;
+        margin-bottom: auto;
+      }
+      .system-tag {
+        display: inline-block;
+        background: rgba(198, 29, 38, 0.15);
+        border: 1px solid rgba(198, 29, 38, 0.35);
+        color: #ff5a5f;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 5px 12px;
+        border-radius: 20px;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 18px;
+      }
+      .headline-title {
+        color: #ffffff;
+        font-size: 28px;
+        font-weight: 800;
+        line-height: 1.25;
+        letter-spacing: -0.8px;
+        margin-bottom: 14px;
+      }
+      .headline-desc {
+        color: rgba(255, 255, 255, 0.55);
+        font-size: 14px;
+        line-height: 1.55;
+      }
 
-    /* Panel Derecho */
-    .right-panel {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px;
-      background: #F9FAFB;
-      position: relative;
-      overflow: hidden;
-    }
-    .bg-glow {
-      position: absolute;
-      top: -10%;
-      right: -10%;
-      width: 450px;
-      height: 450px;
-      background: radial-gradient(circle, rgba(198, 29, 38, 0.04) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: 0;
-    }
-    .form-container {
-      width: 100%;
-      max-width: 380px;
-      z-index: 1;
-    }
+      .connection-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .pulse-dot {
+        width: 6px;
+        height: 6px;
+        background: #10b981;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #10b981;
+        animation: pulseAnim 2.2s infinite;
+      }
+      @keyframes pulseAnim {
+        0% {
+          transform: scale(0.95);
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+        70% {
+          transform: scale(1);
+          box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+        }
+        100% {
+          transform: scale(0.95);
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+      }
 
-    .mobile-logo-box {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 32px;
-    }
-    @media (min-width: 1024px) {
-      .mobile-logo-box { display: none; }
-    }
-    .mobile-logo {
-      width: 40px;
-      height: 40px;
-      object-fit: contain;
-    }
-    .mobile-brand-title {
-      display: block;
-      color: #0F172A;
-      font-weight: 800;
-      font-size: 15px;
-      line-height: 1.2;
-    }
-    .mobile-brand-sub {
-      display: block;
-      color: #64748B;
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-    }
+      /* Panel Derecho */
+      .right-panel {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+        background: #f9fafb;
+        position: relative;
+        overflow: hidden;
+      }
+      .bg-glow {
+        position: absolute;
+        top: -10%;
+        right: -10%;
+        width: 450px;
+        height: 450px;
+        background: radial-gradient(circle, rgba(198, 29, 38, 0.04) 0%, transparent 70%);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .form-container {
+        width: 100%;
+        max-width: 380px;
+        z-index: 1;
+      }
 
-    .welcome-header h2 {
-      color: #0F172A;
-      font-size: 24px;
-      font-weight: 800;
-      letter-spacing: -0.6px;
-      margin: 0 0 4px;
-    }
-    .welcome-header p {
-      color: #64748B;
-      font-size: 14px;
-      margin: 0 0 26px;
-    }
+      .mobile-logo-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 32px;
+      }
+      @media (min-width: 1024px) {
+        .mobile-logo-box {
+          display: none;
+        }
+      }
+      .mobile-logo {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+      }
+      .mobile-brand-title {
+        display: block;
+        color: #0f172a;
+        font-weight: 800;
+        font-size: 15px;
+        line-height: 1.2;
+      }
+      .mobile-brand-sub {
+        display: block;
+        color: #64748b;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+      }
 
-    /* Tarjeta de PIN y Contenedor */
-    .pin-card {
-      background: #FFFFFF;
-      border: 1px solid #E5E7EB;
-      border-radius: 24px;
-      padding: 28px;
-      box-shadow: 0 10px 30px -5px rgba(0,0,0,0.03), 0 8px 12px -6px rgba(0,0,0,0.02);
-    }
-    .user-card-list {
-      padding: 20px;
-    }
-    .text-center {
-      text-align: center;
-    }
+      .welcome-header h2 {
+        color: #0f172a;
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.6px;
+        margin: 0 0 4px;
+      }
+      .welcome-header p {
+        color: #64748b;
+        font-size: 14px;
+        margin: 0 0 26px;
+      }
 
-    /* Lista de Usuarios */
-    .user-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-height: 320px;
-      overflow-y: auto;
-      padding-right: 4px;
-    }
-    .user-list::-webkit-scrollbar {
-      width: 5px;
-    }
-    .user-list::-webkit-scrollbar-thumb {
-      background: #E5E7EB;
-      border-radius: 99px;
-    }
-    .user-row {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: #FFFFFF;
-      border: 1px solid #E5E7EB;
-      border-radius: 16px;
-      padding: 12px 14px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      text-align: left;
-    }
-    .user-row:hover {
-      background: #F9FAFB;
-      border-color: #D1D5DB;
-      transform: translateY(-0.5px);
-    }
-    .user-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-      background: #C61D26;
-      color: #FFFFFF;
-      display: grid;
-      place-items: center;
-      font-size: 16px;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-    .user-info {
-      flex: 1;
-      min-width: 0;
-    }
-    .user-name {
-      display: block;
-      color: #0F172A;
-      font-size: 14.5px;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .user-status {
-      display: block;
-      color: #64748B;
-      font-size: 11.5px;
-      margin-top: 1px;
-    }
-    .user-chevron {
-      width: 16px;
-      height: 16px;
-      color: #9CA3AF;
-      flex-shrink: 0;
-    }
-    .no-users {
-      color: #64748B;
-      font-size: 13.5px;
-      text-align: center;
-      padding: 24px 0;
-      line-height: 1.6;
-    }
+      /* Tarjeta de PIN y Contenedor */
+      .pin-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow:
+          0 10px 30px -5px rgba(0, 0, 0, 0.03),
+          0 8px 12px -6px rgba(0, 0, 0, 0.02);
+      }
+      .user-card-list {
+        padding: 20px;
+      }
+      .text-center {
+        text-align: center;
+      }
 
-    /* Skeleton Loading */
-    .user-list-skeleton {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .user-row-skeleton {
-      height: 64px;
-      border-radius: 16px;
-      background: #F3F4F6;
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 0.6; }
-      50% { opacity: 1; }
-    }
+      /* Lista de Usuarios */
+      .user-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 320px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+      .user-list::-webkit-scrollbar {
+        width: 5px;
+      }
+      .user-list::-webkit-scrollbar-thumb {
+        background: #e5e7eb;
+        border-radius: 99px;
+      }
+      .user-row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 12px 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: left;
+      }
+      .user-row:hover {
+        background: #f9fafb;
+        border-color: #d1d5db;
+        transform: translateY(-0.5px);
+      }
+      .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #c61d26;
+        color: #ffffff;
+        display: grid;
+        place-items: center;
+        font-size: 16px;
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+      .user-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .user-name {
+        display: block;
+        color: #0f172a;
+        font-size: 14.5px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .user-status {
+        display: block;
+        color: #64748b;
+        font-size: 11.5px;
+        margin-top: 1px;
+      }
+      .user-chevron {
+        width: 16px;
+        height: 16px;
+        color: #9ca3af;
+        flex-shrink: 0;
+      }
+      .no-users {
+        color: #64748b;
+        font-size: 13.5px;
+        text-align: center;
+        padding: 24px 0;
+        line-height: 1.6;
+      }
 
-    /* Cabecera del PIN (Volver y detalles del usuario) */
-    .pin-header-box {
-      margin-bottom: 20px;
-    }
-    .back-to-list-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: #4B5563;
-      font-size: 12.5px;
-      font-weight: 700;
-      background: #F3F4F6;
-      border: 1px solid #E5E7EB;
-      padding: 8px 14px;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-      margin-bottom: 16px;
-    }
-    .back-to-list-btn:hover {
-      background: #E5E7EB;
-      color: #111827;
-    }
-    .back-to-list-btn svg {
-      width: 15px;
-      height: 15px;
-    }
+      /* Skeleton Loading */
+      .user-list-skeleton {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .user-row-skeleton {
+        height: 64px;
+        border-radius: 16px;
+        background: #f3f4f6;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.6;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
 
-    .user-badge-header {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      background: #FFFFFF;
-      border: 1px solid #E5E7EB;
-      padding: 12px 16px;
-      border-radius: 18px;
-    }
-    .avatar-large {
-      width: 48px;
-      height: 48px;
-      border-radius: 14px;
-      background: #C61D26;
-      color: #FFFFFF;
-      display: grid;
-      place-items: center;
-      font-size: 20px;
-      font-weight: 800;
-      flex-shrink: 0;
-    }
-    .user-badge-details {
-      min-width: 0;
-    }
-    .avatar-name {
-      margin: 0;
-      font-size: 15px;
-      font-weight: 800;
-      color: #0F172A;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .avatar-username {
-      margin: 1px 0 0 0;
-      font-size: 12px;
-      font-weight: 600;
-      color: #64748B;
-    }
+      /* Cabecera del PIN (Volver y detalles del usuario) */
+      .pin-header-box {
+        margin-bottom: 20px;
+      }
+      .back-to-list-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #4b5563;
+        font-size: 12.5px;
+        font-weight: 700;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        padding: 8px 14px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 16px;
+      }
+      .back-to-list-btn:hover {
+        background: #e5e7eb;
+        color: #111827;
+      }
+      .back-to-list-btn svg {
+        width: 15px;
+        height: 15px;
+      }
 
-    /* Configuración de PIN */
-    .setup-header-details {
-      background: #FFFFFF;
-      border: 1px solid #E5E7EB;
-      padding: 16px;
-      border-radius: 20px;
-      text-align: center;
-    }
-    .setup-header-details .pin-title {
-      font-size: 18px;
-      font-weight: 800;
-      margin: 0 0 2px 0;
-      color: #0F172A;
-    }
-    .setup-header-details .pin-sub {
-      font-size: 12.5px;
-      margin: 0 0 10px 0;
-      color: #64748B;
-    }
-    .setup-user-badge {
-      display: inline-block;
-      background: #F3F4F6;
-      padding: 4px 12px;
-      border-radius: 99px;
-      font-size: 11.5px;
-      font-weight: 700;
-      color: #374151;
-    }
+      .user-badge-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        padding: 12px 16px;
+        border-radius: 18px;
+      }
+      .avatar-large {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: #c61d26;
+        color: #ffffff;
+        display: grid;
+        place-items: center;
+        font-size: 20px;
+        font-weight: 800;
+        flex-shrink: 0;
+      }
+      .user-badge-details {
+        min-width: 0;
+      }
+      .avatar-name {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 800;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .avatar-username {
+        margin: 1px 0 0 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+      }
 
-    /* Dots */
-    .dots-row {
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-      margin: 8px 0 16px;
-    }
-    .dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      border: 2px solid #D1D5DB;
-      background: transparent;
-      transition: all 0.12s ease;
-    }
-    .dot-filled {
-      background: #0F172A;
-      border-color: #0F172A;
-      transform: scale(1.15);
-    }
-    .dots-error .dot-filled {
-      background: #DC2626;
-      border-color: #DC2626;
-    }
+      /* Configuración de PIN */
+      .setup-header-details {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        padding: 16px;
+        border-radius: 20px;
+        text-align: center;
+      }
+      .setup-header-details .pin-title {
+        font-size: 18px;
+        font-weight: 800;
+        margin: 0 0 2px 0;
+        color: #0f172a;
+      }
+      .setup-header-details .pin-sub {
+        font-size: 12.5px;
+        margin: 0 0 10px 0;
+        color: #64748b;
+      }
+      .setup-user-badge {
+        display: inline-block;
+        background: #f3f4f6;
+        padding: 4px 12px;
+        border-radius: 99px;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #374151;
+      }
 
-    .pin-hint {
-      color: #64748B;
-      font-size: 12.5px;
-      margin: 0 0 20px;
-    }
-    .pin-error-msg {
-      color: #DC2626;
-      font-size: 12.5px;
-      font-weight: 700;
-      margin: 0 0 20px;
-    }
+      /* Dots */
+      .dots-row {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin: 8px 0 16px;
+      }
+      .dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid #d1d5db;
+        background: transparent;
+        transition: all 0.12s ease;
+      }
+      .dot-filled {
+        background: #0f172a;
+        border-color: #0f172a;
+        transform: scale(1.15);
+      }
+      .dots-error .dot-filled {
+        background: #dc2626;
+        border-color: #dc2626;
+      }
 
-    /* Teclado Numérico */
-    .keypad {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      width: 100%;
-      max-width: 280px;
-      margin: 0 auto;
-    }
-    .key {
-      aspect-ratio: 1;
-      border-radius: 50%;
-      background: #F3F4F6;
-      border: 1px solid #E5E7EB;
-      color: #0F172A;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-      min-height: 60px;
-      user-select: none;
-    }
-    .key:hover {
-      background: #E5E7EB;
-      border-color: #D1D5DB;
-    }
-    .key:active {
-      transform: scale(0.92);
-      background: #D1D5DB;
-    }
-    .key-num {
-      font-size: 20px;
-      font-weight: 800;
-      line-height: 1;
-    }
-    .key-sub {
-      font-size: 8px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      color: #64748B;
-      text-transform: uppercase;
-    }
-    .key-action {
-      background: transparent;
-      border-color: transparent;
-    }
-    .key-action:hover {
-      background: #F3F4F6;
-      border-color: #E5E7EB;
-    }
-    .key-action:disabled {
-      opacity: 0.3;
-      cursor: default;
-    }
-    .key-action svg {
-      width: 20px;
-      height: 20px;
-      color: #4B5563;
-    }
-    .key-bio {
-      opacity: 0.35;
-    }
+      .pin-hint {
+        color: #64748b;
+        font-size: 12.5px;
+        margin: 0 0 20px;
+      }
+      .pin-error-msg {
+        color: #dc2626;
+        font-size: 12.5px;
+        font-weight: 700;
+        margin: 0 0 20px;
+      }
 
-    /* Olvidé mi PIN / Alerta */
-    .forgot-pin-container {
-      margin-top: 16px;
-    }
-    .forgot-pin-btn {
-      background: none;
-      border: none;
-      color: #C61D26;
-      font-size: 12.5px;
-      font-weight: 700;
-      cursor: pointer;
-      text-decoration: underline;
-      padding: 6px 12px;
-      border-radius: 8px;
-      transition: background 0.15s;
-    }
-    .forgot-pin-btn:hover {
-      background: #FFF5F5;
-    }
-    .forgot-pin-btn:active {
-      transform: scale(0.98);
-    }
-    .reset-alert {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      background: #F0FDF4;
-      border: 1px solid #BBF7D0;
-      color: #15803D;
-      border-radius: 14px;
-      padding: 12px 14px;
-      text-align: left;
-      font-size: 13px;
-    }
-    .reset-alert-icon {
-      background: #DCFCE7;
-      color: #166534;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      font-weight: bold;
-      flex-shrink: 0;
-    }
-    .reset-alert-title {
-      font-weight: 700;
-      margin: 0 0 2px 0;
-    }
-    .reset-alert-text {
-      margin: 0;
-      font-size: 11.5px;
-      color: #14532D;
-      line-height: 1.4;
-    }
+      /* Teclado Numérico */
+      .keypad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        width: 100%;
+        max-width: 280px;
+        margin: 0 auto;
+      }
+      .key {
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        color: #0f172a;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        min-height: 60px;
+        user-select: none;
+      }
+      .key:hover {
+        background: #e5e7eb;
+        border-color: #d1d5db;
+      }
+      .key:active {
+        transform: scale(0.92);
+        background: #d1d5db;
+      }
+      .key-num {
+        font-size: 20px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .key-sub {
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        text-transform: uppercase;
+      }
+      .key-action {
+        background: transparent;
+        border-color: transparent;
+      }
+      .key-action:hover {
+        background: #f3f4f6;
+        border-color: #e5e7eb;
+      }
+      .key-action:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+      .key-action svg {
+        width: 20px;
+        height: 20px;
+        color: #4b5563;
+      }
+      .key-bio {
+        opacity: 0.35;
+      }
 
-    /* Lockout */
-    .lockout-card {
-      padding: 36px 24px;
-    }
-    .lockout-icon {
-      font-size: 40px;
-      margin-bottom: 12px;
-    }
-    .lockout-timer {
-      font-size: 48px;
-      font-weight: 800;
-      color: #DC2626;
-      margin: 12px 0;
-    }
+      /* Olvidé mi PIN / Alerta */
+      .forgot-pin-container {
+        margin-top: 16px;
+      }
+      .forgot-pin-btn {
+        background: none;
+        border: none;
+        color: #c61d26;
+        font-size: 12.5px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: underline;
+        padding: 6px 12px;
+        border-radius: 8px;
+        transition: background 0.15s;
+      }
+      .forgot-pin-btn:hover {
+        background: #fff5f5;
+      }
+      .forgot-pin-btn:active {
+        transform: scale(0.98);
+      }
+      .reset-alert {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #15803d;
+        border-radius: 14px;
+        padding: 12px 14px;
+        text-align: left;
+        font-size: 13px;
+      }
+      .reset-alert-icon {
+        background: #dcfce7;
+        color: #166534;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-weight: bold;
+        flex-shrink: 0;
+      }
+      .reset-alert-title {
+        font-weight: 700;
+        margin: 0 0 2px 0;
+      }
+      .reset-alert-text {
+        margin: 0;
+        font-size: 11.5px;
+        color: #14532d;
+        line-height: 1.4;
+      }
 
-    /* Loading overlay */
-    .pin-loading-overlay {
-      position: absolute;
-      inset: 0;
-      background: rgba(255,255,255,0.7);
-      border-radius: 24px;
-      display: grid;
-      place-items: center;
-      z-index: 10;
-    }
-    .spinner {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      border: 3px solid #E5E7EB;
-      border-top-color: #C61D26;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+      /* Lockout */
+      .lockout-card {
+        padding: 36px 24px;
+      }
+      .lockout-icon {
+        font-size: 40px;
+        margin-bottom: 12px;
+      }
+      .lockout-timer {
+        font-size: 48px;
+        font-weight: 800;
+        color: #dc2626;
+        margin: 12px 0;
+      }
 
-    /* Botones de pie */
-    .action-footer {
-      margin-top: 24px;
-      display: flex;
-      justify-content: center;
-    }
-    .back-to-portal-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: #FFFFFF;
-      border: 1px solid #E5E7EB;
-      padding: 10px 18px;
-      border-radius: 14px;
-      font-size: 13px;
-      font-weight: 700;
-      color: #4B5563;
-      text-decoration: none;
-      transition: all 0.2s ease;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.01);
-    }
-    .back-to-portal-btn:hover {
-      background: #F9FAFB;
-      border-color: #D1D5DB;
-      color: #111827;
-      transform: translateY(-0.5px);
-    }
-    .arrow-icon-back {
-      width: 15px;
-      height: 15px;
-      transition: transform 0.2s;
-    }
-    .back-to-portal-btn:hover .arrow-icon-back {
-      transform: translateX(-3px);
-    }
+      /* Loading overlay */
+      .pin-loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.7);
+        border-radius: 24px;
+        display: grid;
+        place-items: center;
+        z-index: 10;
+      }
+      .spinner {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 3px solid #e5e7eb;
+        border-top-color: #c61d26;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
-    .copyright {
-      text-align: center;
-      color: #9CA3AF;
-      font-size: 11.5px;
-      margin-top: 28px;
-    }
+      /* Botones de pie */
+      .action-footer {
+        margin-top: 24px;
+        display: flex;
+        justify-content: center;
+      }
+      .back-to-portal-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        padding: 10px 18px;
+        border-radius: 14px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #4b5563;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01);
+      }
+      .back-to-portal-btn:hover {
+        background: #f9fafb;
+        border-color: #d1d5db;
+        color: #111827;
+        transform: translateY(-0.5px);
+      }
+      .arrow-icon-back {
+        width: 15px;
+        height: 15px;
+        transition: transform 0.2s;
+      }
+      .back-to-portal-btn:hover .arrow-icon-back {
+        transform: translateX(-3px);
+      }
 
-    /* Keyframe Animations */
-    .animate-fade-in {
-      animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    .animate-fade-in-down {
-      animation: fadeInDown 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    .animate-fade-in-up {
-      animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    .animate-shake {
-      animation: shake 0.4s ease-in-out;
-    }
-    .animate-bounce-in {
-      animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-    }
+      .copyright {
+        text-align: center;
+        color: #9ca3af;
+        font-size: 11.5px;
+        margin-top: 28px;
+      }
 
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @keyframes fadeInDown {
-      from { opacity: 0; transform: translateY(-24px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(24px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-6px); }
-      40%, 80% { transform: translateX(6px); }
-    }
-    @keyframes bounceIn {
-      from { opacity: 0; transform: scale(0.9); }
-      to { opacity: 1; transform: scale(1); }
-    }
+      /* Keyframe Animations */
+      .animate-fade-in {
+        animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      .animate-fade-in-down {
+        animation: fadeInDown 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      .animate-fade-in-up {
+        animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      .animate-shake {
+        animation: shake 0.4s ease-in-out;
+      }
+      .animate-bounce-in {
+        animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
 
-    /* Shaking for invalid PIN input */
-    .shake .dots-row {
-      animation: shakeX 0.4s cubic-bezier(.36,.07,.19,.97);
-    }
-    @keyframes shakeX {
-      0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-8px); }
-      40%, 80% { transform: translateX(8px); }
-    }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes fadeInDown {
+        from {
+          opacity: 0;
+          transform: translateY(-24px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(24px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20%,
+        60% {
+          transform: translateX(-6px);
+        }
+        40%,
+        80% {
+          transform: translateX(6px);
+        }
+      }
+      @keyframes bounceIn {
+        from {
+          opacity: 0;
+          transform: scale(0.9);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
 
-    @media (max-height: 700px) {
-      .pin-card { padding: 20px; }
-      .avatar-large { width: 40px; height: 40px; font-size: 16px; }
-      .keypad { gap: 8px; }
-      .key { min-height: 54px; }
-      .key-num { font-size: 18px; }
-    }
-  `],
+      /* Shaking for invalid PIN input */
+      .shake .dots-row {
+        animation: shakeX 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+      }
+      @keyframes shakeX {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20%,
+        60% {
+          transform: translateX(-8px);
+        }
+        40%,
+        80% {
+          transform: translateX(8px);
+        }
+      }
+
+      @media (max-height: 700px) {
+        .pin-card {
+          padding: 20px;
+        }
+        .avatar-large {
+          width: 40px;
+          height: 40px;
+          font-size: 16px;
+        }
+        .keypad {
+          gap: 8px;
+        }
+        .key {
+          min-height: 54px;
+        }
+        .key-num {
+          font-size: 18px;
+        }
+      }
+    `,
+  ],
 })
 export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
   private auth = inject(AuthService);
@@ -974,10 +1168,20 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
   resetRequested = signal(false);
   currentYear = new Date().getFullYear();
 
-  readonly keys = ['1','2','3','4','5','6','7','8','9','backspace','0','bio'];
+  readonly keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'backspace', '0', 'bio'];
   readonly keySub: Record<string, string> = {
-    '2':'ABC','3':'DEF','4':'GHI','5':'JKL','6':'MNO',
-    '7':'PQRS','8':'TUV','9':'WXYZ','0':'','1':'','backspace':'','bio':'',
+    '2': 'ABC',
+    '3': 'DEF',
+    '4': 'GHI',
+    '5': 'JKL',
+    '6': 'MNO',
+    '7': 'PQRS',
+    '8': 'TUV',
+    '9': 'WXYZ',
+    '0': '',
+    '1': '',
+    backspace: '',
+    bio: '',
   };
 
   ngOnInit(): void {
@@ -1004,7 +1208,10 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
       });
     } else {
       this.auth.getCampoUsers().subscribe({
-        next: users => { this.campoUsers.set(users); this.loadingUsers.set(false); },
+        next: users => {
+          this.campoUsers.set(users);
+          this.loadingUsers.set(false);
+        },
         error: () => this.loadingUsers.set(false),
       });
     }
@@ -1055,7 +1262,7 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.points = [];
     const count = Math.min(45, Math.floor((canvas.width * canvas.height) / 8000));
-    
+
     for (let i = 0; i < count; i++) {
       this.points.push({
         x: Math.random() * canvas.width,
@@ -1109,7 +1316,7 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
         const dy = this.mouse.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < mouseDist) {
-          const force = (mouseDist - dist) / mouseDist * 0.12;
+          const force = ((mouseDist - dist) / mouseDist) * 0.12;
           p.x += (dx / dist) * force;
           p.y += (dy / dist) * force;
         }
@@ -1139,11 +1346,11 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
         const dist = Math.hypot(dx, dy);
 
         if (dist < maxDist) {
-          const alpha = (maxDist - dist) / maxDist * 0.16;
+          const alpha = ((maxDist - dist) / maxDist) * 0.16;
           this.ctx.beginPath();
           this.ctx.moveTo(p.x, p.y);
           this.ctx.lineTo(p2.x, p2.y);
-          
+
           let isNearMouse = false;
           if (this.mouse.x > 0) {
             const mDist1 = Math.hypot(this.mouse.x - p.x, this.mouse.y - p.y);
@@ -1170,7 +1377,7 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
         const dy = this.mouse.y - p.y;
         const dist = Math.hypot(dx, dy);
         if (dist < mouseDist) {
-          const alpha = (mouseDist - dist) / mouseDist * 0.22;
+          const alpha = ((mouseDist - dist) / mouseDist) * 0.22;
           this.ctx.beginPath();
           this.ctx.moveTo(p.x, p.y);
           this.ctx.lineTo(this.mouse.x, this.mouse.y);
@@ -1217,7 +1424,7 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
       error: (err: Error) => {
         this.requestingReset.set(false);
         this.pinError.set(err.message || 'Error al enviar solicitud de reinicio');
-      }
+      },
     });
   }
 
@@ -1279,7 +1486,9 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
         }
 
         const remaining = 5 - this.attempts();
-        this.pinError.set(`PIN incorrecto. ${remaining} intento${remaining === 1 ? '' : 's'} restante${remaining === 1 ? '' : 's'}.`);
+        this.pinError.set(
+          `PIN incorrecto. ${remaining} intento${remaining === 1 ? '' : 's'} restante${remaining === 1 ? '' : 's'}.`
+        );
         this.triggerShake();
       },
     });

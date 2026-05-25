@@ -24,21 +24,32 @@ interface SelectOption<T> {
     <div style="font-family: var(--font-body);">
       <div class="flex items-start justify-between gap-4 mb-6">
         <div>
-          <p class="text-[11px] font-semibold uppercase tracking-[1px] text-[#9EA3AE] mb-1">Finanzas</p>
+          <p class="text-[11px] font-semibold uppercase tracking-[1px] text-[#9EA3AE] mb-1">
+            Finanzas
+          </p>
           <h1 class="text-[26px] font-semibold text-[#0D1017] tracking-[-0.6px]">Pagos</h1>
         </div>
         <div class="flex items-center gap-2">
           @if (canVerify() && selectedIds.size > 0) {
-            <button (click)="verifySelected()" [disabled]="verifyingBulk" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0D1017] text-white text-[13px] font-medium disabled:opacity-60">
+            <button
+              (click)="verifySelected()"
+              [disabled]="verifyingBulk"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0D1017] text-white text-[13px] font-medium disabled:opacity-60"
+            >
               @if (verifyingBulk) {
-                <span class="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
+                <span
+                  class="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"
+                ></span>
                 Verificando...
               } @else {
                 Verificar seleccionados
               }
             </button>
           }
-          <button (click)="openCreate()" class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]">
+          <button
+            (click)="openCreate()"
+            class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
+          >
             <span class="text-[16px] leading-none">+</span>
             Registrar pago
           </button>
@@ -47,19 +58,53 @@ interface SelectOption<T> {
 
       <div class="grid grid-cols-1 lg:grid-cols-[230px_1fr_1fr_220px] gap-3 mb-5 items-start">
         <div class="card-elevated rounded-xl p-4">
-          <p class="text-[11px] text-[#9EA3AE] uppercase font-semibold tracking-[0.6px]">Pendientes de verificación</p>
+          <p class="text-[11px] text-[#9EA3AE] uppercase font-semibold tracking-[0.6px]">
+            Pendientes de verificación
+          </p>
           <p class="text-[30px] font-semibold text-[#C61D26]">{{ pendientes }}</p>
         </div>
-        <p-datepicker [(ngModel)]="filters.fechaDesde" styleClass="rr-control" inputStyleClass="w-full" [showIcon]="true" [iconDisplay]="'input'" dateFormat="dd/mm/yy" placeholder="Desde" (onSelect)="load()" (onClear)="load()" [showButtonBar]="true" />
-        <p-datepicker [(ngModel)]="filters.fechaHasta" styleClass="rr-control" inputStyleClass="w-full" [showIcon]="true" [iconDisplay]="'input'" dateFormat="dd/mm/yy" placeholder="Hasta" (onSelect)="load()" (onClear)="load()" [showButtonBar]="true" />
-        <p-select [(ngModel)]="filters.verificado" [options]="verifiedOptions" optionLabel="label" optionValue="value" styleClass="rr-control" placeholder="Estado" (onChange)="load()" />
+        <p-datepicker
+          [(ngModel)]="filters.fechaDesde"
+          styleClass="rr-control"
+          inputStyleClass="w-full"
+          [showIcon]="true"
+          [iconDisplay]="'input'"
+          dateFormat="dd/mm/yy"
+          placeholder="Desde"
+          (onSelect)="load()"
+          (onClear)="load()"
+          [showButtonBar]="true"
+        />
+        <p-datepicker
+          [(ngModel)]="filters.fechaHasta"
+          styleClass="rr-control"
+          inputStyleClass="w-full"
+          [showIcon]="true"
+          [iconDisplay]="'input'"
+          dateFormat="dd/mm/yy"
+          placeholder="Hasta"
+          (onSelect)="load()"
+          (onClear)="load()"
+          [showButtonBar]="true"
+        />
+        <p-select
+          [(ngModel)]="filters.verificado"
+          [options]="verifiedOptions"
+          optionLabel="label"
+          optionValue="value"
+          styleClass="rr-control"
+          placeholder="Estado"
+          (onChange)="load()"
+        />
       </div>
 
       <div class="card-elevated rounded-2xl overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full min-w-[900px]">
             <thead>
-              <tr class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] border-b border-[#E4E7EC]">
+              <tr
+                class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] border-b border-[#E4E7EC]"
+              >
                 <th class="px-4 py-3 w-10"></th>
                 <th class="px-4 py-3 text-left">Fecha</th>
                 <th class="px-4 py-3 text-left">Trámite</th>
@@ -77,52 +122,103 @@ interface SelectOption<T> {
                 <tr class="border-b border-[#F3F4F6] text-[13px]">
                   <td class="px-4 py-3">
                     @if (canVerify() && !p.verificado) {
-                      <input type="checkbox" [checked]="selectedIds.has(p.id)" (change)="toggle(p.id)">
+                      <input
+                        type="checkbox"
+                        [checked]="selectedIds.has(p.id)"
+                        (change)="toggle(p.id)"
+                      />
                     }
                   </td>
-                  <td class="px-4 py-3 text-[#6B717F]">{{ p.fechaPago | date:'dd/MM/yyyy' }}</td>
+                  <td class="px-4 py-3 text-[#6B717F]">{{ p.fechaPago | date: 'dd/MM/yyyy' }}</td>
                   <td class="px-4 py-3 font-mono-data">{{ p.numeroConsecutivo }}</td>
                   <td class="px-4 py-3">{{ p.clienteNombre || 'Sin cliente' }}</td>
-                  <td class="px-4 py-3 text-right font-mono-data">{{ p.monto | currency:p.moneda:'symbol':'1.2-2' }}</td>
+                  <td class="px-4 py-3 text-right font-mono-data">
+                    {{ p.monto | currency: p.moneda : 'symbol' : '1.2-2' }}
+                  </td>
                   <td class="px-4 py-3">
-                    <span class="block font-medium">{{ tipoMovimientoLabel(p.tipoMovimiento) }}</span>
-                    <span class="text-[11px] text-[#9EA3AE]">{{ p.pagadoPor === 'RR' ? 'Cubierto por R&R' : 'Cliente' }}{{ p.seCobraAlCliente ? ' · cobrable' : '' }}</span>
+                    <span class="block font-medium">{{
+                      tipoMovimientoLabel(p.tipoMovimiento)
+                    }}</span>
+                    <span class="text-[11px] text-[#9EA3AE]"
+                      >{{ p.pagadoPor === 'RR' ? 'Cubierto por R&R' : 'Cliente'
+                      }}{{ p.seCobraAlCliente ? ' · cobrable' : '' }}</span
+                    >
                   </td>
                   <td class="px-4 py-3">{{ p.metodo }}</td>
                   <td class="px-4 py-3">
                     @if (p.comprobanteUrl) {
-                      <a [href]="fileUrl(p.comprobanteUrl)" target="_blank" class="text-[#C61D26] font-medium">Banco</a>
+                      <a
+                        [href]="fileUrl(p.comprobanteUrl)"
+                        target="_blank"
+                        class="text-[#C61D26] font-medium"
+                        >Banco</a
+                      >
                     }
                   </td>
                   <td class="px-4 py-3">
-                    <span class="px-2 py-1 rounded-lg text-[11px] font-semibold" [style]="p.verificado ? 'background:#DCFCE7;color:#166534;' : 'background:#FEF3C7;color:#92400E;'">
+                    <span
+                      class="px-2 py-1 rounded-lg text-[11px] font-semibold"
+                      [style]="
+                        p.verificado
+                          ? 'background:#DCFCE7;color:#166534;'
+                          : 'background:#FEF3C7;color:#92400E;'
+                      "
+                    >
                       {{ p.verificado ? 'Verificado' : 'Pendiente' }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-right">
                     <div class="flex items-center justify-end gap-3">
-                      <a [href]="reciboUrl(p)" target="_blank" class="text-[12px] font-medium text-[#C61D26]">Recibo</a>
+                      <a
+                        [href]="reciboUrl(p)"
+                        target="_blank"
+                        class="text-[12px] font-medium text-[#C61D26]"
+                        >Recibo</a
+                      >
                       @if (canVerify()) {
-                        <button (click)="regenerarRecibo(p.id)" class="text-[12px] font-medium text-[#6B717F]">Regenerar</button>
+                        <button
+                          (click)="regenerarRecibo(p.id)"
+                          class="text-[12px] font-medium text-[#6B717F]"
+                        >
+                          Regenerar
+                        </button>
                       }
                       @if (canEditPago(p)) {
-                        <button (click)="openEdit(p)" class="text-[12px] font-medium text-[#4B5162]">Editar</button>
+                        <button
+                          (click)="openEdit(p)"
+                          class="text-[12px] font-medium text-[#4B5162]"
+                        >
+                          Editar
+                        </button>
                       }
-                    @if (canVerify() && !p.verificado) {
-                      <button (click)="verifyOne(p.id)" [disabled]="verifyingIds.has(p.id)" class="inline-flex items-center gap-1 text-[12px] font-medium text-[#0D1017] disabled:opacity-50">
-                        @if (verifyingIds.has(p.id)) {
-                          <span class="h-3 w-3 rounded-full border-2 border-black/20 border-t-black animate-spin"></span>
-                        }
-                        Verificar
+                      @if (canVerify() && !p.verificado) {
+                        <button
+                          (click)="verifyOne(p.id)"
+                          [disabled]="verifyingIds.has(p.id)"
+                          class="inline-flex items-center gap-1 text-[12px] font-medium text-[#0D1017] disabled:opacity-50"
+                        >
+                          @if (verifyingIds.has(p.id)) {
+                            <span
+                              class="h-3 w-3 rounded-full border-2 border-black/20 border-t-black animate-spin"
+                            ></span>
+                          }
+                          Verificar
+                        </button>
+                      }
+                      <button
+                        (click)="deletePago(p)"
+                        class="text-[12px] font-medium text-[#991B1B]"
+                      >
+                        Borrar
                       </button>
-                    }
-                      <button (click)="deletePago(p)" class="text-[12px] font-medium text-[#991B1B]">Borrar</button>
                     </div>
                   </td>
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="10" class="px-4 py-12 text-center text-[13px] text-[#9EA3AE]">No hay pagos con estos filtros.</td>
+                  <td colspan="10" class="px-4 py-12 text-center text-[13px] text-[#9EA3AE]">
+                    No hay pagos con estos filtros.
+                  </td>
                 </tr>
               }
             </tbody>
@@ -131,73 +227,223 @@ interface SelectOption<T> {
       </div>
 
       @if (showCreate) {
-        <div class="fixed inset-0 bg-black/30 z-50 flex items-start justify-center pt-[8vh] px-4 overflow-y-auto" (click)="!savingPago && closePagoModal()">
-          <form class="bg-white rounded-2xl p-6 w-full max-w-[620px] shadow-xl my-auto" (click)="$event.stopPropagation()" (ngSubmit)="save()">
+        <div
+          class="fixed inset-0 bg-black/30 z-50 flex items-start justify-center pt-[8vh] px-4 overflow-y-auto"
+          (click)="!savingPago && closePagoModal()"
+        >
+          <form
+            class="bg-white rounded-2xl p-6 w-full max-w-[620px] shadow-xl my-auto"
+            (click)="$event.stopPropagation()"
+            (ngSubmit)="save()"
+          >
             <div class="flex items-start justify-between gap-4 mb-5">
               <div>
-                <h3 class="text-[17px] font-semibold text-[#0D1017]">{{ editingPago ? 'Editar pago' : 'Registrar pago' }}</h3>
-                <p class="text-[12px] text-[#6B717F]">{{ editingPago ? 'Los cambios quedan en bitacora y regeneran el recibo.' : 'El comprobante bancario es obligatorio excepto cuando el pago es en efectivo.' }}</p>
+                <h3 class="text-[17px] font-semibold text-[#0D1017]">
+                  {{ editingPago ? 'Editar pago' : 'Registrar pago' }}
+                </h3>
+                <p class="text-[12px] text-[#6B717F]">
+                  {{
+                    editingPago
+                      ? 'Los cambios quedan en bitacora y regeneran el recibo.'
+                      : 'El comprobante bancario es obligatorio excepto cuando el pago es en efectivo.'
+                  }}
+                </p>
               </div>
-              <button type="button" (click)="showCreate = false" class="text-[#9EA3AE] hover:text-[#0D1017]">✕</button>
+              <button
+                type="button"
+                (click)="showCreate = false"
+                class="text-[#9EA3AE] hover:text-[#0D1017]"
+              >
+                ✕
+              </button>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <p-select [(ngModel)]="form.tramiteId" name="tramiteId" [options]="tramiteOptions" optionLabel="label" optionValue="value" styleClass="rr-control" [filter]="true" placeholder="Trámite" />
-              <p-datepicker [(ngModel)]="form.fechaPago" name="fechaPago" styleClass="rr-control" inputStyleClass="w-full" [showIcon]="true" [iconDisplay]="'input'" dateFormat="dd/mm/yy" placeholder="Fecha de pago" />
+              <p-select
+                [(ngModel)]="form.tramiteId"
+                name="tramiteId"
+                [options]="tramiteOptions"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="rr-control"
+                [filter]="true"
+                placeholder="Trámite"
+              />
+              <p-datepicker
+                [(ngModel)]="form.fechaPago"
+                name="fechaPago"
+                styleClass="rr-control"
+                inputStyleClass="w-full"
+                [showIcon]="true"
+                [iconDisplay]="'input'"
+                dateFormat="dd/mm/yy"
+                placeholder="Fecha de pago"
+              />
 
-              <input [(ngModel)]="form.monto" name="monto" type="number" min="0.01" step="0.01" placeholder="Monto" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
-              <p-select [(ngModel)]="form.moneda" name="moneda" [options]="monedaOptions" optionLabel="label" optionValue="value" styleClass="rr-control" placeholder="Moneda" (onChange)="onMonedaChange()" />
+              <input
+                [(ngModel)]="form.monto"
+                name="monto"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="Monto"
+                class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]"
+              />
+              <p-select
+                [(ngModel)]="form.moneda"
+                name="moneda"
+                [options]="monedaOptions"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="rr-control"
+                placeholder="Moneda"
+                (onChange)="onMonedaChange()"
+              />
 
-              <p-select [(ngModel)]="form.tipoMovimiento" name="tipoMovimiento" [options]="tipoMovimientoOptions" optionLabel="label" optionValue="value" styleClass="rr-control" placeholder="Tipo de movimiento" />
-              <p-select [(ngModel)]="form.pagadoPor" name="pagadoPor" [options]="pagadoPorOptions" optionLabel="label" optionValue="value" styleClass="rr-control" placeholder="Pagado por" />
+              <p-select
+                [(ngModel)]="form.tipoMovimiento"
+                name="tipoMovimiento"
+                [options]="tipoMovimientoOptions"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="rr-control"
+                placeholder="Tipo de movimiento"
+              />
+              <p-select
+                [(ngModel)]="form.pagadoPor"
+                name="pagadoPor"
+                [options]="pagadoPorOptions"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="rr-control"
+                placeholder="Pagado por"
+              />
 
-              <input [(ngModel)]="form.tipoCambio" name="tipoCambio" type="number" step="0.000001" [readonly]="form.moneda !== 'USD'" [placeholder]="form.moneda === 'USD' ? 'Tipo de cambio automatico' : 'Solo aplica para USD'" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px] read-only:bg-[#F3F4F6]">
-              <p-select [(ngModel)]="form.metodo" name="metodo" [options]="metodoOptions" optionLabel="label" optionValue="value" styleClass="rr-control" placeholder="Método" />
+              <input
+                [(ngModel)]="form.tipoCambio"
+                name="tipoCambio"
+                type="number"
+                step="0.000001"
+                [readonly]="form.moneda !== 'USD'"
+                [placeholder]="
+                  form.moneda === 'USD' ? 'Tipo de cambio automatico' : 'Solo aplica para USD'
+                "
+                class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px] read-only:bg-[#F3F4F6]"
+              />
+              <p-select
+                [(ngModel)]="form.metodo"
+                name="metodo"
+                [options]="metodoOptions"
+                optionLabel="label"
+                optionValue="value"
+                styleClass="rr-control"
+                placeholder="Método"
+              />
 
               @if (form.metodo === 'TRANSFERENCIA' || form.metodo === 'DEPOSITO') {
-                <p-select [(ngModel)]="form.banco" name="banco" [options]="bancoOptions" optionLabel="label" optionValue="value" styleClass="rr-control" [filter]="true" placeholder="Banco registrado" />
+                <p-select
+                  [(ngModel)]="form.banco"
+                  name="banco"
+                  [options]="bancoOptions"
+                  optionLabel="label"
+                  optionValue="value"
+                  styleClass="rr-control"
+                  [filter]="true"
+                  placeholder="Banco registrado"
+                />
               } @else {
-                <input [(ngModel)]="form.banco" name="banco" placeholder="Banco (opcional)" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
+                <input
+                  [(ngModel)]="form.banco"
+                  name="banco"
+                  placeholder="Banco (opcional)"
+                  class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]"
+                />
               }
-              <input [(ngModel)]="form.referencia" name="referencia" placeholder="Referencia" class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]">
+              <input
+                [(ngModel)]="form.referencia"
+                name="referencia"
+                placeholder="Referencia"
+                class="px-3 py-2.5 rounded-xl border border-[#E4E7EC] text-[13px]"
+              />
             </div>
 
             @if (selectedTramite()) {
-              <div class="mt-3 rounded-2xl border border-[#E4E7EC] bg-[#F9FAFB] p-3 text-[12px] text-[#4B5162]">
+              <div
+                class="mt-3 rounded-2xl border border-[#E4E7EC] bg-[#F9FAFB] p-3 text-[12px] text-[#4B5162]"
+              >
                 <div class="flex items-center justify-between gap-3">
                   <span>Saldo disponible</span>
-                  <strong class="font-mono-data text-[#0D1017]">{{ saldoDisponibleSeleccionado() | currency:'MXN' }}</strong>
+                  <strong class="font-mono-data text-[#0D1017]">{{
+                    saldoDisponibleSeleccionado() | currency: 'MXN'
+                  }}</strong>
                 </div>
                 <div class="flex items-center justify-between gap-3 mt-1">
                   <span>Este pago en MXN</span>
-                  <strong class="font-mono-data" [class.text-[#991B1B]]="montoExcedeSaldo()">{{ pagoMxn() | currency:'MXN' }}</strong>
+                  <strong class="font-mono-data" [class.text-[#991B1B]]="montoExcedeSaldo()">{{
+                    pagoMxn() | currency: 'MXN'
+                  }}</strong>
                 </div>
               </div>
             }
             @if (validationMessages().length > 0) {
-              <div class="mt-3 rounded-2xl border border-[#FEE2E2] bg-[#FFF7F7] px-3 py-2 text-[12px] text-[#991B1B]">
+              <div
+                class="mt-3 rounded-2xl border border-[#FEE2E2] bg-[#FFF7F7] px-3 py-2 text-[12px] text-[#991B1B]"
+              >
                 @for (message of validationMessages(); track message) {
                   <p>{{ message }}</p>
                 }
               </div>
             }
 
-            <textarea [(ngModel)]="form.notas" name="notas" placeholder="Notas" class="w-full px-3 py-2 rounded-xl border border-[#E4E7EC] text-[13px] mt-3" rows="2"></textarea>
+            <textarea
+              [(ngModel)]="form.notas"
+              name="notas"
+              placeholder="Notas"
+              class="w-full px-3 py-2 rounded-xl border border-[#E4E7EC] text-[13px] mt-3"
+              rows="2"
+            ></textarea>
             <label class="mt-3 flex items-center gap-2 text-[13px] text-[#4B5162]">
-              <input type="checkbox" [(ngModel)]="form.seCobraAlCliente" name="seCobraAlCliente">
+              <input type="checkbox" [(ngModel)]="form.seCobraAlCliente" name="seCobraAlCliente" />
               Se cobra al cliente
             </label>
 
-            <label class="mt-3 flex items-center justify-center min-h-[96px] rounded-2xl border border-dashed border-[#CDD1DB] bg-[#F9FAFB] cursor-pointer hover:border-[#C61D26] transition-colors">
-              <input type="file" accept=".jpg,.jpeg,.png,.pdf" (change)="onFile($event)" class="hidden">
-              <span class="text-[13px] text-[#6B717F]">{{ fileName || (form.comprobanteUrl ? 'Conservando comprobante actual' : (form.metodo === 'EFECTIVO' ? 'Comprobante opcional en efectivo' : 'Subir comprobante JPG, PNG o PDF')) }}</span>
+            <label
+              class="mt-3 flex items-center justify-center min-h-[96px] rounded-2xl border border-dashed border-[#CDD1DB] bg-[#F9FAFB] cursor-pointer hover:border-[#C61D26] transition-colors"
+            >
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf"
+                (change)="onFile($event)"
+                class="hidden"
+              />
+              <span class="text-[13px] text-[#6B717F]">{{
+                fileName ||
+                  (form.comprobanteUrl
+                    ? 'Conservando comprobante actual'
+                    : form.metodo === 'EFECTIVO'
+                      ? 'Comprobante opcional en efectivo'
+                      : 'Subir comprobante JPG, PNG o PDF')
+              }}</span>
             </label>
 
             <div class="flex justify-end gap-2 mt-5">
-              <button type="button" [disabled]="savingPago" (click)="closePagoModal()" class="px-4 py-2 rounded-xl text-[12.5px] border border-[#E4E7EC] disabled:opacity-50">Cancelar</button>
-              <button type="submit" [disabled]="savingPago || validationMessages().length > 0" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12.5px] bg-[#0D1017] text-white disabled:opacity-50">
+              <button
+                type="button"
+                [disabled]="savingPago"
+                (click)="closePagoModal()"
+                class="px-4 py-2 rounded-xl text-[12.5px] border border-[#E4E7EC] disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                [disabled]="savingPago || validationMessages().length > 0"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12.5px] bg-[#0D1017] text-white disabled:opacity-50"
+              >
                 @if (savingPago) {
-                  <span class="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin"></span>
+                  <span
+                    class="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin"
+                  ></span>
                   Guardando...
                 } @else {
                   <span>{{ editingPago ? 'Guardar cambios' : 'Guardar pago' }}</span>
@@ -311,33 +557,44 @@ export class PagosListComponent implements OnInit {
     const messages: string[] = [];
     if (!this.form.tramiteId) messages.push('Selecciona un tramite.');
     if (!this.form.monto || this.form.monto <= 0) messages.push('El monto debe ser mayor a cero.');
-    if (this.form.moneda === 'USD' && (!this.form.tipoCambio || this.form.tipoCambio <= 0)) messages.push('El tipo de cambio es obligatorio para pagos en USD.');
-    if ((this.form.metodo === 'TRANSFERENCIA' || this.form.metodo === 'DEPOSITO') && !this.form.banco) messages.push('Selecciona el banco para transferencias o depositos.');
-    if (this.form.metodo !== 'EFECTIVO' && !this.file && !this.form.comprobanteUrl) messages.push('Adjunta el comprobante bancario.');
-    if (this.montoExcedeSaldo()) messages.push(`El pago excede el saldo disponible por ${(this.pagoMxn() - this.saldoDisponibleSeleccionado()).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}.`);
+    if (this.form.moneda === 'USD' && (!this.form.tipoCambio || this.form.tipoCambio <= 0))
+      messages.push('El tipo de cambio es obligatorio para pagos en USD.');
+    if (
+      (this.form.metodo === 'TRANSFERENCIA' || this.form.metodo === 'DEPOSITO') &&
+      !this.form.banco
+    )
+      messages.push('Selecciona el banco para transferencias o depositos.');
+    if (this.form.metodo !== 'EFECTIVO' && !this.file && !this.form.comprobanteUrl)
+      messages.push('Adjunta el comprobante bancario.');
+    if (this.montoExcedeSaldo())
+      messages.push(
+        `El pago excede el saldo disponible por ${(this.pagoMxn() - this.saldoDisponibleSeleccionado()).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}.`
+      );
     return messages;
   }
 
   ngOnInit(): void {
     this.load();
-    this.tramiteService.getList({ pageSize: 200 }).subscribe(res => this.tramites = res.items);
-    this.bancoService.getAll(true).subscribe(res => this.bancos = res);
+    this.tramiteService.getList({ pageSize: 200 }).subscribe(res => (this.tramites = res.items));
+    this.bancoService.getAll(true).subscribe(res => (this.bancos = res));
   }
 
   load(): void {
-    this.pagoService.getList({
-      fechaDesde: this.toApiDate(this.filters.fechaDesde),
-      fechaHasta: this.toApiDate(this.filters.fechaHasta),
-      verificado: this.filters.verificado ?? undefined,
-      pageSize: 100,
-    }).subscribe({
-      next: res => {
-        this.pagos = res.items;
-        this.pendientes = res.items.filter(p => !p.verificado).length;
-        this.selectedIds.clear();
-      },
-      error: err => this.notifications.fromHttpError(err, 'Error al cargar los pagos')
-    });
+    this.pagoService
+      .getList({
+        fechaDesde: this.toApiDate(this.filters.fechaDesde),
+        fechaHasta: this.toApiDate(this.filters.fechaHasta),
+        verificado: this.filters.verificado ?? undefined,
+        pageSize: 100,
+      })
+      .subscribe({
+        next: res => {
+          this.pagos = res.items;
+          this.pendientes = res.items.filter(p => !p.verificado).length;
+          this.selectedIds.clear();
+        },
+        error: err => this.notifications.fromHttpError(err, 'Error al cargar los pagos'),
+      });
   }
 
   openCreate(): void {
@@ -382,8 +639,12 @@ export class PagosListComponent implements OnInit {
       return;
     }
     this.cotizacionService.getTipoCambio().subscribe({
-      next: tc => this.form.tipoCambio = tc.tipoCambio,
-      error: err => this.notifications.fromHttpError(err, 'No se pudo obtener el tipo de cambio. Puedes capturarlo manualmente.'),
+      next: tc => (this.form.tipoCambio = tc.tipoCambio),
+      error: err =>
+        this.notifications.fromHttpError(
+          err,
+          'No se pudo obtener el tipo de cambio. Puedes capturarlo manualmente.'
+        ),
     });
   }
 
@@ -429,7 +690,13 @@ export class PagosListComponent implements OnInit {
         if (!file) {
           this.savingPago = false;
           this.closePagoModal();
-          this.notifications.success(isEditing ? 'Pago actualizado y recibo regenerado.' : (pago.reciboPagoUrl ? 'Pago registrado y recibo generado.' : 'Pago registrado. Puedes regenerar el recibo desde pagos.'));
+          this.notifications.success(
+            isEditing
+              ? 'Pago actualizado y recibo regenerado.'
+              : pago.reciboPagoUrl
+                ? 'Pago registrado y recibo generado.'
+                : 'Pago registrado. Puedes regenerar el recibo desde pagos.'
+          );
           this.load();
           return;
         }
@@ -438,12 +705,21 @@ export class PagosListComponent implements OnInit {
           next: () => {
             this.savingPago = false;
             this.closePagoModal();
-            this.notifications.success(isEditing ? 'Pago actualizado y comprobante guardado.' : (pago.reciboPagoUrl ? 'Pago registrado y recibo generado.' : 'Pago registrado. Puedes regenerar el recibo desde pagos.'));
+            this.notifications.success(
+              isEditing
+                ? 'Pago actualizado y comprobante guardado.'
+                : pago.reciboPagoUrl
+                  ? 'Pago registrado y recibo generado.'
+                  : 'Pago registrado. Puedes regenerar el recibo desde pagos.'
+            );
             this.load();
           },
           error: err => {
             this.savingPago = false;
-            this.notifications.fromHttpError(err, 'El pago se creo, pero fallo la subida del comprobante');
+            this.notifications.fromHttpError(
+              err,
+              'El pago se creo, pero fallo la subida del comprobante'
+            );
           },
         });
       },
@@ -522,7 +798,9 @@ export class PagosListComponent implements OnInit {
   }
 
   reciboUrl(pago: PagoListDto): string {
-    return pago.reciboPagoUrl ? this.fileUrl(pago.reciboPagoUrl) : this.pagoService.reciboUrl(pago.id);
+    return pago.reciboPagoUrl
+      ? this.fileUrl(pago.reciboPagoUrl)
+      : this.pagoService.reciboUrl(pago.id);
   }
 
   regenerarRecibo(id: string): void {

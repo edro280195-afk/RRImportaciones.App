@@ -12,23 +12,29 @@ import { NotificationService } from '../../services/notification.service';
   imports: [RouterLink, DatePipe, CurrencyPipe, ClienteFormDialogComponent],
   template: `
     <div style="font-family: var(--font-body);">
-
       @if (cliente(); as c) {
         <!-- Back -->
-        <a routerLink="/clientes" class="inline-flex items-center gap-1.5 text-[13px] text-[#6B717F] hover:text-[#1E2330] transition-colors duration-150 mb-4 no-underline">
+        <a
+          routerLink="/clientes"
+          class="inline-flex items-center gap-1.5 text-[13px] text-[#6B717F] hover:text-[#1E2330] transition-colors duration-150 mb-4 no-underline"
+        >
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           Clientes
         </a>
 
         <!-- Header -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6 stagger-item">
+        <div
+          class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6 stagger-item"
+        >
           <div>
             <p class="text-[11px] font-semibold uppercase tracking-[1.2px] text-[#9EA3AE] mb-1.5">
-              {{ c.fechaRegistro | date:'dd/MM/yyyy' }}
+              {{ c.fechaRegistro | date: 'dd/MM/yyyy' }}
             </p>
-            <h1 class="font-semibold text-[26px] text-[#0D1017] tracking-[-0.6px] leading-none mb-1">
+            <h1
+              class="font-semibold text-[26px] text-[#0D1017] tracking-[-0.6px] leading-none mb-1"
+            >
               {{ c.apodo }}
             </h1>
             @if (c.nombreCompleto) {
@@ -41,8 +47,17 @@ import { NotificationService } from '../../services/notification.service';
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-medium transition-all duration-150"
               style="background: #F3F4F6; color: #4B5162; border: 1px solid #E4E7EC;"
             >
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              <svg
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 stroke-2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
               </svg>
               Editar
             </button>
@@ -54,12 +69,32 @@ import { NotificationService } from '../../services/notification.service';
             >
               @if (deleting()) {
                 <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  />
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
                 </svg>
               } @else {
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                <svg
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  class="w-3.5 h-3.5 stroke-2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
                 </svg>
               }
               Eliminar
@@ -68,10 +103,15 @@ import { NotificationService } from '../../services/notification.service';
         </div>
 
         <!-- Info grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 stagger-item" style="animation-delay: 40ms;">
+        <div
+          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 stagger-item"
+          style="animation-delay: 40ms;"
+        >
           @for (item of infoItems; track item.label) {
             <div class="card-elevated rounded-2xl p-5">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] mb-1">{{ item.label }}</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] mb-1">
+                {{ item.label }}
+              </p>
               <p class="text-[14px] font-medium text-[#1E2330] font-mono-data">{{ item.value }}</p>
             </div>
           }
@@ -79,23 +119,45 @@ import { NotificationService } from '../../services/notification.service';
 
         <!-- Notas -->
         @if (c.notas) {
-          <div class="card-elevated rounded-2xl p-5 mb-6 stagger-item" style="animation-delay: 60ms;">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] mb-1.5">Notas</p>
-            <p class="text-[14px] text-[#4B5162] leading-relaxed whitespace-pre-wrap">{{ c.notas }}</p>
+          <div
+            class="card-elevated rounded-2xl p-5 mb-6 stagger-item"
+            style="animation-delay: 60ms;"
+          >
+            <p class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] mb-1.5">
+              Notas
+            </p>
+            <p class="text-[14px] text-[#4B5162] leading-relaxed whitespace-pre-wrap">
+              {{ c.notas }}
+            </p>
           </div>
         }
 
         <!-- Estado de Cuenta -->
-        <div class="card-elevated rounded-2xl overflow-hidden mb-6 stagger-item" style="animation-delay: 80ms;">
+        <div
+          class="card-elevated rounded-2xl overflow-hidden mb-6 stagger-item"
+          style="animation-delay: 80ms;"
+        >
           <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#E4E7EC]">
             <div class="flex items-center gap-2">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2 text-[#B0181F]">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+              <svg
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                class="w-4 h-4 stroke-2 text-[#B0181F]"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                />
               </svg>
               <span class="text-[13px] font-semibold text-[#1E2330]">Estado de Cuenta</span>
             </div>
             @if (!estadoCuenta() && !loadingCuenta()) {
-              <button (click)="loadEstadoCuenta()" class="text-[12px] font-semibold text-[#B0181F] hover:underline">
+              <button
+                (click)="loadEstadoCuenta()"
+                class="text-[12px] font-semibold text-[#B0181F] hover:underline"
+              >
                 Cargar
               </button>
             }
@@ -103,9 +165,24 @@ import { NotificationService } from '../../services/notification.service';
 
           @if (loadingCuenta()) {
             <div class="p-8 text-center">
-              <svg class="w-5 h-5 text-[#9EA3AE] animate-spin mx-auto mb-2" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              <svg
+                class="w-5 h-5 text-[#9EA3AE] animate-spin mx-auto mb-2"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
               </svg>
               <p class="text-[13px] text-[#9EA3AE]">Cargando estado de cuenta…</p>
             </div>
@@ -114,17 +191,30 @@ import { NotificationService } from '../../services/notification.service';
             <!-- KPI summary row -->
             <div class="grid grid-cols-3 divide-x divide-[#F0F2F5] border-b border-[#F0F2F5]">
               <div class="px-5 py-4">
-                <p class="text-[10px] font-bold uppercase tracking-[0.7px] text-[#9EA3AE] mb-1">Total Facturado</p>
-                <p class="text-[18px] font-semibold text-[#0D1017]">{{ ec.totalFacturado | currency:'MXN':'symbol':'1.2-2':'es-MX' }}</p>
+                <p class="text-[10px] font-bold uppercase tracking-[0.7px] text-[#9EA3AE] mb-1">
+                  Total Facturado
+                </p>
+                <p class="text-[18px] font-semibold text-[#0D1017]">
+                  {{ ec.totalFacturado | currency: 'MXN' : 'symbol' : '1.2-2' : 'es-MX' }}
+                </p>
               </div>
               <div class="px-5 py-4">
-                <p class="text-[10px] font-bold uppercase tracking-[0.7px] text-[#9EA3AE] mb-1">Total Pagado</p>
-                <p class="text-[18px] font-semibold text-[#166534]">{{ ec.totalPagado | currency:'MXN':'symbol':'1.2-2':'es-MX' }}</p>
+                <p class="text-[10px] font-bold uppercase tracking-[0.7px] text-[#9EA3AE] mb-1">
+                  Total Pagado
+                </p>
+                <p class="text-[18px] font-semibold text-[#166534]">
+                  {{ ec.totalPagado | currency: 'MXN' : 'symbol' : '1.2-2' : 'es-MX' }}
+                </p>
               </div>
               <div class="px-5 py-4">
-                <p class="text-[10px] font-bold uppercase tracking-[0.7px] text-[#9EA3AE] mb-1">Saldo Pendiente</p>
-                <p class="text-[18px] font-semibold" [style.color]="ec.saldoPendiente > 0 ? '#B0181F' : '#166534'">
-                  {{ ec.saldoPendiente | currency:'MXN':'symbol':'1.2-2':'es-MX' }}
+                <p class="text-[10px] font-bold uppercase tracking-[0.7px] text-[#9EA3AE] mb-1">
+                  Saldo Pendiente
+                </p>
+                <p
+                  class="text-[18px] font-semibold"
+                  [style.color]="ec.saldoPendiente > 0 ? '#B0181F' : '#166534'"
+                >
+                  {{ ec.saldoPendiente | currency: 'MXN' : 'symbol' : '1.2-2' : 'es-MX' }}
                 </p>
               </div>
             </div>
@@ -135,13 +225,41 @@ import { NotificationService } from '../../services/notification.service';
                 <table class="w-full text-[12.5px]">
                   <thead>
                     <tr class="border-b border-[#F0F2F5] bg-[#F8FAFC]">
-                      <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Trámite</th>
-                      <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Vehículo</th>
-                      <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Estatus</th>
-                      <th class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Cobro</th>
-                      <th class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Pagado</th>
-                      <th class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Saldo</th>
-                      <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]">Fecha</th>
+                      <th
+                        class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]"
+                      >
+                        Trámite
+                      </th>
+                      <th
+                        class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]"
+                      >
+                        Vehículo
+                      </th>
+                      <th
+                        class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]"
+                      >
+                        Estatus
+                      </th>
+                      <th
+                        class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]"
+                      >
+                        Cobro
+                      </th>
+                      <th
+                        class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]"
+                      >
+                        Pagado
+                      </th>
+                      <th
+                        class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]"
+                      >
+                        Saldo
+                      </th>
+                      <th
+                        class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-[0.6px] text-[#9EA3AE]"
+                      >
+                        Fecha
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -150,25 +268,34 @@ import { NotificationService } from '../../services/notification.service';
                         class="border-b border-[#F0F2F5] hover:bg-[#FAFBFC] cursor-pointer transition-colors"
                         (click)="router.navigate(['/tramites', t.id])"
                       >
-                        <td class="px-4 py-2.5 font-semibold text-[#0D1017] font-mono-data">{{ t.numeroConsecutivo }}</td>
-                        <td class="px-4 py-2.5 text-[#6B717F] max-w-[140px] truncate">{{ t.vehiculo || '—' }}</td>
+                        <td class="px-4 py-2.5 font-semibold text-[#0D1017] font-mono-data">
+                          {{ t.numeroConsecutivo }}
+                        </td>
+                        <td class="px-4 py-2.5 text-[#6B717F] max-w-[140px] truncate">
+                          {{ t.vehiculo || '—' }}
+                        </td>
                         <td class="px-4 py-2.5">
-                          <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold" [style]="statusStyle(t.estatus)">
+                          <span
+                            class="px-2 py-0.5 rounded-md text-[11px] font-semibold"
+                            [style]="statusStyle(t.estatus)"
+                          >
                             {{ t.estatus }}
                           </span>
                         </td>
                         <td class="px-4 py-2.5 text-right font-mono-data text-[#374151]">
-                          {{ t.cobroTotal | currency:'MXN':'symbol':'1.2-2':'es-MX' }}
+                          {{ t.cobroTotal | currency: 'MXN' : 'symbol' : '1.2-2' : 'es-MX' }}
                         </td>
                         <td class="px-4 py-2.5 text-right font-mono-data text-[#166534]">
-                          {{ t.totalPagado | currency:'MXN':'symbol':'1.2-2':'es-MX' }}
+                          {{ t.totalPagado | currency: 'MXN' : 'symbol' : '1.2-2' : 'es-MX' }}
                         </td>
-                        <td class="px-4 py-2.5 text-right font-mono-data font-semibold"
-                            [style.color]="t.saldo > 0 ? '#B0181F' : '#166534'">
-                          {{ t.saldo | currency:'MXN':'symbol':'1.2-2':'es-MX' }}
+                        <td
+                          class="px-4 py-2.5 text-right font-mono-data font-semibold"
+                          [style.color]="t.saldo > 0 ? '#B0181F' : '#166534'"
+                        >
+                          {{ t.saldo | currency: 'MXN' : 'symbol' : '1.2-2' : 'es-MX' }}
                         </td>
                         <td class="px-4 py-2.5 text-[#9EA3AE] font-mono-data">
-                          {{ t.fechaCreacion | date:'dd/MM/yyyy' }}
+                          {{ t.fechaCreacion | date: 'dd/MM/yyyy' }}
                         </td>
                       </tr>
                     }
@@ -177,24 +304,32 @@ import { NotificationService } from '../../services/notification.service';
               </div>
             } @else {
               <div class="p-8 text-center">
-                <p class="text-[13px] text-[#9EA3AE]">Sin trámites registrados para este cliente.</p>
+                <p class="text-[13px] text-[#9EA3AE]">
+                  Sin trámites registrados para este cliente.
+                </p>
               </div>
             }
           } @else {
             <div class="p-6 text-center">
-              <p class="text-[13px] text-[#9EA3AE]">Haz clic en "Cargar" para ver el estado de cuenta detallado.</p>
+              <p class="text-[13px] text-[#9EA3AE]">
+                Haz clic en "Cargar" para ver el estado de cuenta detallado.
+              </p>
             </div>
           }
         </div>
 
         <!-- Vehicles + Trámites grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-item" style="animation-delay: 100ms;">
-
+        <div
+          class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-item"
+          style="animation-delay: 100ms;"
+        >
           <!-- Vehicles -->
           <div class="card-elevated rounded-2xl overflow-hidden">
             <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#E4E7EC]">
               <span class="text-[13px] font-semibold text-[#1E2330]">Vehículos</span>
-              <span class="text-[11px] text-[#9EA3AE] font-mono-data">{{ c.vehiculos.length }}</span>
+              <span class="text-[11px] text-[#9EA3AE] font-mono-data">{{
+                c.vehiculos.length
+              }}</span>
             </div>
             @if (c.vehiculos.length === 0) {
               <div class="p-8 text-center">
@@ -208,11 +343,21 @@ import { NotificationService } from '../../services/notification.service';
                     class="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-[#FAFBFC] transition-all duration-100"
                   >
                     <div>
-                      <p class="text-[13.5px] font-semibold text-[#0D1017] font-mono-data">{{ v.vin }}</p>
-                      <p class="text-[12.5px] text-[#6B717F]">{{ v.marcaNombre || '' }} {{ v.modeloNombre || '' }} {{ v.anno ? '· ' + v.anno : '' }}</p>
+                      <p class="text-[13.5px] font-semibold text-[#0D1017] font-mono-data">
+                        {{ v.vin }}
+                      </p>
+                      <p class="text-[12.5px] text-[#6B717F]">
+                        {{ v.marcaNombre || '' }} {{ v.modeloNombre || '' }}
+                        {{ v.anno ? '· ' + v.anno : '' }}
+                      </p>
                     </div>
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 text-[#9EA3AE] stroke-2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                    <svg
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      class="w-4 h-4 text-[#9EA3AE] stroke-2"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
                 }
@@ -224,7 +369,9 @@ import { NotificationService } from '../../services/notification.service';
           <div class="card-elevated rounded-2xl overflow-hidden">
             <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#E4E7EC]">
               <span class="text-[13px] font-semibold text-[#1E2330]">Últimos trámites</span>
-              <span class="text-[11px] text-[#9EA3AE] font-mono-data">{{ c.ultimosTramites.length }}</span>
+              <span class="text-[11px] text-[#9EA3AE] font-mono-data">{{
+                c.ultimosTramites.length
+              }}</span>
             </div>
             @if (c.ultimosTramites.length === 0) {
               <div class="p-8 text-center">
@@ -235,24 +382,41 @@ import { NotificationService } from '../../services/notification.service';
                 @for (t of c.ultimosTramites; track t.id) {
                   <div class="flex items-center justify-between px-5 py-3">
                     <div>
-                      <p class="text-[13.5px] font-semibold text-[#0D1017]">{{ t.numeroConsecutivo }}</p>
-                      <p class="text-[12px] text-[#6B717F]">{{ t.fechaCreacion | date:'dd/MM/yyyy' }}</p>
+                      <p class="text-[13.5px] font-semibold text-[#0D1017]">
+                        {{ t.numeroConsecutivo }}
+                      </p>
+                      <p class="text-[12px] text-[#6B717F]">
+                        {{ t.fechaCreacion | date: 'dd/MM/yyyy' }}
+                      </p>
                     </div>
-                    <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold"
-                          [style]="statusStyle(t.estatus)">{{ t.estatus }}</span>
+                    <span
+                      class="px-2.5 py-1 rounded-lg text-[11px] font-semibold"
+                      [style]="statusStyle(t.estatus)"
+                      >{{ t.estatus }}</span
+                    >
                   </div>
                 }
               </div>
             }
           </div>
-
         </div>
       } @else if (loading()) {
         <div class="card-elevated rounded-2xl overflow-hidden stagger-item">
           <div class="p-16 flex flex-col items-center justify-center text-center">
             <svg class="w-6 h-6 text-[#9EA3AE] animate-spin mb-3" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
             </svg>
             <p class="text-[14px] text-[#9EA3AE]">Cargando cliente…</p>
           </div>
@@ -261,13 +425,25 @@ import { NotificationService } from '../../services/notification.service';
         <div class="card-elevated rounded-2xl overflow-hidden stagger-item">
           <div class="flex flex-col items-center justify-center py-16 px-6">
             <div class="w-12 h-12 rounded-full bg-[#FEE2E2] flex items-center justify-center mb-4">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-5 h-5 stroke-2 text-[#DC2626]">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+              <svg
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                class="w-5 h-5 stroke-2 text-[#DC2626]"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"
+                />
               </svg>
             </div>
             <p class="text-[14px] font-medium text-[#1E2330] mb-1">Cliente no encontrado</p>
             <p class="text-[13px] text-[#9EA3AE] mb-4">{{ error() }}</p>
-            <a routerLink="/clientes" class="btn-primary px-4 py-2 rounded-xl text-[13px] no-underline">
+            <a
+              routerLink="/clientes"
+              class="btn-primary px-4 py-2 rounded-xl text-[13px] no-underline"
+            >
               Volver a clientes
             </a>
           </div>
@@ -302,11 +478,15 @@ export class ClientesDetailComponent {
 
   loadCliente(): void {
     const id = this.route.snapshot.paramMap.get('id');
-    if (!id) { this.error.set('ID no válido'); this.loading.set(false); return; }
+    if (!id) {
+      this.error.set('ID no válido');
+      this.loading.set(false);
+      return;
+    }
     this.loading.set(true);
     this.error.set('');
     this.service.getById(id).subscribe({
-      next: (c) => {
+      next: c => {
         this.cliente.set(c);
         this.infoItems = [
           { label: 'RFC', value: c.rfc || '—' },
@@ -316,13 +496,16 @@ export class ClientesDetailComponent {
           { label: 'Dirección', value: c.direccion || '—' },
           { label: 'Vehículos', value: String(c.totalVehiculos) },
           { label: 'Trámites', value: String(c.totalTramites) },
-          { label: 'Facturado', value: c.totalFacturado > 0 ? `$${c.totalFacturado.toFixed(2)}` : '$0.00' },
+          {
+            label: 'Facturado',
+            value: c.totalFacturado > 0 ? `$${c.totalFacturado.toFixed(2)}` : '$0.00',
+          },
         ];
         this.loading.set(false);
         // Auto-cargar estado de cuenta
         this.loadEstadoCuenta();
       },
-      error: (err) => {
+      error: err => {
         this.error.set(err.error?.message || 'Error al cargar cliente');
         this.loading.set(false);
       },
@@ -334,7 +517,7 @@ export class ClientesDetailComponent {
     if (!id || this.loadingCuenta()) return;
     this.loadingCuenta.set(true);
     this.reporteService.estadoCuentaCliente(id).subscribe({
-      next: (ec) => {
+      next: ec => {
         this.estadoCuenta.set(ec);
         this.loadingCuenta.set(false);
       },
@@ -368,10 +551,10 @@ export class ClientesDetailComponent {
 
   statusStyle(estatus: string): Record<string, string> {
     const map: Record<string, { bg: string; color: string }> = {
-      'ACTIVO': { bg: '#DCFCE7', color: '#14532D' },
-      'PENDIENTE': { bg: '#FEF3C7', color: '#78350F' },
-      'FINALIZADO': { bg: '#DBEAFE', color: '#1E3A8A' },
-      'CANCELADO': { bg: '#FEE2E2', color: '#7F1D1D' },
+      ACTIVO: { bg: '#DCFCE7', color: '#14532D' },
+      PENDIENTE: { bg: '#FEF3C7', color: '#78350F' },
+      FINALIZADO: { bg: '#DBEAFE', color: '#1E3A8A' },
+      CANCELADO: { bg: '#FEE2E2', color: '#7F1D1D' },
     };
     const s = map[estatus] || { bg: '#F3F4F6', color: '#4B5162' };
     return { background: s.bg, color: s.color };

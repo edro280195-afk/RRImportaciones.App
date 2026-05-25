@@ -61,10 +61,11 @@ export class NotificationService {
     const severity = options.severity ?? 'info';
     const title = options.title ?? this.defaultTitle(severity);
     const detail = this.formatDetail(options.detail);
-    const shouldUseModal = options.forceModal === true
-      || Boolean(detail)
-      || options.message.length > 140
-      || (severity === 'error' && options.message.length > 90);
+    const shouldUseModal =
+      options.forceModal === true ||
+      Boolean(detail) ||
+      options.message.length > 140 ||
+      (severity === 'error' && options.message.length > 90);
 
     if (shouldUseModal) {
       this.modal.set({ severity, title, message: options.message, detail });
@@ -136,11 +137,12 @@ export class NotificationService {
     const body = this.asRecord(root?.['error']);
     const bodyMessage = body?.['message'];
     const rootMessage = root?.['message'];
-    const message = typeof bodyMessage === 'string'
-      ? bodyMessage
-      : typeof rootMessage === 'string'
-        ? rootMessage
-        : '';
+    const message =
+      typeof bodyMessage === 'string'
+        ? bodyMessage
+        : typeof rootMessage === 'string'
+          ? rootMessage
+          : '';
 
     const validationErrors = body?.['errors'];
     const detail = validationErrors ?? (body && Object.keys(body).length > 1 ? body : undefined);
@@ -159,6 +161,6 @@ export class NotificationService {
   }
 
   private asRecord(value: unknown): Record<string, unknown> | null {
-    return value !== null && typeof value === 'object' ? value as Record<string, unknown> : null;
+    return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : null;
   }
 }

@@ -71,4 +71,66 @@ public class TramiteStateServiceTests
         
         result.Should().BeFalse();
     }
+
+    [Theory]
+    [InlineData("PENDIENTE", "ENTREGADO_AL_CLIENTE")]
+    [InlineData("PENDIENTE", "VERDE_ENTREGADO")]
+    public void GetTransicionesPermitidas_Pendiente_IncluyeSiguienteYCancelado(string current, string delivered)
+    {
+        var result = _sut.GetTransicionesPermitidas(current);
+
+        result.Should().Contain("RECEPCION_EN_YARDA");
+        result.Should().Contain("CANCELADO");
+        result.Should().NotContain(delivered);
+    }
+
+    [Theory]
+    [InlineData("ENTREGADO_AL_CLIENTE")]
+    [InlineData("VERDE_ENTREGADO")]
+    public void GetTransicionesPermitidas_Entregado_DevuelveVacio(string estado)
+    {
+        var result = _sut.GetTransicionesPermitidas(estado);
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void GetTransicionesPermitidas_Cancelado_DevuelveVacio()
+    {
+        var result = _sut.GetTransicionesPermitidas("CANCELADO");
+
+        result.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("VERDE_ENTREGADO", "CANCELADO")]
+    [InlineData("ENTREGADO_AL_CLIENTE", "CANCELADO")]
+    public void CanTransitionTo_VerdeEntregado_AliasFunciona(string actual, string siguiente)
+    {
+        var result = _sut.CanTransitionTo(actual, siguiente, out var reason);
+
+        result.Should().BeFalse();
+        reason.Should().Contain("ya fue entregado");
+    }
+
+    [Theory]
+    [InlineData("MODULACION_EN_CRUCE", "SEMAFORO_VERDE")]
+    [InlineData("MODULACION_EN_CRUCE", "SEMAFORO_ROJO")]
+    public void CanTransitionTo_Modulacion_AmbosSemaforosPermitidos(string actual, string siguiente)
+    {
+        var result = _sut.CanTransitionTo(actual, siguiente, out var reason);
+
+        result.Should().BeTrue();
+        reason.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("ESTADO_INEXISTENTE_123", "PENDIENTE")]
+    public void CanTransitionTo_EstadoDesconocido_DevuelveFalsoConRazon(string actual, string siguiente)
+    {
+        var result = _sut.CanTransitionTo(actual, siguiente, out var reason);
+
+        result.Should().BeFalse();
+        reason.Should().Contain("Estado actual desconocido");
+    }
 }

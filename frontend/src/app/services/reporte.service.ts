@@ -36,18 +36,41 @@ export interface EstadoCuentaClienteDto {
   totalFacturado: number;
   totalPagado: number;
   saldoPendiente: number;
-  tramites: { id: string; numeroConsecutivo: string; vehiculo: string; estatus: string; cobroTotal: number; totalPagado: number; saldo: number; fechaCreacion: string }[];
+  tramites: {
+    id: string;
+    numeroConsecutivo: string;
+    vehiculo: string;
+    estatus: string;
+    cobroTotal: number;
+    totalPagado: number;
+    saldo: number;
+    fechaCreacion: string;
+  }[];
 }
 
 export interface ReportePipelineDto {
   totalActivos: number;
-  estados: { estado: string; etiquetaCliente: string; cantidad: number; montoTotal: number; diasPromedioEnEstado: number }[];
+  estados: {
+    estado: string;
+    etiquetaCliente: string;
+    cantidad: number;
+    montoTotal: number;
+    diasPromedioEnEstado: number;
+  }[];
 }
 
 export interface ReporteProductividadDto {
   desde: string;
   hasta: string;
-  tramitadores: { tramitadorId: string; nombre: string; tramitesActivos: number; tramitesCerradosPeriodo: number; montoTotalCobrado: number; montoTotalVerificado: number; diasPromedioResolucion: number }[];
+  tramitadores: {
+    tramitadorId: string;
+    nombre: string;
+    tramitesActivos: number;
+    tramitesCerradosPeriodo: number;
+    montoTotalCobrado: number;
+    montoTotalVerificado: number;
+    diasPromedioResolucion: number;
+  }[];
 }
 
 export interface GastoHormigaResumenDto {
@@ -73,7 +96,9 @@ export class ReporteService {
   }
 
   estadoCuentaCliente(clienteId: string): Observable<EstadoCuentaClienteDto> {
-    return this.http.get<EstadoCuentaClienteDto>(`${this.baseUrl}/clientes/${clienteId}/estado-cuenta`);
+    return this.http.get<EstadoCuentaClienteDto>(
+      `${this.baseUrl}/clientes/${clienteId}/estado-cuenta`
+    );
   }
 
   pipeline(): Observable<ReportePipelineDto> {

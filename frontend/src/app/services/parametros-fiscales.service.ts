@@ -61,20 +61,22 @@ export class ParametrosFiscalesService {
 
   getAll(): Observable<ParametroFiscalDto[]> {
     return this.http.get<ApiParametroFiscalDto[]>(this.baseUrl).pipe(
-      map(items => items.map(item => ({
-        id: item.id,
-        regimen: item.regimen,
-        descripcion: item.descripcion,
-        igi: item.igiPorcentaje,
-        dta: item.dtaPorcentaje,
-        dtaFijo: item.dtaFijo,
-        iva: item.ivaPorcentaje,
-        prevFijo: item.prevFijo ?? 0,
-        prvFijo: item.prvFijo ?? 0,
-        activo: item.activo,
-        vigenteDesde: item.vigenteDesde,
-        vigenteHasta: item.vigenteHasta,
-      }))),
+      map(items =>
+        items.map(item => ({
+          id: item.id,
+          regimen: item.regimen,
+          descripcion: item.descripcion,
+          igi: item.igiPorcentaje,
+          dta: item.dtaPorcentaje,
+          dtaFijo: item.dtaFijo,
+          iva: item.ivaPorcentaje,
+          prevFijo: item.prevFijo ?? 0,
+          prvFijo: item.prvFijo ?? 0,
+          activo: item.activo,
+          vigenteDesde: item.vigenteDesde,
+          vigenteHasta: item.vigenteHasta,
+        }))
+      )
     );
   }
 
@@ -103,7 +105,7 @@ export class ParametrosFiscalesService {
         activo: item.activo,
         vigenteDesde: item.vigenteDesde,
         vigenteHasta: item.vigenteHasta,
-      })),
+      }))
     );
   }
 }

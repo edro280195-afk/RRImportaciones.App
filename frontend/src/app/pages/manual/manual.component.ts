@@ -22,17 +22,23 @@ interface ManualRol {
       <div>
         <p class="mb-1 text-[11px] uppercase tracking-[1.1px] text-[#8B93A1]">Sistema</p>
         <h1 class="text-[26px] font-semibold leading-none text-[#0D1017]">Manual de usuario</h1>
-        <p class="mt-1 text-[13px] text-[#6B717F]">Guía de uso del sistema R&amp;R Importaciones por rol.</p>
+        <p class="mt-1 text-[13px] text-[#6B717F]">
+          Guía de uso del sistema R&amp;R Importaciones por rol.
+        </p>
       </div>
 
       <!-- Tabs de roles -->
       <div class="flex flex-wrap gap-2">
         @for (rol of roles; track rol.nombre) {
-          <button (click)="rolActivo.set(rol.nombre)"
+          <button
+            (click)="rolActivo.set(rol.nombre)"
             class="px-4 py-2 rounded-xl text-[13px] font-semibold transition-colors"
-            [class]="rolActivo() === rol.nombre
-              ? 'bg-[#0D1017] text-white'
-              : 'border border-[#D8DEE8] text-[#374151] hover:bg-[#F3F4F6]'">
+            [class]="
+              rolActivo() === rol.nombre
+                ? 'bg-[#0D1017] text-white'
+                : 'border border-[#D8DEE8] text-[#374151] hover:bg-[#F3F4F6]'
+            "
+          >
             {{ rol.nombre }}
           </button>
         }
@@ -43,7 +49,11 @@ interface ManualRol {
           <div class="space-y-4">
             <!-- Header del rol -->
             <div class="card-elevated rounded-2xl p-5 flex items-start gap-4">
-              <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[13px] font-bold" [class]="rol.color">{{ rol.nombre }}</span>
+              <span
+                class="inline-flex items-center rounded-full px-3 py-1.5 text-[13px] font-bold"
+                [class]="rol.color"
+                >{{ rol.nombre }}</span
+              >
               <p class="text-[13px] text-[#4B5162] pt-0.5">{{ rol.descripcion }}</p>
             </div>
 
@@ -51,17 +61,27 @@ interface ManualRol {
             <div class="space-y-3">
               @for (sec of rol.secciones; track sec.id) {
                 <div class="card-elevated rounded-2xl overflow-hidden">
-                  <button class="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[#F8FAFC] transition-colors"
-                    (click)="toggle(sec.id)">
+                  <button
+                    class="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[#F8FAFC] transition-colors"
+                    (click)="toggle(sec.id)"
+                  >
                     <span class="text-[14px] font-semibold text-[#0D1017]">{{ sec.titulo }}</span>
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2 text-[#9EA3AE] transition-transform"
-                      [style.transform]="expanded().has(sec.id) ? 'rotate(180deg)' : 'rotate(0deg)'">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                    <svg
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      class="w-4 h-4 stroke-2 text-[#9EA3AE] transition-transform"
+                      [style.transform]="expanded().has(sec.id) ? 'rotate(180deg)' : 'rotate(0deg)'"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
                   @if (expanded().has(sec.id)) {
                     <div class="px-5 pb-5 border-t border-[#F0F2F5]">
-                      <div class="pt-4 text-[13px] text-[#374151] leading-relaxed manual-content" [innerHTML]="sec.contenido"></div>
+                      <div
+                        class="pt-4 text-[13px] text-[#374151] leading-relaxed manual-content"
+                        [innerHTML]="sec.contenido"
+                      ></div>
                     </div>
                   }
                 </div>
@@ -72,66 +92,80 @@ interface ManualRol {
       }
     </div>
   `,
-  styles: [`
-    :host ::ng-deep .manual-content h3 {
-      font-size: 13px;
-      font-weight: 700;
-      color: #0D1017;
-      margin-top: 16px;
-      margin-bottom: 6px;
-    }
-    :host ::ng-deep .manual-content ul {
-      list-style: disc;
-      padding-left: 20px;
-      margin-bottom: 10px;
-    }
-    :host ::ng-deep .manual-content ol {
-      list-style: decimal;
-      padding-left: 20px;
-      margin-bottom: 10px;
-    }
-    :host ::ng-deep .manual-content li {
-      margin-bottom: 4px;
-    }
-    :host ::ng-deep .manual-content p {
-      margin-bottom: 8px;
-    }
-    :host ::ng-deep .manual-content .chip {
-      display: inline-block;
-      padding: 1px 8px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      background: #F3F4F6;
-      color: #374151;
-    }
-    :host ::ng-deep .manual-content .chip-green { background: #DCFCE7; color: #166534; }
-    :host ::ng-deep .manual-content .chip-blue { background: #DBEAFE; color: #1E40AF; }
-    :host ::ng-deep .manual-content .chip-yellow { background: #FEF3C7; color: #92400E; }
-    :host ::ng-deep .manual-content .chip-red { background: #FEE2E2; color: #991B1B; }
-    :host ::ng-deep .manual-content table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 12px;
-      font-size: 12.5px;
-    }
-    :host ::ng-deep .manual-content th {
-      text-align: left;
-      padding: 6px 10px;
-      background: #F8FAFC;
-      border: 1px solid #E4E7EC;
-      font-weight: 700;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #6B717F;
-    }
-    :host ::ng-deep .manual-content td {
-      padding: 6px 10px;
-      border: 1px solid #E4E7EC;
-      vertical-align: top;
-    }
-  `],
+  styles: [
+    `
+      :host ::ng-deep .manual-content h3 {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0d1017;
+        margin-top: 16px;
+        margin-bottom: 6px;
+      }
+      :host ::ng-deep .manual-content ul {
+        list-style: disc;
+        padding-left: 20px;
+        margin-bottom: 10px;
+      }
+      :host ::ng-deep .manual-content ol {
+        list-style: decimal;
+        padding-left: 20px;
+        margin-bottom: 10px;
+      }
+      :host ::ng-deep .manual-content li {
+        margin-bottom: 4px;
+      }
+      :host ::ng-deep .manual-content p {
+        margin-bottom: 8px;
+      }
+      :host ::ng-deep .manual-content .chip {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #f3f4f6;
+        color: #374151;
+      }
+      :host ::ng-deep .manual-content .chip-green {
+        background: #dcfce7;
+        color: #166534;
+      }
+      :host ::ng-deep .manual-content .chip-blue {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+      :host ::ng-deep .manual-content .chip-yellow {
+        background: #fef3c7;
+        color: #92400e;
+      }
+      :host ::ng-deep .manual-content .chip-red {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      :host ::ng-deep .manual-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 12px;
+        font-size: 12.5px;
+      }
+      :host ::ng-deep .manual-content th {
+        text-align: left;
+        padding: 6px 10px;
+        background: #f8fafc;
+        border: 1px solid #e4e7ec;
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6b717f;
+      }
+      :host ::ng-deep .manual-content td {
+        padding: 6px 10px;
+        border: 1px solid #e4e7ec;
+        vertical-align: top;
+      }
+    `,
+  ],
 })
 export class ManualComponent {
   rolActivo = signal('ADMIN');
@@ -148,7 +182,8 @@ export class ManualComponent {
     {
       nombre: 'ADMIN',
       color: 'bg-[#FEE2E2] text-[#991B1B]',
-      descripcion: 'Acceso total al sistema. Gestiona usuarios, roles, parámetros fiscales, catálogos y toda la operación.',
+      descripcion:
+        'Acceso total al sistema. Gestiona usuarios, roles, parámetros fiscales, catálogos y toda la operación.',
       secciones: [
         {
           id: 'acceso',
@@ -267,7 +302,8 @@ export class ManualComponent {
     {
       nombre: 'GERENTE',
       color: 'bg-[#FEF3C7] text-[#92400E]',
-      descripcion: 'Acceso a toda la operación excepto crear/editar/borrar usuarios y borrar trámites. Ideal para el dueño o director operativo.',
+      descripcion:
+        'Acceso a toda la operación excepto crear/editar/borrar usuarios y borrar trámites. Ideal para el dueño o director operativo.',
       secciones: [
         {
           id: 'gerente-acceso',
@@ -323,7 +359,8 @@ export class ManualComponent {
     {
       nombre: 'OFICINA (Facturación, Coordinadora, Control de Trámites)',
       color: 'bg-[#E0E7FF] text-[#3730A3]',
-      descripcion: 'Roles de oficina enfocados en cotizaciones, clientes y pagos. No tienen acceso al módulo de campo ni a reportes financieros.',
+      descripcion:
+        'Roles de oficina enfocados en cotizaciones, clientes y pagos. No tienen acceso al módulo de campo ni a reportes financieros.',
       secciones: [
         {
           id: 'cap-cotizaciones',
@@ -381,7 +418,8 @@ export class ManualComponent {
     {
       nombre: 'CAMPO (Yarderos y Choferes)',
       color: 'bg-[#D1FAE5] text-[#065F46]',
-      descripcion: 'Roles de campo. Yarderos y choferes — solo acceso al módulo para tomar fotos y registrar tareas en yarda. Interfaz optimizada para celular.',
+      descripcion:
+        'Roles de campo. Yarderos y choferes — solo acceso al módulo para tomar fotos y registrar tareas en yarda. Interfaz optimizada para celular.',
       secciones: [
         {
           id: 'campo-intro',

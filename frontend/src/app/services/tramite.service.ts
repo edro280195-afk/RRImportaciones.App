@@ -95,7 +95,7 @@ export interface TramiteDocumentoDto {
   tramiteId: string;
   tipoDocumento: string;
   nombre: string;
-  estadoLogistico: string;   // ← backend serializa EstadoLogistico como estadoLogistico (no "estatus")
+  estadoLogistico: string; // ← backend serializa EstadoLogistico como estadoLogistico (no "estatus")
   esRequerido: boolean;
   archivoUrl: string | null;
   notas: string | null;
@@ -234,32 +234,41 @@ export class TramiteService {
     return this.http.put<TramiteDetailDto>(`${this.baseUrl}/${id}`, request);
   }
 
-  cambiarEstado(id: string, request: { nuevoEstado: string; notas?: string; fechaEvento?: string }): Observable<any> {
+  cambiarEstado(
+    id: string,
+    request: { nuevoEstado: string; notas?: string; fechaEvento?: string }
+  ): Observable<any> {
     return this.http.post(`${this.baseUrl}/${id}/cambiar-estado`, request);
   }
 
-  agregarPedimento(id: string, request: {
-    numeroPedimento: string;
-    tipo: string;
-    fechaEntrada?: string;
-    fechaPago?: string;
-    motivoRectificacion?: string;
-    responsableError?: string;
-    cobroAdicional?: number;
-  }): Observable<any> {
+  agregarPedimento(
+    id: string,
+    request: {
+      numeroPedimento: string;
+      tipo: string;
+      fechaEntrada?: string;
+      fechaPago?: string;
+      motivoRectificacion?: string;
+      responsableError?: string;
+      cobroAdicional?: number;
+    }
+  ): Observable<any> {
     return this.http.post(`${this.baseUrl}/${id}/pedimentos`, request);
   }
 
-  agregarEntrega(id: string, request: {
-    responsableCampoId?: string;
-    recibidoPorPartnerId?: string;
-    descripcion?: string;
-    ubicacionEntrega?: string;
-    documentosEntregados?: string[];
-    nombreRecibe?: string | null;
-    fotoEvidenciaUrl?: string | null;
-    firmaBase64?: string | null;
-  }): Observable<any> {
+  agregarEntrega(
+    id: string,
+    request: {
+      responsableCampoId?: string;
+      recibidoPorPartnerId?: string;
+      descripcion?: string;
+      ubicacionEntrega?: string;
+      documentosEntregados?: string[];
+      nombreRecibe?: string | null;
+      fotoEvidenciaUrl?: string | null;
+      firmaBase64?: string | null;
+    }
+  ): Observable<any> {
     return this.http.post(`${this.baseUrl}/${id}/entregas`, request);
   }
 
@@ -267,14 +276,17 @@ export class TramiteService {
     return this.http.post(`${this.baseUrl}/${id}/notas`, { contenido });
   }
 
-  guardarDocumento(id: string, request: {
-    tipoDocumento: string;
-    nombre?: string;
-    estadoLogistico: string;  // ← debe coincidir con la propiedad del backend GuardarDocumentoTramiteRequest
-    esRequerido: boolean;
-    archivoUrl?: string | null;
-    notas?: string | null;
-  }): Observable<TramiteDocumentoDto> {
+  guardarDocumento(
+    id: string,
+    request: {
+      tipoDocumento: string;
+      nombre?: string;
+      estadoLogistico: string; // ← debe coincidir con la propiedad del backend GuardarDocumentoTramiteRequest
+      esRequerido: boolean;
+      archivoUrl?: string | null;
+      notas?: string | null;
+    }
+  ): Observable<TramiteDocumentoDto> {
     return this.http.post<TramiteDocumentoDto>(`${this.baseUrl}/${id}/documentos`, request);
   }
 
@@ -283,7 +295,9 @@ export class TramiteService {
   }
 
   getEstadosPermitidos(estadoActual: string): Observable<string[]> {
-    return this.http.get<string[]>(`${environment.apiUrl}/api/estados/${estadoActual}/transiciones`);
+    return this.http.get<string[]>(
+      `${environment.apiUrl}/api/estados/${estadoActual}/transiciones`
+    );
   }
 
   uploadEvidence(file: File): Observable<{ url: string }> {

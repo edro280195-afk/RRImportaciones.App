@@ -2,15 +2,24 @@ import { Component, inject, signal, computed } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { RolService, RolDto, PermisoDto } from '../../services/rol.service';
-import { UsuarioService, UsuarioDto, CreateUsuarioRequest, UpdateUsuarioRequest } from '../../services/usuario.service';
+import {
+  UsuarioService,
+  UsuarioDto,
+  CreateUsuarioRequest,
+  UpdateUsuarioRequest,
+} from '../../services/usuario.service';
 import { AuthService } from '../../services/auth.service';
 
 type Categoria = 'SISTEMA' | 'OFICINA' | 'CAMPO';
 
 const ROL_CATEGORIA: Record<string, Categoria> = {
-  ADMIN: 'SISTEMA', GERENTE: 'SISTEMA',
-  FACTURACION: 'OFICINA', COORDINADORA: 'OFICINA', CONTROL_TRAMITES: 'OFICINA',
-  YARDERO: 'CAMPO', CHOFER: 'CAMPO',
+  ADMIN: 'SISTEMA',
+  GERENTE: 'SISTEMA',
+  FACTURACION: 'OFICINA',
+  COORDINADORA: 'OFICINA',
+  CONTROL_TRAMITES: 'OFICINA',
+  YARDERO: 'CAMPO',
+  CHOFER: 'CAMPO',
 };
 
 const ROL_ETIQUETA: Record<string, string> = {
@@ -22,16 +31,19 @@ const ROL_ETIQUETA: Record<string, string> = {
 const CAT_CHIP: Record<Categoria, string> = {
   SISTEMA: 'bg-[#FAF5FF] text-[#6B21A8] ring-1 ring-inset ring-[#E9D5FF]',
   OFICINA: 'bg-[#EFF6FF] text-[#1E3A8A] ring-1 ring-inset ring-[#DBEAFE]',
-  CAMPO:   'bg-[#F0FDF4] text-[#14532D] ring-1 ring-inset ring-[#BBF7D0]',
+  CAMPO: 'bg-[#F0FDF4] text-[#14532D] ring-1 ring-inset ring-[#BBF7D0]',
 };
 
 const CAT_DOT: Record<Categoria, string> = {
   SISTEMA: 'bg-[#A21CAF]',
   OFICINA: 'bg-[#1D4ED8]',
-  CAMPO:   'bg-[#15803D]',
+  CAMPO: 'bg-[#15803D]',
 };
 
-interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
+interface FiltroCategoria {
+  key: 'TODOS' | Categoria;
+  label: string;
+}
 
 @Component({
   selector: 'app-usuarios',
@@ -40,28 +52,42 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
   template: `
     <header class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div>
-        <p class="mb-1.5 text-[11px] font-medium uppercase tracking-[1.4px] text-[#8B93A1]">Administración</p>
-        <h1 class="text-[30px] font-semibold leading-[1.1] tracking-[-0.015em] text-[#0D1017]">Usuarios</h1>
+        <p class="mb-1.5 text-[11px] font-medium uppercase tracking-[1.4px] text-[#8B93A1]">
+          Administración
+        </p>
+        <h1 class="text-[30px] font-semibold leading-[1.1] tracking-[-0.015em] text-[#0D1017]">
+          Usuarios
+        </h1>
         <p class="mt-1.5 max-w-[60ch] text-[13.5px] leading-[1.55] text-[#5B6473]">
-          Cuentas con acceso al sistema. Todos los usuarios pueden acceder con contraseña o con PIN de 6 dígitos.
+          Cuentas con acceso al sistema. Todos los usuarios pueden acceder con contraseña o con PIN
+          de 6 dígitos.
         </p>
       </div>
       @if (auth.can('USUARIOS_CREAR')) {
-        <button (click)="openNew()" class="btn-primary inline-flex items-center gap-2 self-start md:self-end rounded-xl px-4 py-2.5 text-[13px] font-semibold">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-4 w-4 stroke-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        <button
+          (click)="openNew()"
+          class="btn-primary inline-flex items-center gap-2 self-start md:self-end rounded-xl px-4 py-2.5 text-[13px] font-semibold"
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-4 w-4 stroke-2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
           Nuevo usuario
         </button>
       }
     </header>
 
     @if (message()) {
-      <div class="mb-5 flex items-start gap-3 rounded-xl bg-[#F0FDF4] px-4 py-3 text-[13px] text-[#14532D]">
+      <div
+        class="mb-5 flex items-start gap-3 rounded-xl bg-[#F0FDF4] px-4 py-3 text-[13px] text-[#14532D]"
+      >
         <span class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#16A34A]"></span>
         <p>{{ message() }}</p>
       </div>
     }
     @if (error()) {
-      <div class="mb-5 flex items-start gap-3 rounded-xl bg-[#FEF2F2] px-4 py-3 text-[13px] text-[#991B1B]">
+      <div
+        class="mb-5 flex items-start gap-3 rounded-xl bg-[#FEF2F2] px-4 py-3 text-[13px] text-[#991B1B]"
+      >
         <span class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#DC2626]"></span>
         <p>{{ error() }}</p>
       </div>
@@ -73,13 +99,17 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
         <div class="flex items-center gap-2">
           <span class="h-2 w-2 rounded-full" [class]="CAT_DOT[k]"></span>
           <span class="text-[12.5px] font-medium text-[#5B6473]">{{ catLabel(k) }}</span>
-          <span class="font-mono tabular-nums text-[14px] font-semibold text-[#0D1017]">{{ countByCategoria(k) }}</span>
+          <span class="font-mono tabular-nums text-[14px] font-semibold text-[#0D1017]">{{
+            countByCategoria(k)
+          }}</span>
         </div>
       }
       <span class="hidden sm:block text-[#D8DEE8]">·</span>
       <div class="flex items-center gap-2">
         <span class="text-[12.5px] text-[#8B93A1]">Inactivos</span>
-        <span class="font-mono tabular-nums text-[14px] font-semibold text-[#0D1017]">{{ countInactivos() }}</span>
+        <span class="font-mono tabular-nums text-[14px] font-semibold text-[#0D1017]">{{
+          countInactivos()
+        }}</span>
       </div>
     </div>
 
@@ -96,12 +126,25 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
             [class.text-[#6B717F]]="filtro() !== f.key"
           >
             {{ f.label }}
-            <span class="ml-1 font-mono tabular-nums text-[11px] text-[#9EA3AE]">{{ countByFiltro(f.key) }}</span>
+            <span class="ml-1 font-mono tabular-nums text-[11px] text-[#9EA3AE]">{{
+              countByFiltro(f.key)
+            }}</span>
           </button>
         }
       </div>
       <div class="relative w-full sm:max-w-[280px]">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9EA3AE] stroke-2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+        <svg
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9EA3AE] stroke-2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"
+          />
+        </svg>
         <input
           type="text"
           [(ngModel)]="searchTerm"
@@ -116,7 +159,9 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
     } @else if (filteredUsuarios().length === 0) {
       <div class="rounded-2xl bg-white py-14 text-center ring-1 ring-[#EAEDF2]">
         <p class="text-[14px] font-semibold text-[#0D1017]">Sin resultados</p>
-        <p class="mt-1 text-[12.5px] text-[#6B717F]">Ajusta el filtro o la búsqueda para ver más usuarios.</p>
+        <p class="mt-1 text-[12.5px] text-[#6B717F]">
+          Ajusta el filtro o la búsqueda para ver más usuarios.
+        </p>
       </div>
     } @else {
       <div class="overflow-hidden rounded-2xl bg-white ring-1 ring-[#EAEDF2]">
@@ -124,51 +169,87 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
           <table class="w-full min-w-[860px] text-[13px]">
             <thead>
               <tr class="border-b border-[#EAEDF2] bg-[#FAFBFC]">
-                <th class="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]">Persona</th>
-                <th class="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]">Rol</th>
-                <th class="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]">Estatus</th>
-                <th class="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]">Último acceso</th>
+                <th
+                  class="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]"
+                >
+                  Persona
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]"
+                >
+                  Rol
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]"
+                >
+                  Estatus
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]"
+                >
+                  Último acceso
+                </th>
                 <th class="w-32 px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               @for (u of filteredUsuarios(); track u.id) {
-                <tr class="border-b border-[#F0F2F5] last:border-b-0 hover:bg-[#FAFBFC] transition-colors">
+                <tr
+                  class="border-b border-[#F0F2F5] last:border-b-0 hover:bg-[#FAFBFC] transition-colors"
+                >
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-3">
-                      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white" [class]="avatarBg(u.id)">
+                      <div
+                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white"
+                        [class]="avatarBg(u.id)"
+                      >
                         {{ initials(u) }}
                       </div>
                       <div class="min-w-0">
-                        <p class="truncate font-semibold text-[#0D1017]">{{ u.nombre }} {{ u.apellidos }}</p>
+                        <p class="truncate font-semibold text-[#0D1017]">
+                          {{ u.nombre }} {{ u.apellidos }}
+                        </p>
                         <p class="truncate font-mono text-[11.5px] text-[#8B93A1]">
-                          {{ u.username }}<span class="text-[#D8DEE8]"> · </span>{{ u.email || 'sin email' }}
+                          {{ u.username }}<span class="text-[#D8DEE8]"> · </span
+                          >{{ u.email || 'sin email' }}
                         </p>
                       </div>
                     </div>
                   </td>
                   <td class="px-4 py-3">
                     <div class="inline-flex items-center gap-2">
-                      <span class="h-1.5 w-1.5 rounded-full" [class]="CAT_DOT[categoriaOf(u.rolNombre)]"></span>
-                      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-[0.2px]" [class]="CAT_CHIP[categoriaOf(u.rolNombre)]">
+                      <span
+                        class="h-1.5 w-1.5 rounded-full"
+                        [class]="CAT_DOT[categoriaOf(u.rolNombre)]"
+                      ></span>
+                      <span
+                        class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-[0.2px]"
+                        [class]="CAT_CHIP[categoriaOf(u.rolNombre)]"
+                      >
                         {{ etiqueta(u.rolNombre) }}
                       </span>
                     </div>
                   </td>
                   <td class="px-4 py-3">
                     @if (u.activo) {
-                      <span class="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#15803D]">
+                      <span
+                        class="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#15803D]"
+                      >
                         <span class="h-1.5 w-1.5 rounded-full bg-[#16A34A]"></span>
                         Activo
                       </span>
                     } @else {
-                      <span class="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#6B7280]">
+                      <span
+                        class="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#6B7280]"
+                      >
                         <span class="h-1.5 w-1.5 rounded-full bg-[#9CA3AF]"></span>
                         Inactivo
                       </span>
                     }
                   </td>
-                  <td class="px-4 py-3 font-mono text-[11.5px] tabular-nums text-[#6B717F]">{{ formatDate(u.ultimoAcceso) }}</td>
+                  <td class="px-4 py-3 font-mono text-[11.5px] tabular-nums text-[#6B717F]">
+                    {{ formatDate(u.ultimoAcceso) }}
+                  </td>
                   <td class="px-4 py-3">
                     @if (auth.can('USUARIOS_EDITAR')) {
                       <div class="flex items-center justify-end gap-1.5">
@@ -176,11 +257,15 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
                           (click)="openPinModal(u)"
                           class="rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold text-[#14532D] hover:bg-[#F0FDF4] transition-colors"
                           title="Establecer / Cambiar PIN"
-                        >PIN</button>
+                        >
+                          PIN
+                        </button>
                         <button
                           (click)="openEdit(u)"
                           class="rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold text-[#0D1017] hover:bg-[#F0F2F5] transition-colors"
-                        >Editar</button>
+                        >
+                          Editar
+                        </button>
                       </div>
                     }
                   </td>
@@ -212,11 +297,18 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
               {{ editingId() ? 'Editar usuario' : 'Nuevo usuario' }}
             </p>
             <h2 class="text-[22px] font-semibold leading-[1.15] tracking-[-0.015em] text-[#0D1017]">
-              {{ editingId() ? (form.nombre + ' ' + (form.apellidos || '')).trim() : 'Crear cuenta' }}
+              {{
+                editingId() ? (form.nombre + ' ' + (form.apellidos || '')).trim() : 'Crear cuenta'
+              }}
             </h2>
           </div>
-          <button (click)="closeModal()" class="-mr-2 -mt-1 rounded-lg p-2 text-[#8B93A1] hover:bg-[#F3F4F6] hover:text-[#0D1017] transition-colors">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-5 w-5 stroke-2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          <button
+            (click)="closeModal()"
+            class="-mr-2 -mt-1 rounded-lg p-2 text-[#8B93A1] hover:bg-[#F3F4F6] hover:text-[#0D1017] transition-colors"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-5 w-5 stroke-2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </header>
 
@@ -225,8 +317,14 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
             @if (!editingId()) {
               <div>
                 <label class="label-field">Username</label>
-                <input [(ngModel)]="form.username" class="input-field" placeholder="ej. juan.perez" />
-                <p class="mt-1 text-[11.5px] text-[#9EA3AE]">Sin espacios. Se usa para iniciar sesión.</p>
+                <input
+                  [(ngModel)]="form.username"
+                  class="input-field"
+                  placeholder="ej. juan.perez"
+                />
+                <p class="mt-1 text-[11.5px] text-[#9EA3AE]">
+                  Sin espacios. Se usa para iniciar sesión.
+                </p>
               </div>
             }
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -241,11 +339,23 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
             </div>
             <div>
               <label class="label-field">Email</label>
-              <input [(ngModel)]="form.email" type="email" class="input-field" placeholder="opcional" />
+              <input
+                [(ngModel)]="form.email"
+                type="email"
+                class="input-field"
+                placeholder="opcional"
+              />
             </div>
             <div>
-              <label class="label-field">{{ editingId() ? 'Nueva contraseña (vacío = no cambiar)' : 'Contraseña' }}</label>
-              <input [(ngModel)]="form.password" type="password" class="input-field" [placeholder]="editingId() ? '••••••••' : 'Mínimo 6 caracteres'" />
+              <label class="label-field">{{
+                editingId() ? 'Nueva contraseña (vacío = no cambiar)' : 'Contraseña'
+              }}</label>
+              <input
+                [(ngModel)]="form.password"
+                type="password"
+                class="input-field"
+                [placeholder]="editingId() ? '••••••••' : 'Mínimo 6 caracteres'"
+              />
             </div>
 
             <!-- Selector de rol agrupado por categoría -->
@@ -257,7 +367,10 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
                     <div>
                       <div class="mb-1.5 flex items-center gap-2">
                         <span class="h-1.5 w-1.5 rounded-full" [class]="CAT_DOT[cat]"></span>
-                        <span class="text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]">{{ catLabel(cat) }}</span>
+                        <span
+                          class="text-[10.5px] font-semibold uppercase tracking-[0.8px] text-[#6B717F]"
+                          >{{ catLabel(cat) }}</span
+                        >
                       </div>
                       <div class="grid grid-cols-1 gap-1.5">
                         @for (r of rolesByCategoria(cat); track r.id) {
@@ -268,15 +381,27 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
                             [class.bg-[#F5F8FE]]="form.roleId === r.id"
                           >
                             <div class="flex items-center gap-3">
-                              <input type="radio" name="roleId" [value]="r.id" [(ngModel)]="form.roleId" class="h-4 w-4 accent-[#1D4ED8]" />
+                              <input
+                                type="radio"
+                                name="roleId"
+                                [value]="r.id"
+                                [(ngModel)]="form.roleId"
+                                class="h-4 w-4 accent-[#1D4ED8]"
+                              />
                               <div>
-                                <p class="text-[13px] font-semibold text-[#0D1017]">{{ etiqueta(r.nombre) }}</p>
+                                <p class="text-[13px] font-semibold text-[#0D1017]">
+                                  {{ etiqueta(r.nombre) }}
+                                </p>
                                 @if (r.descripcion) {
-                                  <p class="mt-0.5 text-[11.5px] text-[#6B717F] line-clamp-1">{{ r.descripcion }}</p>
+                                  <p class="mt-0.5 text-[11.5px] text-[#6B717F] line-clamp-1">
+                                    {{ r.descripcion }}
+                                  </p>
                                 }
                               </div>
                             </div>
-                            <span class="shrink-0 font-mono tabular-nums text-[11px] text-[#9EA3AE]">{{ r.permisos.length }} permisos</span>
+                            <span class="shrink-0 font-mono tabular-nums text-[11px] text-[#9EA3AE]"
+                              >{{ r.permisos.length }} permisos</span
+                            >
                           </label>
                         }
                       </div>
@@ -298,7 +423,9 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
                   [class.shadow-sm]="form.activo"
                   [class.text-[#15803D]]="form.activo"
                   [class.text-[#6B717F]]="!form.activo"
-                >Activo</button>
+                >
+                  Activo
+                </button>
                 <button
                   type="button"
                   (click)="form.activo = false"
@@ -307,7 +434,9 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
                   [class.shadow-sm]="!form.activo"
                   [class.text-[#991B1B]]="!form.activo"
                   [class.text-[#6B717F]]="form.activo"
-                >Inactivo</button>
+                >
+                  Inactivo
+                </button>
               </div>
             </div>
 
@@ -316,12 +445,23 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
               <div class="rounded-xl bg-[#FAFBFC] p-4 ring-1 ring-[#EAEDF2]">
                 <div class="mb-3 flex items-center justify-between gap-2">
                   <div class="flex items-center gap-2">
-                    <span class="h-1.5 w-1.5 rounded-full" [class]="CAT_DOT[categoriaOf(rol.nombre)]"></span>
-                    <p class="text-[12px] font-semibold text-[#0D1017]">{{ etiqueta(rol.nombre) }}</p>
-                    <span class="text-[11px] text-[#9EA3AE]">· {{ rol.permisos.length }} permisos</span>
+                    <span
+                      class="h-1.5 w-1.5 rounded-full"
+                      [class]="CAT_DOT[categoriaOf(rol.nombre)]"
+                    ></span>
+                    <p class="text-[12px] font-semibold text-[#0D1017]">
+                      {{ etiqueta(rol.nombre) }}
+                    </p>
+                    <span class="text-[11px] text-[#9EA3AE]"
+                      >· {{ rol.permisos.length }} permisos</span
+                    >
                   </div>
                   @if (auth.isAdmin()) {
-                    <a routerLink="/roles" class="text-[11.5px] font-semibold text-[#1D4ED8] hover:text-[#1E3A8A] transition-colors">Editar rol →</a>
+                    <a
+                      routerLink="/roles"
+                      class="text-[11.5px] font-semibold text-[#1D4ED8] hover:text-[#1E3A8A] transition-colors"
+                      >Editar rol →</a
+                    >
                   }
                 </div>
                 @if (rol.permisos.length === 0) {
@@ -330,10 +470,17 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
                   <div class="space-y-2.5">
                     @for (mod of modulosDelRol(rol); track mod.nombre) {
                       <div>
-                        <p class="text-[10.5px] font-bold uppercase tracking-[0.8px] text-[#6B717F] mb-1">{{ mod.nombre }}</p>
+                        <p
+                          class="text-[10.5px] font-bold uppercase tracking-[0.8px] text-[#6B717F] mb-1"
+                        >
+                          {{ mod.nombre }}
+                        </p>
                         <div class="flex flex-wrap gap-1">
                           @for (p of mod.permisos; track p.id) {
-                            <span class="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-medium text-[#374151] ring-1 ring-[#EAEDF2]">{{ p.nombre }}</span>
+                            <span
+                              class="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-medium text-[#374151] ring-1 ring-[#EAEDF2]"
+                              >{{ p.nombre }}</span
+                            >
                           }
                         </div>
                       </div>
@@ -349,9 +496,20 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
           </div>
         </div>
 
-        <footer class="flex items-center justify-end gap-2 border-t border-[#F0F2F5] bg-[#FAFBFC] px-6 py-4">
-          <button (click)="closeModal()" class="rounded-xl px-4 py-2 text-[13px] font-semibold text-[#0D1017] hover:bg-[#F0F2F5] transition-colors">Cancelar</button>
-          <button (click)="save()" [disabled]="saving()" class="btn-primary rounded-xl px-5 py-2 text-[13px] disabled:opacity-40">
+        <footer
+          class="flex items-center justify-end gap-2 border-t border-[#F0F2F5] bg-[#FAFBFC] px-6 py-4"
+        >
+          <button
+            (click)="closeModal()"
+            class="rounded-xl px-4 py-2 text-[13px] font-semibold text-[#0D1017] hover:bg-[#F0F2F5] transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            (click)="save()"
+            [disabled]="saving()"
+            class="btn-primary rounded-xl px-5 py-2 text-[13px] disabled:opacity-40"
+          >
             {{ saving() ? 'Guardando…' : 'Guardar' }}
           </button>
         </footer>
@@ -374,20 +532,31 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
       >
         <header class="flex items-start justify-between gap-4 border-b border-[#F0F2F5] px-6 py-5">
           <div>
-            <p class="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[1.3px] text-[#14532D]">Acceso por PIN</p>
-            <h2 class="text-[22px] font-semibold leading-[1.15] tracking-[-0.015em] text-[#0D1017]">{{ pinUserName() }}</h2>
+            <p class="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[1.3px] text-[#14532D]">
+              Acceso por PIN
+            </p>
+            <h2 class="text-[22px] font-semibold leading-[1.15] tracking-[-0.015em] text-[#0D1017]">
+              {{ pinUserName() }}
+            </h2>
             <p class="mt-1.5 text-[12.5px] leading-snug text-[#5B6473]">
               Define un PIN de 6 dígitos. Lo usará para entrar al módulo de campo desde el celular.
             </p>
           </div>
-          <button (click)="closePinModal()" class="-mr-2 -mt-1 rounded-lg p-2 text-[#8B93A1] hover:bg-[#F3F4F6] hover:text-[#0D1017] transition-colors">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-5 w-5 stroke-2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          <button
+            (click)="closePinModal()"
+            class="-mr-2 -mt-1 rounded-lg p-2 text-[#8B93A1] hover:bg-[#F3F4F6] hover:text-[#0D1017] transition-colors"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-5 w-5 stroke-2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </header>
 
         <div class="flex-1 overflow-y-auto px-6 py-5">
           @if (pinModalError()) {
-            <div class="mb-4 rounded-xl bg-[#FEF2F2] px-4 py-3 text-[12.5px] text-[#991B1B]">{{ pinModalError() }}</div>
+            <div class="mb-4 rounded-xl bg-[#FEF2F2] px-4 py-3 text-[12.5px] text-[#991B1B]">
+              {{ pinModalError() }}
+            </div>
           }
           <label class="label-field">PIN nuevo</label>
           <input
@@ -403,9 +572,20 @@ interface FiltroCategoria { key: 'TODOS' | Categoria; label: string; }
           <p class="mt-2 text-[11.5px] text-[#9EA3AE]">Solo números. Se almacena cifrado.</p>
         </div>
 
-        <footer class="flex items-center justify-end gap-2 border-t border-[#F0F2F5] bg-[#FAFBFC] px-6 py-4">
-          <button (click)="closePinModal()" class="rounded-xl px-4 py-2 text-[13px] font-semibold text-[#0D1017] hover:bg-[#F0F2F5] transition-colors">Cancelar</button>
-          <button (click)="savePin()" [disabled]="savingPin() || newPin.length !== 6" class="btn-primary rounded-xl px-5 py-2 text-[13px] disabled:opacity-40">
+        <footer
+          class="flex items-center justify-end gap-2 border-t border-[#F0F2F5] bg-[#FAFBFC] px-6 py-4"
+        >
+          <button
+            (click)="closePinModal()"
+            class="rounded-xl px-4 py-2 text-[13px] font-semibold text-[#0D1017] hover:bg-[#F0F2F5] transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            (click)="savePin()"
+            [disabled]="savingPin() || newPin.length !== 6"
+            class="btn-primary rounded-xl px-5 py-2 text-[13px] disabled:opacity-40"
+          >
             {{ savingPin() ? 'Guardando…' : 'Guardar PIN' }}
           </button>
         </footer>
@@ -422,10 +602,10 @@ export class UsuariosComponent {
   readonly CAT_DOT = CAT_DOT;
 
   filtros: FiltroCategoria[] = [
-    { key: 'TODOS',   label: 'Todos' },
+    { key: 'TODOS', label: 'Todos' },
     { key: 'SISTEMA', label: 'Sistema' },
     { key: 'OFICINA', label: 'Oficina' },
-    { key: 'CAMPO',   label: 'Campo' },
+    { key: 'CAMPO', label: 'Campo' },
   ];
 
   readonly categorias: Categoria[] = ['SISTEMA', 'OFICINA', 'CAMPO'];
@@ -460,7 +640,8 @@ export class UsuariosComponent {
     return this.usuarios().filter(u => {
       if (cat !== 'TODOS' && ROL_CATEGORIA[u.rolNombre] !== cat) return false;
       if (!term) return true;
-      const haystack = `${u.nombre} ${u.apellidos ?? ''} ${u.username} ${u.email ?? ''}`.toLowerCase();
+      const haystack =
+        `${u.nombre} ${u.apellidos ?? ''} ${u.username} ${u.email ?? ''}`.toLowerCase();
       return haystack.includes(term);
     });
   });
@@ -474,7 +655,9 @@ export class UsuariosComponent {
   }
 
   catLabel(key: Categoria): string {
-    return ({ SISTEMA: 'Sistema', OFICINA: 'Oficina', CAMPO: 'Campo' } as Record<Categoria, string>)[key];
+    return (
+      { SISTEMA: 'Sistema', OFICINA: 'Oficina', CAMPO: 'Campo' } as Record<Categoria, string>
+    )[key];
   }
 
   countByCategoria(cat: Categoria): number {
@@ -508,14 +691,20 @@ export class UsuariosComponent {
 
   constructor() {
     this.load();
-    this.rolService.getAll().subscribe({ next: (r) => this.roles.set(r) });
+    this.rolService.getAll().subscribe({ next: r => this.roles.set(r) });
   }
 
   load(): void {
     this.loading.set(true);
     this.service.getAll().subscribe({
-      next: (list) => { this.usuarios.set(list); this.loading.set(false); },
-      error: () => { this.loading.set(false); this.error.set('No se pudieron cargar los usuarios.'); },
+      next: list => {
+        this.usuarios.set(list);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.error.set('No se pudieron cargar los usuarios.');
+      },
     });
   }
 
@@ -530,7 +719,15 @@ export class UsuariosComponent {
 
   openEdit(u: UsuarioDto): void {
     this.editingId.set(u.id);
-    this.form = { nombre: u.nombre, apellidos: u.apellidos ?? '', email: u.email ?? '', roleId: u.roleId, activo: u.activo, password: '', username: u.username };
+    this.form = {
+      nombre: u.nombre,
+      apellidos: u.apellidos ?? '',
+      email: u.email ?? '',
+      roleId: u.roleId,
+      activo: u.activo,
+      password: '',
+      username: u.username,
+    };
     this.message.set(null);
     this.error.set(null);
     this.showModal.set(true);
@@ -557,7 +754,7 @@ export class UsuariosComponent {
   }
 
   onlyNumbers(event: any): boolean {
-    const charCode = (event.which) ? event.which : event.keyCode;
+    const charCode = event.which ? event.which : event.keyCode;
     if (charCode > 31 && (charCode < 48 || charCode > 57)) {
       event.preventDefault();
       return false;
@@ -578,10 +775,10 @@ export class UsuariosComponent {
         this.message.set(`PIN para ${this.pinUserName()} establecido con éxito.`);
         setTimeout(() => this.message.set(null), 5000);
       },
-      error: (err) => {
+      error: err => {
         this.savingPin.set(false);
         this.pinModalError.set(err?.error?.message || 'No se pudo guardar el PIN.');
-      }
+      },
     });
   }
 
@@ -616,7 +813,7 @@ export class UsuariosComponent {
         this.message.set('Usuario guardado correctamente.');
         this.load();
       },
-      error: (err) => {
+      error: err => {
         this.saving.set(false);
         this.error.set(err?.error?.message || 'No se pudo guardar el usuario.');
       },
@@ -636,7 +833,15 @@ export class UsuariosComponent {
 
   /** Color de avatar — derivado del id para que sea consistente por persona */
   avatarBg(id: string): string {
-    const palette = ['bg-[#1D4ED8]', 'bg-[#15803D]', 'bg-[#A21CAF]', 'bg-[#B45309]', 'bg-[#0F766E]', 'bg-[#4338CA]', 'bg-[#9F1239]'];
+    const palette = [
+      'bg-[#1D4ED8]',
+      'bg-[#15803D]',
+      'bg-[#A21CAF]',
+      'bg-[#B45309]',
+      'bg-[#0F766E]',
+      'bg-[#4338CA]',
+      'bg-[#9F1239]',
+    ];
     let hash = 0;
     for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
     return palette[hash % palette.length];
@@ -645,15 +850,27 @@ export class UsuariosComponent {
   initials(u: UsuarioDto): string {
     const a = (u.nombre?.[0] ?? '').toUpperCase();
     const b = (u.apellidos?.[0] ?? '').toUpperCase();
-    return (a + b) || u.username.slice(0, 2).toUpperCase();
+    return a + b || u.username.slice(0, 2).toUpperCase();
   }
 
   formatDate(date: string | null): string {
     if (!date) return '—';
-    return new Date(date).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(date).toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
   }
 
   private emptyForm() {
-    return { username: '', nombre: '', apellidos: '', email: '', password: '', roleId: '', activo: true };
+    return {
+      username: '',
+      nombre: '',
+      apellidos: '',
+      email: '',
+      password: '',
+      roleId: '',
+      activo: true,
+    };
   }
 }

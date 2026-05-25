@@ -18,7 +18,7 @@ export interface PedimentoDto {
 
 import { environment } from '../../environments/environment';
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class PedimentoService {
   private http = inject(HttpClient);

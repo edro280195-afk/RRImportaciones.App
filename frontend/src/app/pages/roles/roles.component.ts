@@ -48,9 +48,13 @@ const CATEGORIAS: Record<Categoria, CategoriaConfig> = {
 };
 
 const ROL_CATEGORIA: Record<string, Categoria> = {
-  ADMIN: 'SISTEMA', GERENTE: 'SISTEMA',
-  FACTURACION: 'OFICINA', COORDINADORA: 'OFICINA', CONTROL_TRAMITES: 'OFICINA',
-  YARDERO: 'CAMPO', CHOFER: 'CAMPO',
+  ADMIN: 'SISTEMA',
+  GERENTE: 'SISTEMA',
+  FACTURACION: 'OFICINA',
+  COORDINADORA: 'OFICINA',
+  CONTROL_TRAMITES: 'OFICINA',
+  YARDERO: 'CAMPO',
+  CHOFER: 'CAMPO',
 };
 
 const ROL_ETIQUETA: Record<string, string> = {
@@ -67,29 +71,42 @@ const ROL_ETIQUETA: Record<string, string> = {
     <!-- Encabezado: sin caja, jerarquía por escala/peso -->
     <header class="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div>
-        <p class="mb-1.5 text-[11px] font-medium uppercase tracking-[1.4px] text-[#8B93A1]">Administración</p>
-        <h1 class="text-[30px] font-semibold leading-[1.1] tracking-[-0.015em] text-[#0D1017]">Roles y permisos</h1>
+        <p class="mb-1.5 text-[11px] font-medium uppercase tracking-[1.4px] text-[#8B93A1]">
+          Administración
+        </p>
+        <h1 class="text-[30px] font-semibold leading-[1.1] tracking-[-0.015em] text-[#0D1017]">
+          Roles y permisos
+        </h1>
         <p class="mt-1.5 max-w-[58ch] text-[13.5px] leading-[1.55] text-[#5B6473]">
-          Cada categoría agrupa roles con un propósito común. Selecciona uno para revisar o ajustar exactamente qué puede ver y hacer.
+          Cada categoría agrupa roles con un propósito común. Selecciona uno para revisar o ajustar
+          exactamente qué puede ver y hacer.
         </p>
       </div>
       <div class="hidden md:flex items-center gap-4 text-[12px] text-[#6B717F]">
-        <span class="font-mono tabular-nums text-[#0D1017] text-[15px] font-semibold">{{ roles().length }}</span>
+        <span class="font-mono tabular-nums text-[#0D1017] text-[15px] font-semibold">{{
+          roles().length
+        }}</span>
         <span>roles activos</span>
         <span class="text-[#D8DEE8]">·</span>
-        <span class="font-mono tabular-nums text-[#0D1017] text-[15px] font-semibold">{{ usuarios().length }}</span>
+        <span class="font-mono tabular-nums text-[#0D1017] text-[15px] font-semibold">{{
+          usuarios().length
+        }}</span>
         <span>usuarios asignados</span>
       </div>
     </header>
 
     @if (message()) {
-      <div class="mb-5 flex items-start gap-3 rounded-xl bg-[#F0FDF4] px-4 py-3 text-[13px] text-[#14532D]">
+      <div
+        class="mb-5 flex items-start gap-3 rounded-xl bg-[#F0FDF4] px-4 py-3 text-[13px] text-[#14532D]"
+      >
         <span class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#16A34A]"></span>
         <p>{{ message() }}</p>
       </div>
     }
     @if (error()) {
-      <div class="mb-5 flex items-start gap-3 rounded-xl bg-[#FEF2F2] px-4 py-3 text-[13px] text-[#991B1B]">
+      <div
+        class="mb-5 flex items-start gap-3 rounded-xl bg-[#FEF2F2] px-4 py-3 text-[13px] text-[#991B1B]"
+      >
         <span class="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#DC2626]"></span>
         <p>{{ error() }}</p>
       </div>
@@ -103,9 +120,15 @@ const ROL_ETIQUETA: Record<string, string> = {
         <section [class.mt-10]="!first" [class.mt-2]="first">
           <div class="mb-4 flex items-baseline gap-3">
             <span class="h-2 w-2 rounded-full" [class]="cat.dotClass"></span>
-            <h2 class="text-[14px] font-semibold tracking-[-0.005em] text-[#0D1017]">{{ cat.titulo }}</h2>
-            <p class="hidden sm:block text-[12.5px] text-[#8B93A1] leading-snug">{{ cat.resumen }}</p>
-            <span class="ml-auto text-[11px] font-mono tabular-nums text-[#8B93A1]">{{ rolesPorCategoria(cat.key).length }}</span>
+            <h2 class="text-[14px] font-semibold tracking-[-0.005em] text-[#0D1017]">
+              {{ cat.titulo }}
+            </h2>
+            <p class="hidden sm:block text-[12.5px] text-[#8B93A1] leading-snug">
+              {{ cat.resumen }}
+            </p>
+            <span class="ml-auto text-[11px] font-mono tabular-nums text-[#8B93A1]">{{
+              rolesPorCategoria(cat.key).length
+            }}</span>
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -119,16 +142,29 @@ const ROL_ETIQUETA: Record<string, string> = {
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
-                    <div class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-bold tracking-[0.2px]" [class]="cat.chipClass">
+                    <div
+                      class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11.5px] font-bold tracking-[0.2px]"
+                      [class]="cat.chipClass"
+                    >
                       {{ etiqueta(rol.nombre) }}
                     </div>
                     @if (rol.descripcion) {
-                      <p class="mt-2.5 text-[12.5px] leading-[1.5] text-[#5B6473] line-clamp-2">{{ rol.descripcion }}</p>
+                      <p class="mt-2.5 text-[12.5px] leading-[1.5] text-[#5B6473] line-clamp-2">
+                        {{ rol.descripcion }}
+                      </p>
                     }
                   </div>
-                  <span class="shrink-0 text-[#C7CDD6] transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-[#6B717F]">
-                    <svg fill="none" viewBox="0 0 24 24" class="h-4 w-4" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                  <span
+                    class="shrink-0 text-[#C7CDD6] transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-[#6B717F]"
+                  >
+                    <svg
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      class="h-4 w-4"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                   </span>
                 </div>
@@ -136,12 +172,24 @@ const ROL_ETIQUETA: Record<string, string> = {
                 <!-- Stats — fila tabular, sin tarjetas anidadas -->
                 <dl class="grid grid-cols-2 gap-x-4 gap-y-1">
                   <div>
-                    <dt class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">Usuarios</dt>
-                    <dd class="mt-0.5 font-mono tabular-nums text-[19px] font-semibold leading-none text-[#0D1017]">{{ usuariosCount(rol.id) }}</dd>
+                    <dt class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">
+                      Usuarios
+                    </dt>
+                    <dd
+                      class="mt-0.5 font-mono tabular-nums text-[19px] font-semibold leading-none text-[#0D1017]"
+                    >
+                      {{ usuariosCount(rol.id) }}
+                    </dd>
                   </div>
                   <div>
-                    <dt class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">Permisos</dt>
-                    <dd class="mt-0.5 font-mono tabular-nums text-[19px] font-semibold leading-none text-[#0D1017]">{{ rol.permisos.length }}</dd>
+                    <dt class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">
+                      Permisos
+                    </dt>
+                    <dd
+                      class="mt-0.5 font-mono tabular-nums text-[19px] font-semibold leading-none text-[#0D1017]"
+                    >
+                      {{ rol.permisos.length }}
+                    </dd>
                   </div>
                 </dl>
 
@@ -149,7 +197,9 @@ const ROL_ETIQUETA: Record<string, string> = {
                 @if (rol.permisos.length > 0) {
                   <div class="flex flex-wrap items-center gap-1">
                     @for (mod of modulosOf(rol); track mod.nombre) {
-                      <span class="rounded-md bg-[#F4F6FA] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4B5563]">
+                      <span
+                        class="rounded-md bg-[#F4F6FA] px-1.5 py-0.5 text-[10.5px] font-medium text-[#4B5563]"
+                      >
                         {{ mod.nombre }}
                       </span>
                     }
@@ -159,7 +209,9 @@ const ROL_ETIQUETA: Record<string, string> = {
                 }
 
                 @if (rol.esSistema) {
-                  <p class="-mb-1 text-[10.5px] uppercase tracking-[0.8px] text-[#9EA3AE]">Rol de sistema</p>
+                  <p class="-mb-1 text-[10.5px] uppercase tracking-[0.8px] text-[#9EA3AE]">
+                    Rol de sistema
+                  </p>
                 }
               </button>
             }
@@ -187,19 +239,33 @@ const ROL_ETIQUETA: Record<string, string> = {
         <!-- Header del drawer -->
         <header class="flex items-start justify-between gap-4 border-b border-[#F0F2F5] px-6 py-5">
           <div class="min-w-0">
-            <p class="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[1.3px]" [class]="catTextOf(rol.nombre)">
+            <p
+              class="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[1.3px]"
+              [class]="catTextOf(rol.nombre)"
+            >
               {{ CATEGORIAS[ROL_CATEGORIA[rol.nombre]].titulo }}
             </p>
             <h2 class="text-[22px] font-semibold leading-[1.15] tracking-[-0.015em] text-[#0D1017]">
               {{ etiqueta(rol.nombre) }}
             </h2>
             @if (rol.descripcion) {
-              <p class="mt-1.5 max-w-[40ch] text-[13px] leading-snug text-[#5B6473]">{{ rol.descripcion }}</p>
+              <p class="mt-1.5 max-w-[40ch] text-[13px] leading-snug text-[#5B6473]">
+                {{ rol.descripcion }}
+              </p>
             }
           </div>
-          <button (click)="close()" class="-mr-2 -mt-1 rounded-lg p-2 text-[#8B93A1] hover:bg-[#F3F4F6] hover:text-[#0D1017] transition-colors">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-5 w-5 stroke-2" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          <button
+            (click)="close()"
+            class="-mr-2 -mt-1 rounded-lg p-2 text-[#8B93A1] hover:bg-[#F3F4F6] hover:text-[#0D1017] transition-colors"
+          >
+            <svg
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              class="h-5 w-5 stroke-2"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </header>
@@ -207,21 +273,41 @@ const ROL_ETIQUETA: Record<string, string> = {
         <!-- Stats del drawer -->
         <div class="grid grid-cols-3 gap-0 border-b border-[#F0F2F5] px-6 py-4">
           <div>
-            <p class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">Seleccionados</p>
-            <p class="mt-1 font-mono tabular-nums text-[20px] font-semibold leading-none text-[#0D1017]">{{ editSelection().size }}</p>
+            <p class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">
+              Seleccionados
+            </p>
+            <p
+              class="mt-1 font-mono tabular-nums text-[20px] font-semibold leading-none text-[#0D1017]"
+            >
+              {{ editSelection().size }}
+            </p>
           </div>
           <div>
-            <p class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">Disponibles</p>
-            <p class="mt-1 font-mono tabular-nums text-[20px] font-semibold leading-none text-[#0D1017]">{{ todosPermisos().length }}</p>
+            <p class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">
+              Disponibles
+            </p>
+            <p
+              class="mt-1 font-mono tabular-nums text-[20px] font-semibold leading-none text-[#0D1017]"
+            >
+              {{ todosPermisos().length }}
+            </p>
           </div>
           <div>
-            <p class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">Usuarios</p>
-            <p class="mt-1 font-mono tabular-nums text-[20px] font-semibold leading-none text-[#0D1017]">{{ usuariosCount(rol.id) }}</p>
+            <p class="text-[10.5px] font-medium uppercase tracking-[0.7px] text-[#9EA3AE]">
+              Usuarios
+            </p>
+            <p
+              class="mt-1 font-mono tabular-nums text-[20px] font-semibold leading-none text-[#0D1017]"
+            >
+              {{ usuariosCount(rol.id) }}
+            </p>
           </div>
         </div>
 
         @if (rol.nombre === 'ADMIN') {
-          <div class="m-6 rounded-xl bg-[#FFFBEB] px-4 py-3.5 text-[12.5px] leading-snug text-[#854D0E]">
+          <div
+            class="m-6 rounded-xl bg-[#FFFBEB] px-4 py-3.5 text-[12.5px] leading-snug text-[#854D0E]"
+          >
             El rol ADMIN tiene acceso total al sistema por diseño. Sus permisos no son editables.
           </div>
         }
@@ -233,8 +319,12 @@ const ROL_ETIQUETA: Record<string, string> = {
               <fieldset [disabled]="rol.nombre === 'ADMIN'">
                 <div class="mb-2.5 flex items-center justify-between">
                   <div class="flex items-baseline gap-2.5">
-                    <legend class="text-[11px] font-bold uppercase tracking-[1px] text-[#0D1017]">{{ mod.nombre }}</legend>
-                    <span class="text-[11px] font-mono tabular-nums text-[#9EA3AE]">{{ countSelectedInModulo(mod) }}/{{ mod.permisos.length }}</span>
+                    <legend class="text-[11px] font-bold uppercase tracking-[1px] text-[#0D1017]">
+                      {{ mod.nombre }}
+                    </legend>
+                    <span class="text-[11px] font-mono tabular-nums text-[#9EA3AE]"
+                      >{{ countSelectedInModulo(mod) }}/{{ mod.permisos.length }}</span
+                    >
                   </div>
                   @if (rol.nombre !== 'ADMIN') {
                     <button
@@ -262,8 +352,12 @@ const ROL_ETIQUETA: Record<string, string> = {
                         (change)="togglePermiso(p.id)"
                       />
                       <div class="min-w-0 flex-1">
-                        <p class="text-[13px] font-semibold leading-tight text-[#0D1017]">{{ p.nombre }}</p>
-                        <p class="mt-0.5 font-mono text-[10.5px] tracking-[0.2px] text-[#8B93A1]">{{ p.codigo }}</p>
+                        <p class="text-[13px] font-semibold leading-tight text-[#0D1017]">
+                          {{ p.nombre }}
+                        </p>
+                        <p class="mt-0.5 font-mono text-[10.5px] tracking-[0.2px] text-[#8B93A1]">
+                          {{ p.codigo }}
+                        </p>
                       </div>
                     </label>
                   }
@@ -274,7 +368,9 @@ const ROL_ETIQUETA: Record<string, string> = {
         </div>
 
         @if (rol.nombre !== 'ADMIN') {
-          <footer class="flex items-center justify-end gap-2 border-t border-[#F0F2F5] bg-[#FAFBFC] px-6 py-4">
+          <footer
+            class="flex items-center justify-end gap-2 border-t border-[#F0F2F5] bg-[#FAFBFC] px-6 py-4"
+          >
             <button
               (click)="close()"
               class="rounded-xl px-4 py-2 text-[13px] font-semibold text-[#0D1017] hover:bg-[#F0F2F5] transition-colors"
@@ -286,7 +382,7 @@ const ROL_ETIQUETA: Record<string, string> = {
               [disabled]="saving() || !hasChanges()"
               class="btn-primary rounded-xl px-5 py-2 text-[13px] disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {{ saving() ? 'Guardando…' : (hasChanges() ? 'Guardar cambios' : 'Sin cambios') }}
+              {{ saving() ? 'Guardando…' : hasChanges() ? 'Guardar cambios' : 'Sin cambios' }}
             </button>
           </footer>
         }
@@ -347,15 +443,20 @@ export class RolesComponent {
 
   constructor() {
     this.rolService.getAll().subscribe({
-      next: (list) => { this.roles.set(list); this.loading.set(false); },
+      next: list => {
+        this.roles.set(list);
+        this.loading.set(false);
+      },
       error: () => this.loading.set(false),
     });
     this.rolService.getAllPermisos().subscribe({
-      next: (list) => this.todosPermisos.set(list),
+      next: list => this.todosPermisos.set(list),
     });
     this.usuarioService.getAll().subscribe({
-      next: (list) => this.usuarios.set(list),
-      error: () => { /* opcional, sólo afecta conteos */ },
+      next: list => this.usuarios.set(list),
+      error: () => {
+        /* opcional, sólo afecta conteos */
+      },
     });
   }
 
@@ -379,7 +480,8 @@ export class RolesComponent {
     const rol = this.selectedRol();
     if (!rol || rol.nombre === 'ADMIN') return;
     const s = new Set(this.editSelection());
-    if (s.has(id)) s.delete(id); else s.add(id);
+    if (s.has(id)) s.delete(id);
+    else s.add(id);
     this.editSelection.set(s);
   }
 
@@ -402,7 +504,8 @@ export class RolesComponent {
   }
 
   hasChanges(): boolean {
-    const a = this.editSelection(); const b = this.originalSelection();
+    const a = this.editSelection();
+    const b = this.originalSelection();
     if (a.size !== b.size) return true;
     for (const id of a) if (!b.has(id)) return true;
     return false;
@@ -418,7 +521,7 @@ export class RolesComponent {
         this.saving.set(false);
         this.message.set(`Permisos de ${this.etiqueta(rol.nombre)} actualizados.`);
         this.rolService.getAll().subscribe({
-          next: (list) => {
+          next: list => {
             this.roles.set(list);
             const fresh = list.find(r => r.id === rol.id);
             if (fresh) {
@@ -428,7 +531,7 @@ export class RolesComponent {
           },
         });
       },
-      error: (err) => {
+      error: err => {
         this.saving.set(false);
         this.error.set(err?.error?.message || 'No se pudieron guardar los permisos.');
       },

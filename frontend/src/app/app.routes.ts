@@ -21,7 +21,8 @@ export const routes: Routes = [
   // ── Rutas públicas ────────────────────────────────────────────────────────
   {
     path: 'portal/acceso/:token',
-    loadComponent: () => import('./pages/portal/portal-tramite.component').then(m => m.PortalTramiteComponent),
+    loadComponent: () =>
+      import('./pages/portal/portal-tramite.component').then(m => m.PortalTramiteComponent),
   },
   { path: 'portal', component: PortalInvalidoComponent },
   { path: 'login', component: LoginComponent },
@@ -35,7 +36,8 @@ export const routes: Routes = [
     children: [
       {
         path: '',
-        loadComponent: () => import('./pages/modo-don/modo-don.component').then(m => m.ModoDonComponent),
+        loadComponent: () =>
+          import('./pages/modo-don/modo-don.component').then(m => m.ModoDonComponent),
         pathMatch: 'full',
       },
     ],
@@ -49,12 +51,14 @@ export const routes: Routes = [
   {
     path: 'campo/:id/captura',
     canActivate: [campoAuthGuard],
-    loadComponent: () => import('./pages/campo/campo-captura.component').then(m => m.CampoCapturaComponent),
+    loadComponent: () =>
+      import('./pages/campo/campo-captura.component').then(m => m.CampoCapturaComponent),
   },
   {
     path: 'campo',
     canActivate: [campoAuthGuard],
-    loadComponent: () => import('./pages/campo/campo-tareas.component').then(m => m.CampoTareasComponent),
+    loadComponent: () =>
+      import('./pages/campo/campo-tareas.component').then(m => m.CampoTareasComponent),
   },
 
   // ── App principal (con sidebar AppLayout) ─────────────────────────────────
@@ -66,46 +70,90 @@ export const routes: Routes = [
       { path: 'inicio', component: DashboardComponent },
 
       // Operación
-      { path: 'clientes',    component: ClientesListComponent,   canActivate: [permissionGuard('CLIENTES_VER')] },
-      { path: 'clientes/:id', component: ClientesDetailComponent, canActivate: [permissionGuard('CLIENTES_VER')] },
-      { path: 'vehiculos',    component: VehiculosListComponent,   canActivate: [permissionGuard('TRAMITES_VER')] },
-      { path: 'vehiculos/:id', component: VehiculosDetailComponent, canActivate: [permissionGuard('TRAMITES_VER')] },
-      { path: 'tramites',    component: TramitesListComponent,    canActivate: [permissionGuard('TRAMITES_VER')] },
-      { path: 'tramites/:id', component: TramiteDetailComponent,  canActivate: [permissionGuard('TRAMITES_VER')] },
+      {
+        path: 'clientes',
+        component: ClientesListComponent,
+        canActivate: [permissionGuard('CLIENTES_VER')],
+      },
+      {
+        path: 'clientes/:id',
+        component: ClientesDetailComponent,
+        canActivate: [permissionGuard('CLIENTES_VER')],
+      },
+      {
+        path: 'vehiculos',
+        component: VehiculosListComponent,
+        canActivate: [permissionGuard('TRAMITES_VER')],
+      },
+      {
+        path: 'vehiculos/:id',
+        component: VehiculosDetailComponent,
+        canActivate: [permissionGuard('TRAMITES_VER')],
+      },
+      {
+        path: 'tramites',
+        component: TramitesListComponent,
+        canActivate: [permissionGuard('TRAMITES_VER')],
+      },
+      {
+        path: 'tramites/:id',
+        component: TramiteDetailComponent,
+        canActivate: [permissionGuard('TRAMITES_VER')],
+      },
       {
         path: 'pedimentos',
         canActivate: [permissionGuard('TRAMITES_VER')],
-        loadComponent: () => import('./pages/pedimentos/pedimentos-list.component').then(m => m.PedimentosListComponent),
+        loadComponent: () =>
+          import('./pages/pedimentos/pedimentos-list.component').then(
+            m => m.PedimentosListComponent
+          ),
       },
-      { path: 'inventario',  component: InventarioComponent,      canActivate: [permissionGuard('TRAMITES_VER')] },
+      {
+        path: 'inventario',
+        component: InventarioComponent,
+        canActivate: [permissionGuard('TRAMITES_VER')],
+      },
 
       // Cotizaciones
       {
         path: 'cotizaciones/nueva',
         canActivate: [permissionGuard('COTIZACIONES_CREAR')],
-        loadComponent: () => import('./pages/cotizaciones/cotizacion-nueva.component').then(m => m.CotizacionNuevaComponent),
+        loadComponent: () =>
+          import('./pages/cotizaciones/cotizacion-nueva.component').then(
+            m => m.CotizacionNuevaComponent
+          ),
       },
       {
         path: 'cotizaciones',
         canActivate: [permissionGuard('COTIZACIONES_VER')],
-        loadComponent: () => import('./pages/cotizaciones/cotizaciones-list.component').then(m => m.CotizacionesListComponent),
+        loadComponent: () =>
+          import('./pages/cotizaciones/cotizaciones-list.component').then(
+            m => m.CotizacionesListComponent
+          ),
       },
       {
         path: 'cotizaciones/:id',
         canActivate: [permissionGuard('COTIZACIONES_VER')],
-        loadComponent: () => import('./pages/cotizaciones/cotizacion-detail.component').then(m => m.CotizacionDetailComponent),
+        loadComponent: () =>
+          import('./pages/cotizaciones/cotizacion-detail.component').then(
+            m => m.CotizacionDetailComponent
+          ),
       },
 
       // Finanzas
       {
         path: 'pagos',
         canActivate: [permissionGuard('PAGOS_VER')],
-        loadComponent: () => import('./pages/pagos/pagos-list.component').then(m => m.PagosListComponent),
+        loadComponent: () =>
+          import('./pages/pagos/pagos-list.component').then(m => m.PagosListComponent),
       },
       {
         path: 'gastos-hormiga',
         canActivate: [permissionGuard('GASTOS_VER')],
-        loadComponent: () => import('./pages/gastos-hormiga/gastos-hormiga-list.component').then(m => m.GastosHormigaListComponent),
+        loadComponent: () =>
+          import('./pages/gastos-hormiga/gastos-hormiga-list.component').then(
+            m => m.GastosHormigaListComponent
+          ),
       },
       {
         path: 'reportes',
@@ -117,22 +165,26 @@ export const routes: Routes = [
       {
         path: 'marcas',
         canActivate: [permissionGuard('CATALOGOS_VER')],
-        loadComponent: () => import('./pages/catalogos/marcas.component').then(m => m.MarcasComponent),
+        loadComponent: () =>
+          import('./pages/catalogos/marcas.component').then(m => m.MarcasComponent),
       },
       {
         path: 'aduanas',
         canActivate: [permissionGuard('CATALOGOS_VER')],
-        loadComponent: () => import('./pages/catalogos/aduanas.component').then(m => m.AduanasComponent),
+        loadComponent: () =>
+          import('./pages/catalogos/aduanas.component').then(m => m.AduanasComponent),
       },
       {
         path: 'bancos',
         canActivate: [permissionGuard('CATALOGOS_VER')],
-        loadComponent: () => import('./pages/catalogos/bancos.component').then(m => m.BancosComponent),
+        loadComponent: () =>
+          import('./pages/catalogos/bancos.component').then(m => m.BancosComponent),
       },
       {
         path: 'tramitadores',
         canActivate: [permissionGuard('CATALOGOS_VER')],
-        loadComponent: () => import('./pages/catalogos/tramitadores.component').then(m => m.TramitadoresComponent),
+        loadComponent: () =>
+          import('./pages/catalogos/tramitadores.component').then(m => m.TramitadoresComponent),
       },
       {
         path: 'personal',
@@ -142,14 +194,16 @@ export const routes: Routes = [
       {
         path: 'partners',
         canActivate: [permissionGuard('CATALOGOS_VER')],
-        loadComponent: () => import('./pages/catalogos/partners.component').then(m => m.PartnersComponent),
+        loadComponent: () =>
+          import('./pages/catalogos/partners.component').then(m => m.PartnersComponent),
       },
 
       // Administración — solo ADMIN (no tienen permiso específico en el catálogo)
       {
         path: 'usuarios',
         canActivate: [permissionGuard('USUARIOS_VER')],
-        loadComponent: () => import('./pages/usuarios/usuarios.component').then(m => m.UsuariosComponent),
+        loadComponent: () =>
+          import('./pages/usuarios/usuarios.component').then(m => m.UsuariosComponent),
       },
       {
         path: 'roles',
@@ -159,27 +213,34 @@ export const routes: Routes = [
       {
         path: 'auditoria',
         canActivate: [adminGuard],
-        loadComponent: () => import('./pages/auditoria/auditoria.component').then(m => m.AuditoriaComponent),
+        loadComponent: () =>
+          import('./pages/auditoria/auditoria.component').then(m => m.AuditoriaComponent),
       },
       {
         path: 'admin/parametros-fiscales',
         canActivate: [adminGuard],
-        loadComponent: () => import('./pages/admin/parametros-fiscales.component').then(m => m.ParametrosFiscalesComponent),
+        loadComponent: () =>
+          import('./pages/admin/parametros-fiscales.component').then(
+            m => m.ParametrosFiscalesComponent
+          ),
       },
       {
         path: 'admin/importador',
         canActivate: [adminGuard],
-        loadComponent: () => import('./pages/admin/importador.component').then(m => m.ImportadorComponent),
+        loadComponent: () =>
+          import('./pages/admin/importador.component').then(m => m.ImportadorComponent),
       },
       {
         path: 'admin/plantillas',
         canActivate: [adminGuard],
-        loadComponent: () => import('./pages/admin/plantillas.component').then(m => m.PlantillasComponent),
+        loadComponent: () =>
+          import('./pages/admin/plantillas.component').then(m => m.PlantillasComponent),
       },
       {
         path: 'admin/catalogo-precios',
         canActivate: [adminGuard],
-        loadComponent: () => import('./pages/admin/catalogo-precios.component').then(m => m.CatalogoPreciosComponent),
+        loadComponent: () =>
+          import('./pages/admin/catalogo-precios.component').then(m => m.CatalogoPreciosComponent),
       },
 
       {

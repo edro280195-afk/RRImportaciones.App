@@ -17,15 +17,25 @@ import { environment } from '../../../environments/environment';
           <h1 class="text-[26px] font-semibold leading-none text-[#0D1017]">Partners externos</h1>
         </div>
         @if (auth.can('CATALOGOS_EDITAR')) {
-          <button (click)="openNew()" class="btn-primary rounded-xl px-4 py-2 text-[13px]">+ Nuevo</button>
+          <button (click)="openNew()" class="btn-primary rounded-xl px-4 py-2 text-[13px]">
+            + Nuevo
+          </button>
         }
       </div>
 
       @if (message()) {
-        <div class="rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-[13px] text-[#166534]">{{ message() }}</div>
+        <div
+          class="rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-[13px] text-[#166534]"
+        >
+          {{ message() }}
+        </div>
       }
       @if (error()) {
-        <div class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-[13px] text-[#991B1B]">{{ error() }}</div>
+        <div
+          class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-[13px] text-[#991B1B]"
+        >
+          {{ error() }}
+        </div>
       }
 
       <div class="card-elevated overflow-hidden rounded-2xl">
@@ -33,22 +43,46 @@ import { environment } from '../../../environments/environment';
           <table class="w-full min-w-[500px] text-[13px]">
             <thead>
               <tr class="border-b border-[#F0F2F5] bg-[#F8FAFC]">
-                <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.6px] text-[#6B717F]">Nombre</th>
-                <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.6px] text-[#6B717F]">Tipo</th>
-                <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.6px] text-[#6B717F]">Aliases</th>
-                <th class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.6px] text-[#6B717F]">Notas</th>
+                <th
+                  class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.6px] text-[#6B717F]"
+                >
+                  Nombre
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.6px] text-[#6B717F]"
+                >
+                  Tipo
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.6px] text-[#6B717F]"
+                >
+                  Aliases
+                </th>
+                <th
+                  class="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.6px] text-[#6B717F]"
+                >
+                  Notas
+                </th>
                 <th class="w-20 px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               @if (loading()) {
-                <tr><td colspan="5" class="py-10 text-center text-[13px] text-[#8B93A1]">Cargando...</td></tr>
+                <tr>
+                  <td colspan="5" class="py-10 text-center text-[13px] text-[#8B93A1]">
+                    Cargando...
+                  </td>
+                </tr>
               }
               @for (p of partners(); track p.id) {
                 <tr class="border-b border-[#F0F2F5] hover:bg-[#F8FAFC] transition-colors">
                   <td class="px-4 py-3 font-semibold text-[#0D1017]">{{ p.nombre }}</td>
                   <td class="px-4 py-3">
-                    <span class="rounded-md px-2 py-0.5 text-[11px] font-semibold" [class]="tipoClass(p.tipo)">{{ p.tipo }}</span>
+                    <span
+                      class="rounded-md px-2 py-0.5 text-[11px] font-semibold"
+                      [class]="tipoClass(p.tipo)"
+                      >{{ p.tipo }}</span
+                    >
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex flex-wrap gap-1">
@@ -60,7 +94,12 @@ import { environment } from '../../../environments/environment';
                   <td class="px-4 py-3 text-[#6B717F]">{{ p.notas || '—' }}</td>
                   <td class="px-4 py-3">
                     @if (auth.can('CATALOGOS_EDITAR')) {
-                      <button (click)="openEdit(p)" class="rounded-lg border border-[#D8DEE8] px-3 py-1.5 text-[12px] font-semibold hover:bg-[#F3F4F6]">Editar</button>
+                      <button
+                        (click)="openEdit(p)"
+                        class="rounded-lg border border-[#D8DEE8] px-3 py-1.5 text-[12px] font-semibold hover:bg-[#F3F4F6]"
+                      >
+                        Editar
+                      </button>
                     }
                   </td>
                 </tr>
@@ -71,11 +110,18 @@ import { environment } from '../../../environments/environment';
       </div>
 
       @if (showModal()) {
-        <div class="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[10vh] backdrop-blur-sm overflow-y-auto">
+        <div
+          class="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[10vh] backdrop-blur-sm overflow-y-auto"
+        >
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl my-auto">
-            <h2 class="mb-4 text-[18px] font-semibold">{{ editingId() ? 'Editar partner' : 'Nuevo partner' }}</h2>
+            <h2 class="mb-4 text-[18px] font-semibold">
+              {{ editingId() ? 'Editar partner' : 'Nuevo partner' }}
+            </h2>
             <div class="space-y-3">
-              <div><label class="label-field">Nombre</label><input [(ngModel)]="form.nombre" class="input-field" /></div>
+              <div>
+                <label class="label-field">Nombre</label
+                ><input [(ngModel)]="form.nombre" class="input-field" />
+              </div>
               <div>
                 <label class="label-field">Tipo</label>
                 <select [(ngModel)]="form.tipo" class="input-field">
@@ -86,13 +132,31 @@ import { environment } from '../../../environments/environment';
               </div>
               <div>
                 <label class="label-field">Aliases (separados por coma)</label>
-                <input [(ngModel)]="aliasesText" class="input-field" placeholder="ej. BETO, DON BETO" />
+                <input
+                  [(ngModel)]="aliasesText"
+                  class="input-field"
+                  placeholder="ej. BETO, DON BETO"
+                />
               </div>
-              <div><label class="label-field">Notas</label><textarea [(ngModel)]="form.notas" rows="2" class="input-field"></textarea></div>
+              <div>
+                <label class="label-field">Notas</label
+                ><textarea [(ngModel)]="form.notas" rows="2" class="input-field"></textarea>
+              </div>
             </div>
             <div class="mt-5 flex justify-end gap-2">
-              <button (click)="closeModal()" class="rounded-xl border border-[#D8DEE8] px-4 py-2 text-[13px] font-semibold">Cancelar</button>
-              <button (click)="save()" [disabled]="saving()" class="btn-primary rounded-xl px-5 py-2 text-[13px] disabled:opacity-40">{{ saving() ? 'Guardando...' : 'Guardar' }}</button>
+              <button
+                (click)="closeModal()"
+                class="rounded-xl border border-[#D8DEE8] px-4 py-2 text-[13px] font-semibold"
+              >
+                Cancelar
+              </button>
+              <button
+                (click)="save()"
+                [disabled]="saving()"
+                class="btn-primary rounded-xl px-5 py-2 text-[13px] disabled:opacity-40"
+              >
+                {{ saving() ? 'Guardando...' : 'Guardar' }}
+              </button>
             </div>
           </div>
         </div>
@@ -116,41 +180,79 @@ export class PartnersComponent {
   aliasesText = '';
   form: any = this.empty();
 
-  constructor() { this.load(); }
+  constructor() {
+    this.load();
+  }
 
   load(): void {
     this.loading.set(true);
     this.service.getAll().subscribe({
-      next: (list) => { this.partners.set(list); this.loading.set(false); },
+      next: list => {
+        this.partners.set(list);
+        this.loading.set(false);
+      },
       error: () => this.loading.set(false),
     });
   }
 
-  openNew(): void { this.editingId.set(null); this.form = this.empty(); this.aliasesText = ''; this.showModal.set(true); this.message.set(null); this.error.set(null); }
+  openNew(): void {
+    this.editingId.set(null);
+    this.form = this.empty();
+    this.aliasesText = '';
+    this.showModal.set(true);
+    this.message.set(null);
+    this.error.set(null);
+  }
   openEdit(p: PartnerExternoDto): void {
     this.editingId.set(p.id);
     this.form = { nombre: p.nombre, tipo: p.tipo, notas: p.notas ?? '' };
     this.aliasesText = p.aliases.join(', ');
-    this.showModal.set(true); this.message.set(null); this.error.set(null);
+    this.showModal.set(true);
+    this.message.set(null);
+    this.error.set(null);
   }
-  closeModal(): void { this.showModal.set(false); }
+  closeModal(): void {
+    this.showModal.set(false);
+  }
 
   save(): void {
     this.saving.set(true);
     const id = this.editingId();
-    const aliases = this.aliasesText.split(',').map(a => a.trim()).filter(Boolean);
-    const body = { nombre: this.form.nombre, tipo: this.form.tipo, notas: this.form.notas || null, aliases };
+    const aliases = this.aliasesText
+      .split(',')
+      .map(a => a.trim())
+      .filter(Boolean);
+    const body = {
+      nombre: this.form.nombre,
+      tipo: this.form.tipo,
+      notas: this.form.notas || null,
+      aliases,
+    };
     const obs = id ? this.http.put(`${this.base}/${id}`, body) : this.http.post(this.base, body);
     obs.subscribe({
-      next: () => { this.saving.set(false); this.showModal.set(false); this.message.set('Partner guardado.'); this.load(); },
-      error: (err) => { this.saving.set(false); this.error.set(err?.error?.message || 'Error al guardar.'); },
+      next: () => {
+        this.saving.set(false);
+        this.showModal.set(false);
+        this.message.set('Partner guardado.');
+        this.load();
+      },
+      error: err => {
+        this.saving.set(false);
+        this.error.set(err?.error?.message || 'Error al guardar.');
+      },
     });
   }
 
   tipoClass(tipo: string): string {
-    const map: Record<string, string> = { PENSION: 'bg-[#DBEAFE] text-[#1E40AF]', RECEPCION_DOCS: 'bg-[#FEF3C7] text-[#92400E]', OTRO: 'bg-[#F3F4F6] text-[#374151]' };
+    const map: Record<string, string> = {
+      PENSION: 'bg-[#DBEAFE] text-[#1E40AF]',
+      RECEPCION_DOCS: 'bg-[#FEF3C7] text-[#92400E]',
+      OTRO: 'bg-[#F3F4F6] text-[#374151]',
+    };
     return map[tipo] ?? 'bg-[#F3F4F6] text-[#374151]';
   }
 
-  private empty() { return { nombre: '', tipo: 'PENSION', notas: '' }; }
+  private empty() {
+    return { nombre: '', tipo: 'PENSION', notas: '' };
+  }
 }

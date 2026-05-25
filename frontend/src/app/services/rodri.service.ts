@@ -33,7 +33,11 @@ export class RodriService {
   private http = inject(HttpClient);
   private readonly base = environment.apiUrl + '/api/rodri';
 
-  chat(mensaje: string, historial: RodriMessage[], provider?: string): Observable<RodriChatResponse> {
+  chat(
+    mensaje: string,
+    historial: RodriMessage[],
+    provider?: string
+  ): Observable<RodriChatResponse> {
     const body: any = { mensaje, historial };
     if (provider) body.provider = provider;
     return this.http.post<RodriChatResponse>(`${this.base}/chat`, body);

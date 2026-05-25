@@ -188,7 +188,13 @@ export class CotizacionService {
     return this.http.post<CotizacionOutput>(this.baseUrl, request);
   }
 
-  getList(params: { search?: string; estado?: string; clienteId?: string; page?: number; pageSize?: number }): Observable<PagedResult<CotizacionListDto>> {
+  getList(params: {
+    search?: string;
+    estado?: string;
+    clienteId?: string;
+    page?: number;
+    pageSize?: number;
+  }): Observable<PagedResult<CotizacionListDto>> {
     let p = new HttpParams();
     if (params.search) p = p.set('search', params.search);
     if (params.estado) p = p.set('estado', params.estado);
@@ -230,23 +236,52 @@ export class CotizacionService {
     return this.http.get(this.pdfUrl(id, download), { responseType: 'blob' });
   }
 
-  enviarEmail(id: string, destinatario: string, mensajePersonalizado: string | null): Observable<{ message: string }> {
-    return this.http.post<{ message: string }>(`${this.baseUrl}/${id}/enviar-email`, { destinatario, mensajePersonalizado });
+  enviarEmail(
+    id: string,
+    destinatario: string,
+    mensajePersonalizado: string | null
+  ): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.baseUrl}/${id}/enviar-email`, {
+      destinatario,
+      mensajePersonalizado,
+    });
   }
 
-  whatsappLink(id: string, telefono: string, mensajePersonalizado: string | null): Observable<WhatsAppLinkResponse> {
-    return this.http.post<WhatsAppLinkResponse>(`${this.baseUrl}/${id}/whatsapp-link`, { telefono, mensajePersonalizado });
+  whatsappLink(
+    id: string,
+    telefono: string,
+    mensajePersonalizado: string | null
+  ): Observable<WhatsAppLinkResponse> {
+    return this.http.post<WhatsAppLinkResponse>(`${this.baseUrl}/${id}/whatsapp-link`, {
+      telefono,
+      mensajePersonalizado,
+    });
   }
 
-  marcarEnviada(id: string, enviadoPor: string, enviadoA: string, mensajePersonalizado: string | null = null): Observable<{ message: string }> {
-    return this.http.post<{ message: string }>(`${this.baseUrl}/${id}/marcar-enviada`, { enviadoPor, enviadoA, mensajePersonalizado });
+  marcarEnviada(
+    id: string,
+    enviadoPor: string,
+    enviadoA: string,
+    mensajePersonalizado: string | null = null
+  ): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.baseUrl}/${id}/marcar-enviada`, {
+      enviadoPor,
+      enviadoA,
+      mensajePersonalizado,
+    });
   }
 
   recalcular(id: string): Observable<CotizacionOutput> {
     return this.http.post<CotizacionOutput>(`${this.baseUrl}/${id}/recalcular`, {});
   }
 
-  convertirATramite(id: string, request: ConvertirCotizacionRequest): Observable<{ id: string; numeroConsecutivo: string }> {
-    return this.http.post<{ id: string; numeroConsecutivo: string }>(`${this.baseUrl}/${id}/convertir-a-tramite`, request);
+  convertirATramite(
+    id: string,
+    request: ConvertirCotizacionRequest
+  ): Observable<{ id: string; numeroConsecutivo: string }> {
+    return this.http.post<{ id: string; numeroConsecutivo: string }>(
+      `${this.baseUrl}/${id}/convertir-a-tramite`,
+      request
+    );
   }
 }

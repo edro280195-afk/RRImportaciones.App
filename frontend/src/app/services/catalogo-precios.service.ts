@@ -85,9 +85,9 @@ export class CatalogoPreciosService {
     pageSize?: number;
   }): Observable<PagedResult<CatalogoPrecioListDto>> {
     let p = new HttpParams();
-    if (params.search)       p = p.set('search', params.search);
-    if (params.fraccion)     p = p.set('fraccion', params.fraccion);
-    if (params.marcaId)      p = p.set('marcaId', params.marcaId);
+    if (params.search) p = p.set('search', params.search);
+    if (params.fraccion) p = p.set('fraccion', params.fraccion);
+    if (params.marcaId) p = p.set('marcaId', params.marcaId);
     if (params.tipoVehiculo) p = p.set('tipoVehiculo', params.tipoVehiculo);
     if (params.esGenerico !== undefined) p = p.set('esGenerico', String(params.esGenerico));
     p = p.set('page', params.page ?? 1);

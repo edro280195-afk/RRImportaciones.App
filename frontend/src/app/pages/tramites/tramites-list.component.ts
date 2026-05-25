@@ -19,7 +19,6 @@ interface EstadoTab {
   imports: [FormsModule, DatePipe, DecimalPipe],
   template: `
     <div style="font-family: var(--font-body);">
-
       <div class="flex items-center justify-between mb-6 gap-6 stagger-item">
         <div>
           <p class="text-[11px] font-semibold uppercase tracking-[1.2px] text-[#9EA3AE] mb-1.5">
@@ -38,13 +37,33 @@ interface EstadoTab {
           >
             @if (exportando()) {
               <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
               </svg>
               Exportando...
             } @else {
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              <svg
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 stroke-2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
               Excel
             }
@@ -54,8 +73,13 @@ interface EstadoTab {
               (click)="router.navigate(['/cotizaciones/nueva'])"
               class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
             >
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+              <svg
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 stroke-2"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
               </svg>
               Nueva cotización
             </button>
@@ -64,14 +88,19 @@ interface EstadoTab {
       </div>
 
       <!-- State tabs -->
-      <div class="flex items-center gap-1.5 mb-5 stagger-item flex-wrap" style="animation-delay: 40ms;">
+      <div
+        class="flex items-center gap-1.5 mb-5 stagger-item flex-wrap"
+        style="animation-delay: 40ms;"
+      >
         @for (tab of tabs; track tab.value) {
           <button
             (click)="selectedTab.set(tab.value); page.set(1); loadTramites()"
             class="px-3.5 py-2 rounded-xl text-[12px] font-medium transition-all duration-150"
-            [style]="selectedTab() === tab.value
-              ? 'background: ' + tab.color + '; color: #fff;'
-              : 'background: #F3F4F6; color: #4B5162; border: 1px solid #E4E7EC;'"
+            [style]="
+              selectedTab() === tab.value
+                ? 'background: ' + tab.color + '; color: #fff;'
+                : 'background: #F3F4F6; color: #4B5162; border: 1px solid #E4E7EC;'
+            "
           >
             {{ tab.label }}
           </button>
@@ -79,10 +108,22 @@ interface EstadoTab {
       </div>
 
       <!-- Filters -->
-      <div class="flex items-center gap-3 mb-5 stagger-item flex-wrap" style="animation-delay: 60ms;">
+      <div
+        class="flex items-center gap-3 mb-5 stagger-item flex-wrap"
+        style="animation-delay: 60ms;"
+      >
         <div class="relative flex-1 max-w-[280px]">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9EA3AE] stroke-2 pointer-events-none">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          <svg
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9EA3AE] stroke-2 pointer-events-none"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
           </svg>
           <input
             type="text"
@@ -116,33 +157,77 @@ interface EstadoTab {
 
       <!-- Loading -->
       @if (loading()) {
-        <div class="card-elevated rounded-2xl overflow-hidden stagger-item" style="animation-delay: 80ms;">
+        <div
+          class="card-elevated rounded-2xl overflow-hidden stagger-item"
+          style="animation-delay: 80ms;"
+        >
           <div class="p-16 flex flex-col items-center justify-center text-center">
             <svg class="w-6 h-6 text-[#9EA3AE] animate-spin mb-3" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
             </svg>
             <p class="text-[14px] text-[#9EA3AE]">Cargando trámites…</p>
           </div>
         </div>
       } @else if (tramites().length === 0) {
-        <div class="card-elevated rounded-2xl overflow-hidden stagger-item" style="animation-delay: 80ms;">
+        <div
+          class="card-elevated rounded-2xl overflow-hidden stagger-item"
+          style="animation-delay: 80ms;"
+        >
           <div class="flex flex-col items-center justify-center py-16 px-6">
-            <svg class="w-10 h-10 text-[var(--n-300)] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/>
+            <svg
+              class="w-10 h-10 text-[var(--n-300)] mb-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"
+              />
             </svg>
             <p class="text-[14px] font-medium text-[var(--n-800)] mb-1">Sin trámites</p>
-            <p class="text-[13px] text-[var(--n-400)] mb-5 text-center max-w-[280px]">Los trámites se inician desde una cotización aceptada por el cliente.</p>
-            <button (click)="router.navigate(['/cotizaciones/nueva'])" class="btn-primary px-4 py-2 rounded-xl text-[13px]">Nueva cotización</button>
+            <p class="text-[13px] text-[var(--n-400)] mb-5 text-center max-w-[280px]">
+              Los trámites se inician desde una cotización aceptada por el cliente.
+            </p>
+            <button
+              (click)="router.navigate(['/cotizaciones/nueva'])"
+              class="btn-primary px-4 py-2 rounded-xl text-[13px]"
+            >
+              Nueva cotización
+            </button>
           </div>
         </div>
       } @else {
-        <div class="card-elevated rounded-2xl overflow-hidden stagger-item" style="animation-delay: 80ms;">
+        <div
+          class="card-elevated rounded-2xl overflow-hidden stagger-item"
+          style="animation-delay: 80ms;"
+        >
           <div class="overflow-x-auto">
             <table class="w-full">
               <thead>
-                <tr class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] border-b border-[#E4E7EC]">
-                  <th class="text-left px-5 py-3.5 font-medium cursor-pointer select-none hover:text-[#0D1017]" (click)="toggleSort('numero')"># <span class="text-[9px]">{{ sortIcon('numero') }}</span></th>
+                <tr
+                  class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] border-b border-[#E4E7EC]"
+                >
+                  <th
+                    class="text-left px-5 py-3.5 font-medium cursor-pointer select-none hover:text-[#0D1017]"
+                    (click)="toggleSort('numero')"
+                  >
+                    # <span class="text-[9px]">{{ sortIcon('numero') }}</span>
+                  </th>
                   <th class="text-left px-5 py-3.5 font-medium">Fecha</th>
                   <th class="text-left px-5 py-3.5 font-medium">Cliente</th>
                   <th class="text-left px-5 py-3.5 font-medium">Vehículo</th>
@@ -160,22 +245,38 @@ interface EstadoTab {
                     (click)="router.navigate(['/tramites', t.id])"
                     class="text-[13.5px] text-[#1E2330] border-b border-[#F3F4F6] cursor-pointer transition-all duration-100 hover:bg-[#FAFBFC]"
                   >
-                    <td class="px-5 py-3.5 font-mono-data text-[13px] font-semibold text-[#0D1017]">{{ t.numeroConsecutivo }}</td>
-                    <td class="px-5 py-3.5 text-[#6B717F] font-mono-data text-[12.5px]">{{ t.fechaCreacion | date:'dd/MM/yyyy' }}</td>
+                    <td class="px-5 py-3.5 font-mono-data text-[13px] font-semibold text-[#0D1017]">
+                      {{ t.numeroConsecutivo }}
+                    </td>
+                    <td class="px-5 py-3.5 text-[#6B717F] font-mono-data text-[12.5px]">
+                      {{ t.fechaCreacion | date: 'dd/MM/yyyy' }}
+                    </td>
                     <td class="px-5 py-3.5 font-semibold">{{ t.clienteApodo || '—' }}</td>
-                    <td class="px-5 py-3.5 text-[#6B717F]">{{ t.vehiculoMarcaModelo || t.vehiculoVinCorto || '—' }}</td>
+                    <td class="px-5 py-3.5 text-[#6B717F]">
+                      {{ t.vehiculoMarcaModelo || t.vehiculoVinCorto || '—' }}
+                    </td>
                     <td class="px-5 py-3.5">{{ t.aduanaNombre || '—' }}</td>
                     <td class="px-5 py-3.5">{{ t.tramitadorNombre || '—' }}</td>
-                    <td class="px-5 py-3.5 text-right font-mono-data">\${{ t.cobroTotal | number:'1.2-2' }}</td>
-                    <td class="px-5 py-3.5 text-right font-mono-data" [style.color]="t.saldoPendiente > 0 ? '#D97706' : '#16A34A'">
-                      \${{ t.saldoPendiente | number:'1.2-2' }}
+                    <td class="px-5 py-3.5 text-right font-mono-data">
+                      \${{ t.cobroTotal | number: '1.2-2' }}
+                    </td>
+                    <td
+                      class="px-5 py-3.5 text-right font-mono-data"
+                      [style.color]="t.saldoPendiente > 0 ? '#D97706' : '#16A34A'"
+                    >
+                      \${{ t.saldoPendiente | number: '1.2-2' }}
                     </td>
                     <td class="px-5 py-3.5 text-center">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-semibold" [style]="estadoPill(t.estatus)">
+                      <span
+                        class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-semibold"
+                        [style]="estadoPill(t.estatus)"
+                      >
                         {{ t.estatus }}
                       </span>
                     </td>
-                    <td class="px-5 py-3.5 text-center text-[#6B717F] font-mono-data">{{ t.diasEnEstado }}d</td>
+                    <td class="px-5 py-3.5 text-center text-[#6B717F] font-mono-data">
+                      {{ t.diasEnEstado }}d
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -184,25 +285,40 @@ interface EstadoTab {
 
           @if (totalPages() > 1) {
             <div class="flex items-center justify-between px-5 py-3 border-t border-[#E4E7EC]">
-              <span class="text-[12.5px] text-[#9EA3AE]">Página {{ page() }} de {{ totalPages() }}</span>
+              <span class="text-[12.5px] text-[#9EA3AE]"
+                >Página {{ page() }} de {{ totalPages() }}</span
+              >
               <div class="flex items-center gap-1.5">
-                <button (click)="goToPage(page() - 1)" [disabled]="page() <= 1"
-                  class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F4F6] text-[#6B717F]">Anterior</button>
+                <button
+                  (click)="goToPage(page() - 1)"
+                  [disabled]="page() <= 1"
+                  class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F4F6] text-[#6B717F]"
+                >
+                  Anterior
+                </button>
                 @for (p of pages(); track p) {
-                  <button (click)="goToPage(p)"
+                  <button
+                    (click)="goToPage(p)"
                     class="w-8 h-8 rounded-lg text-[12.5px] font-medium transition-all duration-150"
                     [style]="p === page() ? 'background: #0D1017; color: #fff;' : 'color: #6B717F;'"
-                    [class.hover:bg-[#F3F4F6]]="p !== page()">{{ p === -1 ? '...' : p }}</button>
+                    [class.hover:bg-[#F3F4F6]]="p !== page()"
+                  >
+                    {{ p === -1 ? '...' : p }}
+                  </button>
                 }
-                <button (click)="goToPage(page() + 1)" [disabled]="page() >= totalPages()"
-                  class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F4F6] text-[#6B717F]">Siguiente</button>
+                <button
+                  (click)="goToPage(page() + 1)"
+                  [disabled]="page() >= totalPages()"
+                  class="px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#F3F4F6] text-[#6B717F]"
+                >
+                  Siguiente
+                </button>
               </div>
             </div>
           }
         </div>
       }
     </div>
-
   `,
 })
 export class TramitesListComponent {
@@ -260,25 +376,27 @@ export class TramitesListComponent {
 
   loadTramites(): void {
     this.loading.set(true);
-    this.tramiteService.getList({
-      search: this.search() || undefined,
-      estado: this.selectedTab() || undefined,
-      tramitadorId: this.tramitadorFiltro() || undefined,
-      aduanaId: this.aduanaFiltro() || undefined,
-      orderBy: this.sortColumn(),
-      orderDir: this.sortDir(),
-      page: this.page(),
-      pageSize: this.pageSize(),
-    }).subscribe({
-      next: (res) => {
-        this.tramites.set(res.items);
-        this.total.set(res.total);
-        this.page.set(res.page);
-        this.totalPages.set(res.totalPages);
-        this.loading.set(false);
-      },
-      error: () => this.loading.set(false),
-    });
+    this.tramiteService
+      .getList({
+        search: this.search() || undefined,
+        estado: this.selectedTab() || undefined,
+        tramitadorId: this.tramitadorFiltro() || undefined,
+        aduanaId: this.aduanaFiltro() || undefined,
+        orderBy: this.sortColumn(),
+        orderDir: this.sortDir(),
+        page: this.page(),
+        pageSize: this.pageSize(),
+      })
+      .subscribe({
+        next: res => {
+          this.tramites.set(res.items);
+          this.total.set(res.total);
+          this.page.set(res.page);
+          this.totalPages.set(res.totalPages);
+          this.loading.set(false);
+        },
+        error: () => this.loading.set(false),
+      });
   }
 
   onSearch(): void {
@@ -291,7 +409,10 @@ export class TramitesListComponent {
 
   toggleSort(col: string): void {
     if (this.sortColumn() === col) this.sortDir.set(this.sortDir() === 'asc' ? 'desc' : 'asc');
-    else { this.sortColumn.set(col); this.sortDir.set('asc'); }
+    else {
+      this.sortColumn.set(col);
+      this.sortDir.set('asc');
+    }
     this.loadTramites();
   }
 
@@ -323,22 +444,24 @@ export class TramitesListComponent {
   exportarExcel(): void {
     if (this.exportando()) return;
     this.exportando.set(true);
-    this.tramiteService.getList({
-      search: this.search() || undefined,
-      estado: this.selectedTab() || undefined,
-      tramitadorId: this.tramitadorFiltro() || undefined,
-      aduanaId: this.aduanaFiltro() || undefined,
-      orderBy: this.sortColumn(),
-      orderDir: this.sortDir(),
-      page: 1,
-      pageSize: 9999,
-    }).subscribe({
-      next: (res) => {
-        this.excelExport.exportTramitesList(res.items, this.selectedTab() || undefined);
-        this.exportando.set(false);
-      },
-      error: () => this.exportando.set(false),
-    });
+    this.tramiteService
+      .getList({
+        search: this.search() || undefined,
+        estado: this.selectedTab() || undefined,
+        tramitadorId: this.tramitadorFiltro() || undefined,
+        aduanaId: this.aduanaFiltro() || undefined,
+        orderBy: this.sortColumn(),
+        orderDir: this.sortDir(),
+        page: 1,
+        pageSize: 9999,
+      })
+      .subscribe({
+        next: res => {
+          this.excelExport.exportTramitesList(res.items, this.selectedTab() || undefined);
+          this.exportando.set(false);
+        },
+        error: () => this.exportando.set(false),
+      });
   }
 
   estadoPill(estatus: string): string {

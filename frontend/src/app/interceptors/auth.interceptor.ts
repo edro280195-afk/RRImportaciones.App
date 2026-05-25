@@ -23,7 +23,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   }
 
   return next(req).pipe(
-    catchError((err) => {
+    catchError(err => {
       // Solo procesar 401 con token, y nunca en la llamada de refresh misma
       if (!(err instanceof HttpErrorResponse && err.status === 401 && token && !isRefreshCall))
         return throwError(() => err);
@@ -31,17 +31,19 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       // Si ya estamos refrescando, esperar a que termine
       if (isRefreshing) {
         return refreshSubject.pipe(
-          filter((result) => result !== null),
+          filter(result => result !== null),
           take(1),
-          switchMap((success) => {
+          switchMap(success => {
             if (success) {
               const newToken = localStorage.getItem('token');
-              return next(req.clone({
-                setHeaders: { Authorization: `Bearer ${newToken}` },
-              }));
+              return next(
+                req.clone({
+                  setHeaders: { Authorization: `Bearer ${newToken}` },
+                })
+              );
             }
             return throwError(() => err);
-          }),
+          })
         );
       }
 
@@ -64,14 +66,16 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
           }
           return throwError(() => new Error('Sesion expirada'));
         }),
-        switchMap((res) => {
+        switchMap(res => {
           isRefreshing = false;
           refreshSubject.next(true);
-          return next(req.clone({
-            setHeaders: { Authorization: `Bearer ${res.token}` },
-          }));
-        }),
+          return next(
+            req.clone({
+              setHeaders: { Authorization: `Bearer ${res.token}` },
+            })
+          );
+        })
       );
-    }),
+    })
   );
 };

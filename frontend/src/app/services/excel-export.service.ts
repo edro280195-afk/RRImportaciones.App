@@ -12,7 +12,6 @@ import type { CotizacionListDto } from './cotizacion.service';
 
 @Injectable({ providedIn: 'root' })
 export class ExcelExportService {
-
   private readonly MXN = '"$"#,##0.00';
   private readonly NUM = '#,##0';
   private readonly PCT = '0.00"%"';
@@ -30,37 +29,50 @@ export class ExcelExportService {
       [`Generado: ${new Date().toLocaleDateString('es-MX')}`],
       [],
       ['Indicador', 'Valor'],
-      ['Cobrado Total (verificado)',         data.cobradoTotal],
-      ['Por Cobrar',                         data.porCobrarTotal],
-      ['Gastos Hormiga Total',               data.gastosHormigaTotal],
-      ['Gastos Cargables al Cliente',        data.gastosCargablesTotal],
-      ['Margen Bruto',                       data.margenBruto],
-      ['Trámites Cerrados en Período',       data.tramitesCerradosPeriodo],
-      ['Trámites Activos Actualmente',       data.tramitesActivosActual],
-      ['Pagos Pendientes Verificación (qty)',data.pagosPendientesVerificacion],
-      ['Pagos Pendientes Verificación ($)',  data.pagosPendientesVerificacionMonto],
+      ['Cobrado Total (verificado)', data.cobradoTotal],
+      ['Por Cobrar', data.porCobrarTotal],
+      ['Gastos Hormiga Total', data.gastosHormigaTotal],
+      ['Gastos Cargables al Cliente', data.gastosCargablesTotal],
+      ['Margen Bruto', data.margenBruto],
+      ['Trámites Cerrados en Período', data.tramitesCerradosPeriodo],
+      ['Trámites Activos Actualmente', data.tramitesActivosActual],
+      ['Pagos Pendientes Verificación (qty)', data.pagosPendientesVerificacion],
+      ['Pagos Pendientes Verificación ($)', data.pagosPendientesVerificacionMonto],
     ];
     const ws1 = XLSX.utils.aoa_to_sheet(kpis);
     ws1['!cols'] = [{ wch: 38 }, { wch: 22 }];
-    ['B6','B7','B8','B9','B10','B14'].forEach(r => { if (ws1[r]) ws1[r].z = this.MXN; });
+    ['B6', 'B7', 'B8', 'B9', 'B10', 'B14'].forEach(r => {
+      if (ws1[r]) ws1[r].z = this.MXN;
+    });
 
     XLSX.utils.book_append_sheet(wb, ws1, 'Resumen KPIs');
 
     // Hoja 2 — Evolución mensual
     const evHeader = ['Año', 'Mes #', 'Mes', 'Cobrado Verificado'];
-    const evRows   = data.evolucionMensual.map(m => [m.anno, m.mes, m.mesNombre, m.cobradoVerificado]);
+    const evRows = data.evolucionMensual.map(m => [
+      m.anno,
+      m.mes,
+      m.mesNombre,
+      m.cobradoVerificado,
+    ]);
     const ws2 = XLSX.utils.aoa_to_sheet([evHeader, ...evRows]);
     ws2['!cols'] = [{ wch: 8 }, { wch: 8 }, { wch: 16 }, { wch: 24 }];
-    evRows.forEach((_, i) => { const r = `D${i + 2}`; if (ws2[r]) ws2[r].z = this.MXN; });
+    evRows.forEach((_, i) => {
+      const r = `D${i + 2}`;
+      if (ws2[r]) ws2[r].z = this.MXN;
+    });
     XLSX.utils.book_append_sheet(wb, ws2, 'Evolución Mensual');
 
     // Hoja 3 — Gastos por categoría
     if (data.gastosPorCategoria?.length) {
       const gcHeader = ['Categoría', 'Transacciones', 'Total'];
-      const gcRows   = data.gastosPorCategoria.map(c => [c.categoria, c.cantidad, c.total]);
+      const gcRows = data.gastosPorCategoria.map(c => [c.categoria, c.cantidad, c.total]);
       const ws3 = XLSX.utils.aoa_to_sheet([gcHeader, ...gcRows]);
       ws3['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 20 }];
-      gcRows.forEach((_, i) => { const r = `C${i + 2}`; if (ws3[r]) ws3[r].z = this.MXN; });
+      gcRows.forEach((_, i) => {
+        const r = `C${i + 2}`;
+        if (ws3[r]) ws3[r].z = this.MXN;
+      });
       XLSX.utils.book_append_sheet(wb, ws3, 'Gastos Categoría');
     }
 
@@ -91,7 +103,10 @@ export class ExcelExportService {
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = [{ wch: 30 }, { wch: 26 }, { wch: 12 }, { wch: 20 }, { wch: 22 }];
-    data.estados.forEach((_, i) => { const r = `D${i + 7}`; if (ws[r]) ws[r].z = this.MXN; });
+    data.estados.forEach((_, i) => {
+      const r = `D${i + 7}`;
+      if (ws[r]) ws[r].z = this.MXN;
+    });
 
     XLSX.utils.book_append_sheet(wb, ws, 'Pipeline');
     XLSX.writeFile(wb, `RR_Pipeline_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -108,7 +123,14 @@ export class ExcelExportService {
       [`Período: ${this.fmtDate(desde)} al ${this.fmtDate(hasta)}`],
       [`Generado: ${new Date().toLocaleDateString('es-MX')}`],
       [],
-      ['Tramitador', 'Activos', 'Cerrados (período)', 'Cobrado Total', 'Cobrado Verificado', 'Días Prom. Resolución'],
+      [
+        'Tramitador',
+        'Activos',
+        'Cerrados (período)',
+        'Cobrado Total',
+        'Cobrado Verificado',
+        'Días Prom. Resolución',
+      ],
       ...data.tramitadores.map(t => [
         t.nombre,
         t.tramitesActivos,
@@ -122,7 +144,10 @@ export class ExcelExportService {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = [{ wch: 24 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 22 }, { wch: 22 }];
     data.tramitadores.forEach((_, i) => {
-      ['D', 'E'].forEach(col => { const r = `${col}${i + 6}`; if (ws[r]) ws[r].z = this.MXN; });
+      ['D', 'E'].forEach(col => {
+        const r = `${col}${i + 6}`;
+        if (ws[r]) ws[r].z = this.MXN;
+      });
     });
 
     XLSX.utils.book_append_sheet(wb, ws, 'Productividad');
@@ -142,13 +167,15 @@ export class ExcelExportService {
       [],
       ['Indicador', 'Monto'],
       ['Gasto Total del Período', data.totalPeriodo],
-      ['Cargable al Cliente',     data.totalCargableCliente],
-      ['Costo Propio',            data.totalCostoPropio],
+      ['Cargable al Cliente', data.totalCargableCliente],
+      ['Costo Propio', data.totalCostoPropio],
     ];
 
     const ws1 = XLSX.utils.aoa_to_sheet(rows);
     ws1['!cols'] = [{ wch: 30 }, { wch: 20 }];
-    ['B6', 'B7', 'B8'].forEach(r => { if (ws1[r]) ws1[r].z = this.MXN; });
+    ['B6', 'B7', 'B8'].forEach(r => {
+      if (ws1[r]) ws1[r].z = this.MXN;
+    });
     XLSX.utils.book_append_sheet(wb, ws1, 'Resumen');
 
     // Hoja 2 — Por categoría
@@ -156,7 +183,10 @@ export class ExcelExportService {
     const catR = data.porCategoria.map(c => [c.categoria, c.cantidad, c.total]);
     const ws2 = XLSX.utils.aoa_to_sheet([catH, ...catR]);
     ws2['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 18 }];
-    catR.forEach((_, i) => { const r = `C${i + 2}`; if (ws2[r]) ws2[r].z = this.MXN; });
+    catR.forEach((_, i) => {
+      const r = `C${i + 2}`;
+      if (ws2[r]) ws2[r].z = this.MXN;
+    });
     XLSX.utils.book_append_sheet(wb, ws2, 'Por Categoría');
 
     // Hoja 3 — Por cliente
@@ -165,7 +195,10 @@ export class ExcelExportService {
       const cliR = data.porCliente.map(c => [c.cliente, c.cantidad, c.total]);
       const ws3 = XLSX.utils.aoa_to_sheet([cliH, ...cliR]);
       ws3['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 18 }];
-      cliR.forEach((_, i) => { const r = `C${i + 2}`; if (ws3[r]) ws3[r].z = this.MXN; });
+      cliR.forEach((_, i) => {
+        const r = `C${i + 2}`;
+        if (ws3[r]) ws3[r].z = this.MXN;
+      });
       XLSX.utils.book_append_sheet(wb, ws3, 'Por Cliente');
     }
 
@@ -184,12 +217,12 @@ export class ExcelExportService {
       [`Generado: ${new Date().toLocaleDateString('es-MX')}`],
       [],
       ['Indicador', 'Valor'],
-      ['Total Emitidas',                       data.totalEmitidas],
-      ['Aceptadas',                            data.totalAceptadas],
-      ['Rechazadas',                           data.totalRechazadas],
-      ['Expiradas',                            data.totalExpiradas],
-      ['Tasa de Conversión (%)',               +(data.tasaConversionGlobal).toFixed(2)],
-      ['Tiempo Promedio Aceptación (días)',     +(data.tiempoPromedioAceptacionDias ?? 0).toFixed(1)],
+      ['Total Emitidas', data.totalEmitidas],
+      ['Aceptadas', data.totalAceptadas],
+      ['Rechazadas', data.totalRechazadas],
+      ['Expiradas', data.totalExpiradas],
+      ['Tasa de Conversión (%)', +data.tasaConversionGlobal.toFixed(2)],
+      ['Tiempo Promedio Aceptación (días)', +(data.tiempoPromedioAceptacionDias ?? 0).toFixed(1)],
       [],
       ['TOP CLIENTES POR COTIZACIONES'],
       ['Cliente', 'Total Cotizaciones'],
@@ -210,7 +243,17 @@ export class ExcelExportService {
   exportCotizacionesList(cotizaciones: CotizacionListDto[]): void {
     const wb = XLSX.utils.book_new();
 
-    const header = ['Folio', 'Estado', 'Cliente', 'Vehículo', 'Año', 'Total', 'Trámite', 'Fecha Creación', 'Fecha Expiración'];
+    const header = [
+      'Folio',
+      'Estado',
+      'Cliente',
+      'Vehículo',
+      'Año',
+      'Total',
+      'Trámite',
+      'Fecha Creación',
+      'Fecha Expiración',
+    ];
 
     const rows = cotizaciones.map(c => [
       c.folio || '—',
@@ -233,8 +276,15 @@ export class ExcelExportService {
     ]);
 
     ws['!cols'] = [
-      { wch: 14 }, { wch: 12 }, { wch: 22 }, { wch: 22 },
-      { wch: 8 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 8 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 16 },
     ];
 
     rows.forEach((_, i) => {
@@ -260,8 +310,16 @@ export class ExcelExportService {
     const label = filtroEstado ? ` [${filtroEstado}]` : '';
 
     const header = [
-      '#', 'Fecha', 'Cliente', 'Vehículo', 'Aduana', 'Tramitador',
-      'Cobro Total', 'Saldo Pendiente', 'Estado', 'Días en Estado',
+      '#',
+      'Fecha',
+      'Cliente',
+      'Vehículo',
+      'Aduana',
+      'Tramitador',
+      'Cobro Total',
+      'Saldo Pendiente',
+      'Estado',
+      'Días en Estado',
     ];
 
     const rows = tramites.map(t => [
@@ -286,8 +344,16 @@ export class ExcelExportService {
     ]);
 
     ws['!cols'] = [
-      { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 22 },
-      { wch: 16 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 26 }, { wch: 16 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 16 },
+      { wch: 20 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 26 },
+      { wch: 16 },
     ];
 
     // Formato de fecha en columna B (fila 5 en adelante, índice 4)
@@ -312,7 +378,21 @@ export class ExcelExportService {
   private fmtDate(dateStr: string): string {
     if (!dateStr) return '—';
     const [y, m, d] = dateStr.split('-');
-    const meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const meses = [
+      '',
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
+    ];
     return `${d}/${meses[+m]}/${y}`;
   }
 }

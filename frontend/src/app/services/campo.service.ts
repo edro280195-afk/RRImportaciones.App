@@ -32,7 +32,9 @@ export class CampoService {
   private readonly baseUrl = environment.apiUrl + '/api/campo';
 
   getTareas(estatus?: string): Observable<TareaCampoDto[]> {
-    const url = estatus ? `${this.baseUrl}/tareas?estatus=${encodeURIComponent(estatus)}` : `${this.baseUrl}/tareas`;
+    const url = estatus
+      ? `${this.baseUrl}/tareas?estatus=${encodeURIComponent(estatus)}`
+      : `${this.baseUrl}/tareas`;
     return this.http.get<TareaCampoDto[]>(url);
   }
 
@@ -40,21 +42,39 @@ export class CampoService {
     return this.http.get<TareaCampoDto>(`${this.baseUrl}/tareas/${id}`);
   }
 
-  crear(request: { tramiteId: string; personalCampoId?: string | null; tipo: string; ubicacion?: string | null }): Observable<TareaCampoDto> {
+  crear(request: {
+    tramiteId: string;
+    personalCampoId?: string | null;
+    tipo: string;
+    ubicacion?: string | null;
+  }): Observable<TareaCampoDto> {
     return this.http.post<TareaCampoDto>(`${this.baseUrl}/tareas`, request);
   }
 
   tomar(id: string, personalCampoId?: string | null): Observable<TareaCampoDto> {
-    return this.http.post<TareaCampoDto>(`${this.baseUrl}/tareas/${id}/tomar`, { personalCampoId: personalCampoId ?? null });
+    return this.http.post<TareaCampoDto>(`${this.baseUrl}/tareas/${id}/tomar`, {
+      personalCampoId: personalCampoId ?? null,
+    });
   }
 
-  completar(id: string, request: { ubicacion?: string | null; vinConfirmado?: string | null; fotosUrls: string[]; incidencia?: string | null }): Observable<TareaCampoDto> {
+  completar(
+    id: string,
+    request: {
+      ubicacion?: string | null;
+      vinConfirmado?: string | null;
+      fotosUrls: string[];
+      incidencia?: string | null;
+    }
+  ): Observable<TareaCampoDto> {
     return this.http.post<TareaCampoDto>(`${this.baseUrl}/tareas/${id}/completar`, request);
   }
 
   uploadFoto(id: string, file: File): Observable<{ fotoUrl: string; tarea: TareaCampoDto }> {
     const form = new FormData();
     form.append('file', file);
-    return this.http.post<{ fotoUrl: string; tarea: TareaCampoDto }>(`${this.baseUrl}/tareas/${id}/fotos`, form);
+    return this.http.post<{ fotoUrl: string; tarea: TareaCampoDto }>(
+      `${this.baseUrl}/tareas/${id}/fotos`,
+      form
+    );
   }
 }
