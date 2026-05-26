@@ -1,5 +1,5 @@
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { trigger, transition, style, animate } from '@angular/animations';
@@ -420,7 +420,7 @@ interface LoteVehiculoRow {
     ])
   ]
 })
-export class LoteFormComponent implements OnInit {
+export class LoteFormComponent implements OnInit, OnDestroy {
   private loteService = inject(LoteImportacionService);
   private clienteService = inject(ClienteService);
   private aduanaService = inject(AduanaService);
@@ -462,6 +462,7 @@ export class LoteFormComponent implements OnInit {
   scannerOpen = signal(false);
   @ViewChild('scannerVideo') scannerVideo?: ElementRef<HTMLVideoElement>;
   private zxingReader: BrowserMultiFormatReader | null = null;
+  private scanControls: any = null;
   private stream: MediaStream | null = null;
 
   private calcTimer: any = null;
@@ -475,6 +476,10 @@ export class LoteFormComponent implements OnInit {
 
   async ngOnInit() {
     this.checkDraft();
+  }
+
+  ngOnDestroy(): void {
+    this.stopScanner();
   }
 
   async checkDraft() {
@@ -773,11 +778,13 @@ export class LoteFormComponent implements OnInit {
   }
 
   closeScanner(): void {
-    this.scannerOpen.set(false);
     this.stopScanner();
+    this.scannerOpen.set(false);
   }
 
   private async startScanner(): Promise<void> {
+    this.stopScanner();
+
     if (!navigator.mediaDevices?.getUserMedia || !this.scannerVideo) {
       this.notifications.error('Este navegador no soporta acceso a la cámara.');
       this.closeScanner();
@@ -786,7 +793,11 @@ export class LoteFormComponent implements OnInit {
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
       });
       const video = this.scannerVideo.nativeElement;
       video.srcObject = this.stream;
@@ -796,7 +807,8 @@ export class LoteFormComponent implements OnInit {
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_39, BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE]);
       this.zxingReader = new BrowserMultiFormatReader(hints);
       
-      this.zxingReader.decodeFromVideoElement(video, (result: any, error: any) => {
+      this.zxingReader.decodeFromVideoElement(video, (result: any, error: any, controls?: any) => {
+        if (controls) this.scanControls = controls;
         if (result) {
           const text = result.getText();
           const matches = text.match(/[A-HJ-NPR-Z0-9]{17}/gi);
@@ -817,6 +829,11 @@ export class LoteFormComponent implements OnInit {
   }
 
   private stopScanner(): void {
+    this.scanControls?.stop();
+    this.scanControls = null;
+    if (this.scannerVideo?.nativeElement) {
+      this.scannerVideo.nativeElement.srcObject = null;
+    }
     if (this.stream) {
       this.stream.getTracks().forEach(t => t.stop());
       this.stream = null;

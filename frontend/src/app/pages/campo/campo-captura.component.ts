@@ -1602,6 +1602,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   readonly cameraReady = signal(false);
   readonly cameraMode = signal<CameraMode>('photo');
   private zxingReader: BrowserMultiFormatReader | null = null;
+  private scanControls: any = null;
   readonly cameraError = signal('');
   readonly flash = signal(false);
   readonly facingMode = signal<'environment' | 'user'>('environment');
@@ -1831,12 +1832,18 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     }
 
     try {
+      const videoConstraints: MediaTrackConstraints = {
+        facingMode: { ideal: this.facingMode() },
+      };
+      if (this.cameraMode() === 'vin') {
+        videoConstraints.width = { ideal: 640 };
+        videoConstraints.height = { ideal: 480 };
+      } else {
+        videoConstraints.width = { ideal: 1600 };
+        videoConstraints.height = { ideal: 1200 };
+      }
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: this.facingMode() },
-          width: { ideal: 1600 },
-          height: { ideal: 1200 },
-        },
+        video: videoConstraints,
         audio: false,
       });
       const video = this.videoRef?.nativeElement;
@@ -1851,7 +1858,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_39, BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE]);
         this.zxingReader = new BrowserMultiFormatReader(hints);
         
-        this.zxingReader.decodeFromVideoElement(video, (result: any, error: any) => {
+        this.zxingReader.decodeFromVideoElement(video, (result: any, error: any, controls?: any) => {
+          if (controls) this.scanControls = controls;
           if (result) {
             const text = result.getText();
             const matches = text.match(/[A-HJ-NPR-Z0-9]{17}/gi);
@@ -1872,6 +1880,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   }
 
   private stopCamera(): void {
+    this.scanControls?.stop();
+    this.scanControls = null;
     this.stream?.getTracks().forEach(t => t.stop());
     this.stream = null;
     this.cameraReady.set(false);
