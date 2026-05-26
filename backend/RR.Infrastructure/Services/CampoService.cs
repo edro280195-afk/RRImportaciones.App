@@ -32,9 +32,9 @@ public class CampoService : ICampoService
     public async Task<List<TareaCampoDto>> GetTareasAsync(string? EstadoLogistico)
     {
         var query = _db.TareasCampo
-            .Include(t => t.Tramite).ThenInclude(t => t.Cliente)
-            .Include(t => t.Tramite).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Marca)
-            .Include(t => t.Tramite).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Modelo)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Cliente)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Marca)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Modelo)
             .Include(t => t.PersonalCampo)
             .Include(t => t.UsuarioCampo)
             .AsQueryable();
@@ -84,9 +84,52 @@ public class CampoService : ICampoService
         await MoveEstadoIfAllowed(tramite, "FOTOS_SOLICITADAS", "Tarea de campo creada para toma de fotos y validación de unidad.");
         await _db.SaveChangesAsync();
         await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "CREADA");
-        await _realtime.TramiteActualizadoAsync(tarea.TramiteId, "CAMPO_CREADO");
+        await _realtime.TramiteActualizadoAsync(tarea.TramiteId!.Value, "CAMPO_CREADO");
 
         return (await GetById(tarea.Id))!;
+    }
+
+    public async Task<TareaCampoDto> CrearPreInspeccionAsync(CrearPreInspeccionRequest request)
+    {
+        var tarea = new TareaCampo
+        {
+            Id = Guid.NewGuid(),
+            TramiteId = null,
+            Tipo = "PRE_INSPECCION",
+            EstadoLogistico = "ABIERTA",
+            Ubicacion = request.Ubicacion,
+            DescripcionVehiculo = request.DescripcionVehiculo,
+            ClienteNombreLibre = request.ClienteNombreLibre,
+            Incidencia = request.NotasInternas,
+            FechaCreacion = DateTime.UtcNow,
+            CreadoPor = _currentUser.UserId ?? Guid.Empty,
+        };
+
+        _db.TareasCampo.Add(tarea);
+        await _db.SaveChangesAsync();
+        await _realtime.CampoActualizadoAsync(tarea.Id, null, "CREADA");
+
+        return (await GetById(tarea.Id))!;
+    }
+
+    public async Task<TareaCampoDto> VincularTramiteAsync(Guid id, VincularPreInspeccionRequest request)
+    {
+        var tarea = await _db.TareasCampo.FindAsync(id)
+            ?? throw new KeyNotFoundException("Tarea de campo no encontrada");
+
+        if (tarea.Tipo != "PRE_INSPECCION")
+            throw new InvalidOperationException("Solo se pueden vincular pre-inspecciones");
+
+        var tramite = await _db.Tramites.FindAsync(request.TramiteId)
+            ?? throw new KeyNotFoundException("Trámite no encontrado");
+
+        tarea.TramiteId = request.TramiteId;
+        tarea.Tipo = "FOTOS_YARDA";
+        await MoveEstadoIfAllowed(tramite, "FOTOS_SOLICITADAS", "Pre-inspección de campo vinculada al trámite.");
+        await _db.SaveChangesAsync();
+        await _realtime.TramiteActualizadoAsync(request.TramiteId, "CAMPO_CREADO");
+
+        return (await GetById(id))!;
     }
 
     public async Task<TareaCampoDto> TomarAsync(Guid id, TomarTareaCampoRequest request)
@@ -125,20 +168,23 @@ public class CampoService : ICampoService
         tarea.EstadoLogistico = string.IsNullOrWhiteSpace(request.Incidencia) ? "COMPLETADA" : "INCIDENCIA";
         tarea.FechaCompletada = DateTime.UtcNow;
 
-        _db.Eventos.Add(new Evento
+        if (tarea.TramiteId.HasValue)
         {
-            Id = Guid.NewGuid(),
-            TramiteId = tarea.TramiteId,
-            Tipo = "CAMPO",
-            Contenido = tarea.EstadoLogistico == "COMPLETADA"
-                ? "Fotos y validación de unidad completadas en yarda."
-                : $"Incidencia de campo: {request.Incidencia}",
-            FotoUrl = tarea.FotosUrls.FirstOrDefault(),
-            FechaEvento = DateTime.UtcNow,
-            CreadoPor = _currentUser.UserId ?? Guid.Empty,
-        });
+            _db.Eventos.Add(new Evento
+            {
+                Id = Guid.NewGuid(),
+                TramiteId = tarea.TramiteId.Value,
+                Tipo = "CAMPO",
+                Contenido = tarea.EstadoLogistico == "COMPLETADA"
+                    ? "Fotos y validación de unidad completadas en yarda."
+                    : $"Incidencia de campo: {request.Incidencia}",
+                FotoUrl = tarea.FotosUrls.FirstOrDefault(),
+                FechaEvento = DateTime.UtcNow,
+                CreadoPor = _currentUser.UserId ?? Guid.Empty,
+            });
+        }
 
-        if (tarea.EstadoLogistico == "COMPLETADA")
+        if (tarea.EstadoLogistico == "COMPLETADA" && tarea.Tramite != null)
         {
             await MoveEstadoIfAllowed(tarea.Tramite, "FOTOS_RECIBIDAS", "Fotos de yarda recibidas.");
 
@@ -162,7 +208,8 @@ public class CampoService : ICampoService
 
         await _db.SaveChangesAsync();
         await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, tarea.EstadoLogistico);
-        await _realtime.TramiteActualizadoAsync(tarea.TramiteId, "CAMPO_COMPLETADO");
+        if (tarea.TramiteId.HasValue)
+            await _realtime.TramiteActualizadoAsync(tarea.TramiteId.Value, "CAMPO_COMPLETADO");
 
         // ── Notificaciones a admins ────────────────────────────────────────────
         var operadorNombre = BuildUsuarioNombre(tarea.UsuarioCampo)
@@ -170,16 +217,19 @@ public class CampoService : ICampoService
 
         var dto = (await GetById(id))!;
 
-        // SignalR → solo al grupo "admins"
-        _ = _realtime.TareaCampoCompletadaAsync(
-            tarea.Id, tarea.TramiteId,
-            dto.NumeroConsecutivo, dto.VehiculoResumen,
-            tarea.Ubicacion, tarea.VinConfirmado, tarea.Incidencia,
-            tarea.FotosUrls.Length, operadorNombre);
+        // SignalR → solo al grupo "admins" (solo si tiene tramite ligado)
+        if (tarea.TramiteId.HasValue)
+        {
+            _ = _realtime.TareaCampoCompletadaAsync(
+                tarea.Id, tarea.TramiteId.Value,
+                dto.NumeroConsecutivo ?? "PRE-INSPECCION", dto.VehiculoResumen,
+                tarea.Ubicacion, tarea.VinConfirmado, tarea.Incidencia,
+                tarea.FotosUrls.Length, operadorNombre);
+        }
 
         // Email → a todos los usuarios admin del tenant que tengan email
         var appBaseUrl = _configuration["AppBaseUrl"] ?? string.Empty;
-        var tramiteTenantId = tarea.Tramite.TenantId;
+        var tramiteTenantId = tarea.Tramite?.TenantId ?? tarea.TenantId;
         // Avisar por email a usuarios de oficina (los que NO tienen el permiso CAMPO_USAR).
         var admins = await _db.Usuarios
             .Include(u => u.Role)
@@ -197,7 +247,7 @@ public class CampoService : ICampoService
         {
             _ = _email.SendCampoCompletadoAsync(
                 email,
-                dto.NumeroConsecutivo, dto.VehiculoResumen,
+                dto.NumeroConsecutivo ?? "Pre-inspección", dto.VehiculoResumen,
                 tarea.VinConfirmado, tarea.Ubicacion, tarea.Incidencia,
                 tarea.FotosUrls, operadorNombre, appBaseUrl)
                 .ContinueWith(t => { /* silenciar fallo de email */ }, TaskContinuationOptions.OnlyOnFaulted);
@@ -211,9 +261,9 @@ public class CampoService : ICampoService
     private async Task<TareaCampoDto?> GetById(Guid id)
     {
         var tarea = await _db.TareasCampo
-            .Include(t => t.Tramite).ThenInclude(t => t.Cliente)
-            .Include(t => t.Tramite).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Marca)
-            .Include(t => t.Tramite).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Modelo)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Cliente)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Marca)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Modelo)
             .Include(t => t.PersonalCampo)
             .Include(t => t.UsuarioCampo)
             .Where(t => t.Id == id)
@@ -275,11 +325,13 @@ public class CampoService : ICampoService
         {
             Id = t.Id,
             TramiteId = t.TramiteId,
-            NumeroConsecutivo = t.Tramite.NumeroConsecutivo,
-            ClienteNombre = t.Tramite.Cliente != null ? FirstNotEmpty(t.Tramite.Cliente.NombreCompleto, t.Tramite.Cliente.Nombre, t.Tramite.Cliente.Apodo) : null,
-            VehiculoResumen = BuildVehiculoResumen(t.Tramite),
-            Vin = t.Tramite.Vehiculo?.Vin,
-            VinCorto = t.Tramite.Vehiculo?.VinCorto,
+            NumeroConsecutivo = t.Tramite?.NumeroConsecutivo,
+            ClienteNombre = t.Tramite?.Cliente != null ? FirstNotEmpty(t.Tramite.Cliente.NombreCompleto, t.Tramite.Cliente.Nombre, t.Tramite.Cliente.Apodo) : null,
+            VehiculoResumen = t.Tramite != null ? BuildVehiculoResumen(t.Tramite) : (t.DescripcionVehiculo ?? "Pre-inspección"),
+            DescripcionVehiculo = t.DescripcionVehiculo,
+            ClienteNombreLibre = t.ClienteNombreLibre,
+            Vin = t.Tramite?.Vehiculo?.Vin,
+            VinCorto = t.Tramite?.Vehiculo?.VinCorto,
             Tipo = t.Tipo,
             Estatus = t.EstadoLogistico,
             PersonalCampoId = t.TomadaPorUsuarioId ?? t.PersonalCampoId,

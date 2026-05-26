@@ -2,7 +2,7 @@ namespace RR.Application.Interfaces;
 
 public interface IRealtimeNotifier
 {
-    Task CampoActualizadoAsync(Guid tareaCampoId, Guid tramiteId, string accion, CancellationToken cancellationToken = default);
+    Task CampoActualizadoAsync(Guid tareaCampoId, Guid? tramiteId, string accion, CancellationToken cancellationToken = default);
     Task TramiteActualizadoAsync(Guid tramiteId, string accion, CancellationToken cancellationToken = default);
 
     /// <summary>Notifica a los admins conectados que una tarea de campo fue completada.</summary>

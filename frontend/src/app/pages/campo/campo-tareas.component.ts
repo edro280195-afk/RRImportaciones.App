@@ -149,7 +149,10 @@ import { RealtimeService } from '../../services/realtime.service';
             >
               <div class="task-content">
                 <div class="task-top">
-                  <span class="task-folio">{{ t.numeroConsecutivo }}</span>
+                  <span class="task-folio">{{ t.numeroConsecutivo ?? 'PRE-INSP' }}</span>
+                  @if (esPreInspeccion(t)) {
+                    <span class="task-badge-preinsp">Pre-inspección</span>
+                  }
                   <span
                     class="task-status-chip chip-{{ (t.estatus || 'abierta').toLowerCase() }}"
                     >{{ estadoLabel(t.estatus || '') }}</span
@@ -660,6 +663,16 @@ import { RealtimeService } from '../../services/realtime.service';
         background: #f3f4f6;
         color: var(--text-3);
       }
+      .task-badge-preinsp {
+        font-size: 9px;
+        font-weight: 800;
+        border-radius: 6px;
+        padding: 2px 7px;
+        background: #ede9fe;
+        color: #7c3aed;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
 
       .task-vehicle {
         font-size: clamp(16px, 4.5vw, 20px);
@@ -915,6 +928,8 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
     { label: 'Incidencias', value: 'INCIDENCIA' },
     { label: 'Completadas', value: 'COMPLETADA' },
   ];
+
+  esPreInspeccion = (t: TareaCampoDto) => t.tipo === 'PRE_INSPECCION';
 
   userName = computed(() => this.authService.user()?.nombre || '');
 

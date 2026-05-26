@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using ClosedXML.Excel;
@@ -212,7 +213,11 @@ static async Task<int> ImportAnexo2Async(string[] args)
                 continue;
             }
 
-            var modelText = ExtractPdfModelText(line);
+            var isGeneric = IsGenericPriceLine(line);
+            var modelText = isGeneric
+                ? GenericModelText(currentInciso)
+                : ExtractPdfModelText(line);
+
             if (string.IsNullOrWhiteSpace(modelText))
             {
                 skippedRows++;
@@ -226,7 +231,6 @@ static async Task<int> ImportAnexo2Async(string[] args)
                 continue;
             }
 
-            var isGeneric = modelText.Contains("PRECIOS ESTIMADOS APLICABLES", StringComparison.OrdinalIgnoreCase);
             var brandText = isGeneric ? "GENERICO" : currentBrand;
             var marca = isGeneric || string.IsNullOrWhiteSpace(brandText) ? null : GetOrCreateMarcaCached(db, marcaCache, brandText);
             var categoria = string.IsNullOrWhiteSpace(currentCategoria) ? CategoriaFromFraccion(currentFraccion) : currentCategoria;
@@ -619,9 +623,11 @@ static List<PdfLine> BuildPdfLines(Page page, HashSet<string> knownBrands)
             continue;
         }
 
-        var upper = index > 0 && IsDescriptionContinuation(rawLines[index - 1], knownBrands) ? rawLines[index - 1] : null;
+        var genericUpperLines = CollectGenericUpperLines(rawLines, index);
+        var isGenericRow = genericUpperLines.Count > 0 || IsGenericLegalLine(line);
+        var upper = !isGenericRow && index > 0 && IsDescriptionContinuation(rawLines[index - 1], knownBrands) ? rawLines[index - 1] : null;
         var lowerLines = new List<PdfLine>();
-        for (var next = index + 1; next < rawLines.Count && lowerLines.Count < 4; next++)
+        for (var next = index + 1; !isGenericRow && next < rawLines.Count && lowerLines.Count < 4; next++)
         {
             if (!IsDescriptionContinuation(rawLines[next], knownBrands))
                 break;
@@ -629,6 +635,8 @@ static List<PdfLine> BuildPdfLines(Page page, HashSet<string> knownBrands)
         }
 
         var words = new List<Word>();
+        foreach (var genericUpper in genericUpperLines)
+            words.AddRange(genericUpper.Words);
         if (upper is not null)
             words.AddRange(upper.Words);
         words.AddRange(line.Words);
@@ -641,6 +649,47 @@ static List<PdfLine> BuildPdfLines(Page page, HashSet<string> knownBrands)
     return rowLines;
 }
 
+static List<PdfLine> CollectGenericUpperLines(List<PdfLine> rawLines, int pzaLineIndex)
+{
+    var result = new List<PdfLine>();
+    for (var previous = pzaLineIndex - 1; previous >= 0 && result.Count < 5; previous--)
+    {
+        var line = rawLines[previous];
+        if (line.Words.Any(w => w.Text.Equals("Pza", StringComparison.OrdinalIgnoreCase)))
+            break;
+
+        if (!IsGenericLegalLine(line))
+            break;
+
+        result.Add(line);
+    }
+
+    result.Reverse();
+    return result;
+}
+
+static bool IsGenericPriceLine(PdfLine line)
+{
+    return IsGenericLegalLine(line);
+}
+
+static bool IsGenericLegalLine(PdfLine line)
+{
+    var normalized = NormalizeForSearch(PdfLineText(line));
+    return normalized.Contains("PRECIOSESTIMADOS") ||
+           normalized.Contains("VEHICULOSENCUYOANOMODELO") ||
+           (normalized.Contains("NOLISTADOS") && normalized.Contains("FRACCION"));
+}
+
+static string GenericModelText(string? inciso)
+{
+    var scope = string.IsNullOrWhiteSpace(inciso)
+        ? "ESTA FRACCION ARANCELARIA"
+        : $"EL INCISO {inciso} DE ESTA FRACCION ARANCELARIA";
+
+    return $"PRECIOS ESTIMADOS APLICABLES A VEHICULOS EN CUYO ANO-MODELO NO SE ESTABLECE DICHO PRECIO, ASI COMO PARA OTROS MODELOS Y MARCAS DE VEHICULOS NO LISTADOS EN {scope}";
+}
+
 // Una línea cualifica como "continuación de la descripción del modelo" sólo si:
 //   1. No contiene "Pza" (no es otra fila Pza)
 //   2. Tiene palabras en x [140, 205] (zona de descripción)
@@ -650,6 +699,9 @@ static List<PdfLine> BuildPdfLines(Page page, HashSet<string> knownBrands)
 static bool IsDescriptionContinuation(PdfLine line, HashSet<string> knownBrands)
 {
     if (line.Words.Any(w => w.Text.Equals("Pza", StringComparison.OrdinalIgnoreCase)))
+        return false;
+
+    if (IsGenericLegalLine(line))
         return false;
 
     var descriptionWords = line.Words
@@ -795,11 +847,23 @@ static string CategoriaFromFraccion(string fraccion)
 
 static string NormalizeForSearch(string value)
 {
-    var normalized = value
+    var repaired = value
         .Replace("Á", "A").Replace("É", "E").Replace("Í", "I").Replace("Ó", "O").Replace("Ú", "U")
         .Replace("Ü", "U").Replace("Ñ", "N")
         .ToUpperInvariant();
-    return new string(normalized.Where(char.IsLetterOrDigit).ToArray());
+
+    var decomposed = repaired.Normalize(NormalizationForm.FormD);
+    var builder = new StringBuilder(decomposed.Length);
+    foreach (var ch in decomposed)
+    {
+        if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark)
+            continue;
+
+        if (char.IsLetterOrDigit(ch))
+            builder.Append(ch);
+    }
+
+    return builder.ToString();
 }
 
 static string? ReadArg(string[] args, string name)

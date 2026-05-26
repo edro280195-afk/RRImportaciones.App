@@ -57,6 +57,7 @@ public class AppDbContext : DbContext
     public DbSet<LoteImportacion> LotesImportacion => Set<LoteImportacion>();
     public DbSet<ConversacionNexus> ConversacionesNexus => Set<ConversacionNexus>();
     public DbSet<MensajeNexus> MensajesNexus => Set<MensajeNexus>();
+    public DbSet<TareaEntrega> TareasEntrega => Set<TareaEntrega>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -332,11 +333,30 @@ public class AppDbContext : DbContext
             e.Property(x => x.VinConfirmado).HasMaxLength(17);
             e.Property(x => x.FotosUrls).HasColumnType("text[]");
             e.Property(x => x.Incidencia).HasMaxLength(700);
+            e.Property(x => x.DescripcionVehiculo).HasMaxLength(300);
+            e.Property(x => x.ClienteNombreLibre).HasMaxLength(200);
             e.HasIndex(x => new { x.TramiteId, x.EstadoLogistico });
             e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
-            e.HasOne(x => x.Tramite).WithMany(t => t.TareasCampo).HasForeignKey(x => x.TramiteId);
+            e.HasOne(x => x.Tramite).WithMany(t => t.TareasCampo).HasForeignKey(x => x.TramiteId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.PersonalCampo).WithMany().HasForeignKey(x => x.PersonalCampoId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.UsuarioCampo).WithMany().HasForeignKey(x => x.TomadaPorUsuarioId).OnDelete(DeleteBehavior.SetNull);
+            e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
+        });
+
+        modelBuilder.Entity<TareaEntrega>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Estado).HasMaxLength(30).HasDefaultValue("PENDIENTE");
+            e.Property(x => x.FotosUrls).HasColumnType("text[]");
+            e.Property(x => x.UbicacionEntrega).HasMaxLength(300);
+            e.Property(x => x.NombreRecibe).HasMaxLength(200);
+            e.Property(x => x.FirmaBase64).HasColumnType("text");
+            e.Property(x => x.Incidencia).HasMaxLength(700);
+            e.Property(x => x.NotasChofer).HasMaxLength(500);
+            e.HasIndex(x => new { x.TramiteId, x.Estado });
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.Tramite).WithMany().HasForeignKey(x => x.TramiteId);
+            e.HasOne(x => x.Chofer).WithMany().HasForeignKey(x => x.ChoferUserId).OnDelete(DeleteBehavior.SetNull);
             e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
         });
 

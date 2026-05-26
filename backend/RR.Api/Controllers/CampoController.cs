@@ -49,6 +49,29 @@ public class CampoController : ControllerBase
         }
     }
 
+    [HttpPost("pre-inspecciones")]
+    public async Task<IActionResult> CrearPreInspeccion([FromBody] CrearPreInspeccionRequest request)
+    {
+        return Ok(await _campoService.CrearPreInspeccionAsync(request));
+    }
+
+    [HttpPost("tareas/{id:guid}/vincular")]
+    public async Task<IActionResult> VincularTramite(Guid id, [FromBody] VincularPreInspeccionRequest request)
+    {
+        try
+        {
+            return Ok(await _campoService.VincularTramiteAsync(id, request));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("tareas/{id:guid}/tomar")]
     public async Task<IActionResult> Tomar(Guid id, [FromBody] TomarTareaCampoRequest request)
     {

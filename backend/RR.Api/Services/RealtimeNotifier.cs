@@ -13,7 +13,7 @@ public class RealtimeNotifier : IRealtimeNotifier
         _hub = hub;
     }
 
-    public Task CampoActualizadoAsync(Guid tareaCampoId, Guid tramiteId, string accion, CancellationToken cancellationToken = default)
+    public Task CampoActualizadoAsync(Guid tareaCampoId, Guid? tramiteId, string accion, CancellationToken cancellationToken = default)
     {
         return _hub.Clients.All.SendAsync("campoActualizado", new
         {

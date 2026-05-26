@@ -103,7 +103,7 @@ public partial class CotizadorService : ICotizadorService
             }
             else
             {
-                precioLookup = await FindPrecioEstimadoAsync(clasificacion.Fraccion, resolved.MarcaId, resolved.Modelo, resolved.Anno.Value, resolved.EngineCylinders, clasificacion.Categoria);
+                precioLookup = await FindPrecioEstimadoAsync(clasificacion.Fraccion, resolved.MarcaId, resolved.Marca, resolved.Modelo, resolved.Anno.Value, resolved.EngineCylinders, clasificacion.Categoria);
                 valorUsd = precioLookup?.PrecioUsd;
 
                 if (precioLookup?.FraccionUsada is { } fraccionCatalogo && fraccionCatalogo != clasificacion.Fraccion)
@@ -149,9 +149,6 @@ public partial class CotizadorService : ICotizadorService
 
         var clasificacion = DetermineFraccion(resolved.CilindradaCm3, input.TipoVehiculo, resolved.VehicleType, resolved.BodyClass, resolved.FuelType);
         var antiguedad = Math.Clamp(DateTime.Today.Year - resolved.Anno.Value, 1, 12);
-        var normalizedModel = Normalize(resolved.Modelo ?? "");
-        var normalizedMarca = Normalize(resolved.Marca ?? "");
-
         var fraccionesABuscar = _fraccionesGasolina.Contains(clasificacion.Fraccion)
             ? _fraccionesGasolina
             : new[] { clasificacion.Fraccion };
@@ -172,26 +169,14 @@ public partial class CotizadorService : ICotizadorService
 
         // Filtro suave por marca: incluye entradas con MarcaId que coincide O con MarcaTexto normalizado que coincide.
         // Esto recupera filas que el importador no logró ligar a una Marca (MarcaId=null) pero que sí traen el nombre correcto.
-        bool MarcaMatches(PrecioEstimado x)
-        {
-            if (!resolved.MarcaId.HasValue && string.IsNullOrWhiteSpace(normalizedMarca))
-                return true;
-
-            if (resolved.MarcaId.HasValue && x.MarcaId == resolved.MarcaId)
-                return true;
-
-            if (!string.IsNullOrWhiteSpace(normalizedMarca) && Normalize(x.MarcaTexto) == normalizedMarca)
-                return true;
-
-            return false;
-        }
+        bool MarcaMatches(PrecioEstimado x) => CotizadorService.MarcaMatches(x, resolved.MarcaId, resolved.Marca);
 
         // === Específicos ===
         var scored = precios
             .Where(x => !x.EsGenerico && MarcaMatches(x))
             .Select(x =>
             {
-                var score = ScoreModelMatch(normalizedModel, x.Modelo, resolved.EngineCylinders, clasificacion.Categoria);
+                var score = ScoreModelMatch(resolved.Modelo ?? "", x.Modelo, resolved.EngineCylinders, clasificacion.Categoria);
                 var price = x.PreciosPorAntiguedad
                     .OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad))
                     .ThenByDescending(p => p.AntiguedadAnios)

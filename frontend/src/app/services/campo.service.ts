@@ -4,10 +4,12 @@ import { Observable } from 'rxjs';
 
 export interface TareaCampoDto {
   id: string;
-  tramiteId: string;
-  numeroConsecutivo: string;
+  tramiteId: string | null;
+  numeroConsecutivo: string | null;
   clienteNombre: string | null;
   vehiculoResumen: string;
+  descripcionVehiculo: string | null;
+  clienteNombreLibre: string | null;
   vin: string | null;
   vinCorto: string | null;
   tipo: string;
@@ -49,6 +51,19 @@ export class CampoService {
     ubicacion?: string | null;
   }): Observable<TareaCampoDto> {
     return this.http.post<TareaCampoDto>(`${this.baseUrl}/tareas`, request);
+  }
+
+  crearPreInspeccion(request: {
+    descripcionVehiculo: string;
+    clienteNombreLibre?: string | null;
+    ubicacion?: string | null;
+    notasInternas?: string | null;
+  }): Observable<TareaCampoDto> {
+    return this.http.post<TareaCampoDto>(`${this.baseUrl}/pre-inspecciones`, request);
+  }
+
+  vincularTramite(id: string, tramiteId: string): Observable<TareaCampoDto> {
+    return this.http.post<TareaCampoDto>(`${this.baseUrl}/tareas/${id}/vincular`, { tramiteId });
   }
 
   tomar(id: string, personalCampoId?: string | null): Observable<TareaCampoDto> {

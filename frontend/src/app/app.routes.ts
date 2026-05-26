@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
 import { permissionGuard, adminGuard, duenoGuard } from './guards/permission.guard';
 import { campoAuthGuard } from './guards/campo-auth.guard';
+import { entregaAuthGuard } from './guards/entrega-auth.guard';
 import { AppLayoutComponent } from './layout/app-layout/app-layout.component';
 import { ModoDonLayoutComponent } from './layout/modo-don-layout/modo-don-layout.component';
 import { LoginComponent } from './pages/login/login.component';
@@ -59,6 +60,25 @@ export const routes: Routes = [
     canActivate: [campoAuthGuard],
     loadComponent: () =>
       import('./pages/campo/campo-tareas.component').then(m => m.CampoTareasComponent),
+  },
+
+  // ── Módulo entrega choferes (standalone, sin AppLayout ni sidebar) ───────────
+  {
+    path: 'entrega/pin',
+    loadComponent: () =>
+      import('./pages/entrega/entrega-pin.component').then(m => m.EntregaPinComponent),
+  },
+  {
+    path: 'entrega/:id/captura',
+    canActivate: [entregaAuthGuard],
+    loadComponent: () =>
+      import('./pages/entrega/entrega-captura.component').then(m => m.EntregaCapturaComponent),
+  },
+  {
+    path: 'entrega',
+    canActivate: [entregaAuthGuard],
+    loadComponent: () =>
+      import('./pages/entrega/entrega-tareas.component').then(m => m.EntregaTareasComponent),
   },
 
   // ── App principal (con sidebar AppLayout) ─────────────────────────────────

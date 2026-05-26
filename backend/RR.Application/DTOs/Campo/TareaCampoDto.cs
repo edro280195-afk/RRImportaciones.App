@@ -3,10 +3,12 @@ namespace RR.Application.DTOs.Campo;
 public class TareaCampoDto
 {
     public Guid Id { get; set; }
-    public Guid TramiteId { get; set; }
-    public string NumeroConsecutivo { get; set; } = string.Empty;
+    public Guid? TramiteId { get; set; }
+    public string? NumeroConsecutivo { get; set; }
     public string? ClienteNombre { get; set; }
     public string VehiculoResumen { get; set; } = string.Empty;
+    public string? DescripcionVehiculo { get; set; }
+    public string? ClienteNombreLibre { get; set; }
     public string? Vin { get; set; }
     public string? VinCorto { get; set; }
     public string Tipo { get; set; } = "FOTOS_YARDA";
@@ -33,6 +35,14 @@ public class CrearTareaCampoRequest
     public string? Ubicacion { get; set; }
 }
 
+public class CrearPreInspeccionRequest
+{
+    public string DescripcionVehiculo { get; set; } = string.Empty;
+    public string? ClienteNombreLibre { get; set; }
+    public string? Ubicacion { get; set; }
+    public string? NotasInternas { get; set; }
+}
+
 public class TomarTareaCampoRequest
 {
     [Obsolete("Campo ahora usa el usuario autenticado. Mantener solo por compatibilidad con clientes antiguos.")]
@@ -45,4 +55,9 @@ public class CompletarTareaCampoRequest
     public string? VinConfirmado { get; set; }
     public string[] FotosUrls { get; set; } = [];
     public string? Incidencia { get; set; }
+}
+
+public class VincularPreInspeccionRequest
+{
+    public Guid TramiteId { get; set; }
 }

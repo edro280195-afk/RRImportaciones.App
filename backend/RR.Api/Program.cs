@@ -109,6 +109,7 @@ builder.Services.AddScoped<IWhatsAppCotizacionService, WhatsAppCotizacionService
 builder.Services.AddScoped<IWhatsAppLoteService, WhatsAppLoteService>();
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
 builder.Services.AddScoped<ICampoService, CampoService>();
+builder.Services.AddScoped<IEntregaTaskService, EntregaTaskService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IReporteService, ReporteService>();
 builder.Services.AddScoped<IPedimentoService, PedimentoService>();

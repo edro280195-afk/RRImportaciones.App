@@ -45,12 +45,26 @@ public partial class CotizadorService
             m.Aliases.Any(a => Normalize(a) == normalized));
     }
 
+    private static bool MarcaMatches(PrecioEstimado precio, Guid? marcaId, string? marcaTexto)
+    {
+        var normalizedMarca = Normalize(marcaTexto ?? "");
+        if (!marcaId.HasValue && string.IsNullOrWhiteSpace(normalizedMarca))
+            return true;
+
+        if (marcaId.HasValue && precio.MarcaId == marcaId)
+            return true;
+
+        return !string.IsNullOrWhiteSpace(normalizedMarca)
+            && Normalize(precio.MarcaTexto) == normalizedMarca;
+    }
+
     private static readonly string[] _fraccionesGasolina = ["8703.22.02", "8703.23.02", "8703.24.02"];
 
-    private async Task<PriceLookupResult?> FindPrecioEstimadoAsync(string fraccionPrimaria, Guid? marcaId, string? modelo, int anno, int? engineCylinders, string categoria)
+    private async Task<PriceLookupResult?> FindPrecioEstimadoAsync(string fraccionPrimaria, Guid? marcaId, string? marcaTexto, string? modelo, int anno, int? engineCylinders, string categoria)
     {
         var antiguedad = Math.Clamp(DateTime.Today.Year - anno, 1, 12);
-        var normalizedModel = Normalize(modelo ?? "");
+        var hasModel = !string.IsNullOrWhiteSpace(modelo);
+        var hasMarca = marcaId.HasValue || !string.IsNullOrWhiteSpace(marcaTexto);
 
         var fraccionesABuscar = _fraccionesGasolina.Contains(fraccionPrimaria)
             ? _fraccionesGasolina
@@ -72,9 +86,9 @@ public partial class CotizadorService
             .ToListAsync();
 
         var candidates = precios
-            .Where(x => !x.EsGenerico && (!marcaId.HasValue || x.MarcaId == marcaId))
-            .Select(x => new { Precio = x, Score = ScoreModelMatch(normalizedModel, x.Modelo, engineCylinders, categoria) })
-            .Where(x => normalizedModel.Length == 0 || x.Score > 0)
+            .Where(x => !x.EsGenerico && MarcaMatches(x, marcaId, marcaTexto))
+            .Select(x => new { Precio = x, Score = ScoreModelMatch(modelo ?? "", x.Modelo, engineCylinders, categoria) })
+            .Where(x => !hasModel || x.Score > 0)
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.Precio.PreciosPorAntiguedad.OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad)).First().PrecioUsd)
             .ToList();
@@ -103,14 +117,16 @@ public partial class CotizadorService
         }
 
         var preciosPrimaria = precios.Where(x => x.FraccionId == fraccionEntities.FirstOrDefault(f => f.Fraccion == fraccionPrimaria)?.Id).ToList();
-        var brandFallback = preciosPrimaria
-            .Where(x => !x.EsGenerico && marcaId.HasValue && x.MarcaId == marcaId)
-            .OrderByDescending(x => x.PreciosPorAntiguedad.OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad)).First().PrecioUsd)
-            .FirstOrDefault()
-            ?? precios
-            .Where(x => !x.EsGenerico && marcaId.HasValue && x.MarcaId == marcaId)
-            .OrderByDescending(x => x.PreciosPorAntiguedad.OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad)).First().PrecioUsd)
-            .FirstOrDefault();
+        var brandFallback = hasMarca
+            ? preciosPrimaria
+                .Where(x => !x.EsGenerico && MarcaMatches(x, marcaId, marcaTexto))
+                .OrderByDescending(x => x.PreciosPorAntiguedad.OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad)).First().PrecioUsd)
+                .FirstOrDefault()
+                ?? precios
+                    .Where(x => !x.EsGenerico && MarcaMatches(x, marcaId, marcaTexto))
+                    .OrderByDescending(x => x.PreciosPorAntiguedad.OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad)).First().PrecioUsd)
+                    .FirstOrDefault()
+            : null;
 
         if (brandFallback is not null)
             return BuildPriceLookup(brandFallback, antiguedad, "MARCA", 20, "No hubo match de modelo; se usó referencia de la misma marca.");
@@ -182,30 +198,42 @@ public partial class CotizadorService
         };
     }
 
-    private static int ScoreModelMatch(string normalizedInput, string candidate, int? engineCylinders, string categoria)
+    private static int ScoreModelMatch(string input, string candidate, int? engineCylinders, string categoria)
     {
-        if (string.IsNullOrWhiteSpace(normalizedInput))
+        if (string.IsNullOrWhiteSpace(input))
             return 1;
 
+        var normalizedInput = Normalize(input);
         var normalizedCandidate = Normalize(candidate);
         if (string.IsNullOrWhiteSpace(normalizedCandidate))
             return 0;
 
+        var fuzzyInput = NormalizeModelForMatch(input);
+        var fuzzyCandidate = NormalizeModelForMatch(candidate);
         var score = 0;
-        if (normalizedCandidate == normalizedInput)
+        if (normalizedCandidate == normalizedInput || fuzzyCandidate == fuzzyInput)
             score = 100;
-        else if (normalizedCandidate.Contains(normalizedInput) || normalizedInput.Contains(normalizedCandidate))
+        else if (normalizedCandidate.Contains(normalizedInput) ||
+                 normalizedInput.Contains(normalizedCandidate) ||
+                 fuzzyCandidate.Contains(fuzzyInput) ||
+                 fuzzyInput.Contains(fuzzyCandidate))
             score = 80;
 
         var inputNumbers = ExtractNumberGroups(normalizedInput);
-        var candidateNumbers = ExtractNumberGroups(candidate);
+        var candidateNumbers = ExtractNumberGroups(normalizedCandidate);
         if (score == 0 && inputNumbers.Any(n => n.Length >= 3 && (candidateNumbers.Contains(n) || normalizedCandidate.Contains(n))))
             score = 70;
 
-        var inputTokens = ExtractAlphaNumericTokens(normalizedInput);
+        var inputTokens = ExtractAlphaNumericTokens(input);
         var candidateTokens = ExtractAlphaNumericTokens(candidate);
-        if (score == 0 && inputTokens.Any(t => t.Length >= 3 && candidateTokens.Contains(t)))
+        var fuzzyInputTokens = ExtractModelTokens(input);
+        var fuzzyCandidateTokens = ExtractModelTokens(candidate);
+        if (score == 0 && (
+            inputTokens.Any(t => t.Length >= 3 && candidateTokens.Contains(t)) ||
+            fuzzyInputTokens.Any(t => t.Length >= 3 && fuzzyCandidateTokens.Contains(t))))
+        {
             score = 50;
+        }
 
         if (score == 0)
             return 0;
@@ -213,11 +241,11 @@ public partial class CotizadorService
         // Boost cuando todos los tokens significativos (3+ chars) del input están en el candidate.
         // Ej. "Grand Cherokee" → tokens {GRAND, CHEROKEE} ambos en "GRAND CHEROKEE-6 CYL." → +10.
         // Sube los matches multi-palabra correctos por encima de matches accidentales por una sola palabra.
-        var meaningfulInputTokens = inputTokens.Where(t => t.Length >= 3).ToList();
-        if (meaningfulInputTokens.Count >= 2 && meaningfulInputTokens.All(t => candidateTokens.Contains(t) || normalizedCandidate.Contains(t)))
+        var meaningfulInputTokens = fuzzyInputTokens.Where(t => t.Length >= 3).ToList();
+        if (meaningfulInputTokens.Count >= 2 && meaningfulInputTokens.All(t => fuzzyCandidateTokens.Contains(t) || fuzzyCandidate.Contains(t)))
             score += 10;
 
-        var candidateForSearch = Normalize(candidate);
+        var candidateForSearch = fuzzyCandidate;
         if (categoria.Equals("PICKUP", StringComparison.OrdinalIgnoreCase) && candidateForSearch.Contains("PICKUP"))
             score += 20;
 
@@ -244,6 +272,24 @@ public partial class CotizadorService
         }
 
         return Math.Max(0, score);
+    }
+
+    private static string NormalizeModelForMatch(string value)
+    {
+        return Normalize(value).Replace('0', 'O');
+    }
+
+    private static HashSet<string> ExtractModelTokens(string value)
+    {
+        var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var token in value.Split(new[] { '/', '-', ' ', '_' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var normalized = NormalizeModelForMatch(token);
+            if (!string.IsNullOrWhiteSpace(normalized))
+                tokens.Add(normalized);
+        }
+
+        return tokens;
     }
 
     private static HashSet<string> ExtractNumberGroups(string value)
