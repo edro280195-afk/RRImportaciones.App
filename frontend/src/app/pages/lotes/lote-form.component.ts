@@ -375,8 +375,8 @@ interface LoteVehiculoRow {
         <div class="relative flex-1">
           <video #scannerVideo autoplay playsinline muted class="h-full w-full object-cover"></video>
           <div class="absolute inset-0 border-[40px] border-black/40"></div>
-          <div class="absolute inset-x-8 inset-y-32 rounded-lg border-2 border-[#16A34A] shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
-            <div class="absolute left-0 right-0 top-1/2 h-0.5 -translate-y-1/2 bg-[#ef4444] shadow-[0_0_8px_#ef4444]" style="animation: scan 2s infinite linear alternate;"></div>
+          <div class="scanner-vf absolute inset-x-8 inset-y-32 rounded-lg border-2 border-[#16A34A] shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+            <div class="scanner-scanline absolute left-0 right-0 top-1/2 h-0.5 -translate-y-1/2 bg-[#ef4444] shadow-[0_0_8px_#ef4444]" style="animation: scan 2s infinite linear alternate;"></div>
             <p class="absolute -bottom-8 left-0 right-0 text-center text-[13px] font-bold text-white shadow-black drop-shadow-md">Enfoca el código de barras</p>
           </div>
         </div>
@@ -388,6 +388,21 @@ interface LoteVehiculoRow {
     @keyframes scan {
       0% { transform: translateY(-40px); }
       100% { transform: translateY(40px); }
+    }
+    @media (orientation: landscape) and (max-height: 520px) {
+      .scanner-vf {
+        left: 12px !important;
+        right: 12px !important;
+        top: 76px !important;
+        bottom: 76px !important;
+      }
+      .scanner-scanline {
+        animation: scan-ls 2s infinite linear alternate;
+      }
+    }
+    @keyframes scan-ls {
+      0% { transform: translateY(-34px); }
+      100% { transform: translateY(34px); }
     }
     `,
     `

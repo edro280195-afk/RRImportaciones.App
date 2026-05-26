@@ -1579,6 +1579,20 @@ const MIN_PHOTOS = 3;
           border-radius: var(--radius-md) var(--radius-md) 0 0;
         }
       }
+
+      @media (orientation: landscape) and (max-height: 520px) {
+        .cam-guide--vin {
+          width: min(80vw, 500px) !important;
+          height: 110px !important;
+        }
+        .scan-line {
+          animation: scan-ls 2s infinite linear alternate;
+        }
+      }
+      @keyframes scan-ls {
+        0% { transform: translateY(-38px); }
+        100% { transform: translateY(38px); }
+      }
     `,
   ],
 })
