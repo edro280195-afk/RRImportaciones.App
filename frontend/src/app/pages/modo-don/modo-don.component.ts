@@ -8,6 +8,7 @@ import {
   OnInit,
   OnDestroy,
   AfterViewChecked,
+  HostListener,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
@@ -73,132 +74,122 @@ interface QuickCard {
           </p>
         </div>
 
-        <!-- Botón Historial lateral -->
-        <button
-          id="btn-historial-v2"
-          (click)="showConversacionesDrawer.set(true)"
-          title="Ver historial de chats"
-          class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white"
-        >
-          <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-          </svg>
-        </button>
-
-        <!-- Toggle Alertas Proactivas -->
-        <button
-          id="btn-alertas"
-          (click)="toggleProactiveAlerts()"
-          [title]="proactiveAlertsEnabled() ? 'Silenciar alertas proactivas' : 'Activar alertas proactivas'"
-          class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
-        >
-          @if (proactiveAlertsEnabled()) {
-            <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4 text-green-400">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a9.04 9.04 0 0 1-5.714 0M3.14 9.486M12 18.75A9.75 9.75 0 0 1 2.25 9c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75a9.75 9.75 0 0 1-9.75 9.75Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a9.04 9.04 0 0 1-5.714 0M3.14 9.486a4.5 4.5 0 0 0-4.494 4.494v3.743a1.5 1.5 0 0 0 .586 1.185c.5.383 1.118.6 1.761.6H17.25c.643 0 1.261-.217 1.761-.6a1.5 1.5 0 0 0 .586-1.185v-3.743A4.5 4.5 0 0 0 14.857 9.486Z" />
-            </svg>
-          } @else {
-            <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4 text-white/40">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9.143 17.082a24.248 24.248 0 0 0 3.844.148m-3.844-.148a2.238 2.238 0 0 1-2.25-2.24v-3.009m3.844 5.249c-2.942-.1-5.314-2.519-5.314-5.517V12a9.75 9.75 0 0 1-9.75-9.75M3.987 3.987A9.75 9.75 0 0 0 12 18.75m0 0a9.75 9.75 0 0 0 8.013-14.763" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="m3 3 18 18" />
-            </svg>
-          }
-        </button>
-
-        <!-- Toggle proveedor de IA -->
-        <button
-          id="btn-proveedor"
-          (click)="toggleProvider()"
-          [title]="
-            provider() === 'openai'
-              ? 'Usando GPT-4o — clic para cambiar a Gemini'
-              : 'Usando Gemini 2.5 — clic para cambiar a GPT-4o'
-          "
-          class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/15 hover:bg-white/25 active:scale-95 transition-all select-none shrink-0"
-        >
-          @if (provider() === 'openai') {
-            <span class="text-white font-bold text-[10px]">GPT-4o</span>
-          } @else {
-            <span class="text-white font-bold text-[10px]">Gemini</span>
-          }
-        </button>
-
-        <!-- Toggle voz -->
-        @if (speechAvailable()) {
+        <!-- Menú desplegable con opciones -->
+        <div class="relative" id="btn-menu-nexus">
           <button
-            id="btn-voz"
-            (click)="toggleVoice()"
-            [title]="voiceEnabled() ? 'Silenciar a Nexus' : 'Activar voz de Nexus'"
-            class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+            (click)="showMenu.set(!showMenu())"
+            class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white relative"
+            title="Más opciones"
           >
-            @if (voiceEnabled()) {
-              <svg
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                class="w-4 h-4 stroke-2 text-white"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"
-                />
-              </svg>
-            } @else {
-              <svg
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                class="w-4 h-4 stroke-2 text-white/40"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"
-                />
-              </svg>
-            }
-          </button>
-        }
-
-        <!-- Toggle manos libres -->
-        @if (speechAvailable()) {
-          <button
-            id="btn-manos-libres"
-            (click)="toggleHandsFree()"
-            [title]="handsFreeMode() ? 'Desactivar manos libres' : 'Activar manos libres'"
-            class="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-            [class]="handsFreeMode() ? 'bg-green-500/30 ring-1 ring-green-400' : 'hover:bg-white/10'"
-          >
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2" [class]="handsFreeMode() ? 'text-green-400' : 'text-white/60'">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+            <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-5 h-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
             </svg>
           </button>
-        }
 
-        <!-- Nueva Conversación -->
-        <button
-          id="btn-nueva-conversacion"
-          (click)="iniciarNuevaConversacion()"
-          title="Nueva conversación persistida"
-          class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white"
-        >
-          <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-        </button>
+          @if (showMenu()) {
+            <div
+              class="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 py-1.5 z-50 overflow-hidden origin-top-right"
+            >
+              <!-- Historial -->
+              <button
+                (click)="showMenu.set(false); showConversacionesDrawer.set(true)"
+                class="flex items-center gap-3 w-full px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              >
+                <span class="text-lg">📂</span>
+                <span class="font-medium">Historial de conversaciones</span>
+              </button>
 
-        <!-- Botón Ayuda Guía Visual -->
-        <button
-          id="btn-ayuda-nexus"
-          (click)="iniciarGuiaVisual()"
-          title="Ver guía de ayuda paso a paso"
-          class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white"
-        >
-          <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
-          </svg>
-        </button>
+              <div class="h-px bg-gray-100 mx-3 my-1"></div>
+
+              <!-- Alertas proactivas -->
+              <button
+                (click)="toggleProactiveAlerts()"
+                class="flex items-center gap-3 w-full px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              >
+                <span class="relative text-lg">
+                  🔔
+                  @if (proactiveAlertsEnabled()) {
+                    <span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full ring-1 ring-white"></span>
+                  }
+                </span>
+                <span class="flex-1 font-medium">Alertas proactivas</span>
+                <span class="text-[10px] font-semibold" [class.text-green-600]="proactiveAlertsEnabled()" [class.text-gray-400]="!proactiveAlertsEnabled()">
+                  {{ proactiveAlertsEnabled() ? 'ACTIVAS' : 'INACTIVAS' }}
+                </span>
+              </button>
+
+              <!-- Selector de proveedor IA -->
+              <button
+                (click)="toggleProvider()"
+                class="flex items-center gap-3 w-full px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              >
+                <span class="text-lg">🤖</span>
+                <span class="flex-1 font-medium">Modelo de IA</span>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                  {{ provider() === 'openai' ? 'GPT-4o' : 'Gemini 2.5' }}
+                </span>
+              </button>
+
+              <!-- Voz -->
+              @if (speechAvailable()) {
+                <button
+                  (click)="toggleVoice()"
+                  class="flex items-center gap-3 w-full px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <span class="relative text-lg">
+                    🔊
+                    @if (voiceEnabled()) {
+                      <span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-blue-500 rounded-full ring-1 ring-white"></span>
+                    }
+                  </span>
+                  <span class="flex-1 font-medium">Voz de Nexus</span>
+                  <span class="text-[10px] font-semibold" [class.text-blue-600]="voiceEnabled()" [class.text-gray-400]="!voiceEnabled()">
+                    {{ voiceEnabled() ? 'ACTIVA' : 'INACTIVA' }}
+                  </span>
+                </button>
+              }
+
+              <!-- Manos libres -->
+              @if (speechAvailable()) {
+                <button
+                  (click)="toggleHandsFree()"
+                  class="flex items-center gap-3 w-full px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <span class="relative text-lg">
+                    🎤
+                    @if (handsFreeMode()) {
+                      <span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full ring-1 ring-white"></span>
+                    }
+                  </span>
+                  <span class="flex-1 font-medium">Manos libres</span>
+                  <span class="text-[10px] font-semibold" [class.text-green-600]="handsFreeMode()" [class.text-gray-400]="!handsFreeMode()">
+                    {{ handsFreeMode() ? 'ACTIVO' : 'INACTIVO' }}
+                  </span>
+                </button>
+              }
+
+              <div class="h-px bg-gray-100 mx-3 my-1"></div>
+
+              <!-- Nueva conversación -->
+              <button
+                (click)="showMenu.set(false); iniciarNuevaConversacion()"
+                class="flex items-center gap-3 w-full px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              >
+                <span class="text-lg">➕</span>
+                <span class="font-medium">Nueva conversación</span>
+              </button>
+
+              <!-- Ayuda / Guía visual -->
+              <button
+                (click)="showMenu.set(false); iniciarGuiaVisual()"
+                class="flex items-center gap-3 w-full px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              >
+                <span class="text-lg">❓</span>
+                <span class="font-medium">Ayuda — guía paso a paso</span>
+              </button>
+            </div>
+          }
+        </div>
       </div>
 
       <!-- ══ SIDEBAR DE CHATS PERSISTIDOS ══ -->
@@ -731,6 +722,7 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   conversaciones = signal<any[]>([]);
   currentConversacionId = signal<string | null>(null);
   showConversacionesDrawer = signal(false);
+  showMenu = signal(false);
   proactiveAlertsEnabled = signal(localStorage.getItem('nexus_proactive_alerts') !== 'false');
 
   // ── VAD WEB AUDIO ──
@@ -759,6 +751,14 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   // ── CHIPS CONTEXTUALES ──
   suggestedReplies = signal<string[]>([]);
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (this.showMenu() && !target.closest('#btn-menu-nexus')) {
+      this.showMenu.set(false);
+    }
+  }
 
   readonly quickCards: QuickCard[] = [
     {
@@ -1658,8 +1658,8 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   iniciarGuiaVisual(): void {
-    // Detener reproducción de voz antes de iniciar la guía
     this.stopSpeaking();
+    this.showMenu.set(false);
 
     const driverObj = driver({
       showProgress: true,
@@ -1671,49 +1671,21 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
         {
           popover: {
             title: '¡Bienvenido a Nexus Pro, Don Ricardo! 👋',
-            description: 'Diseñé esta guía especialmente para usted. Le mostraré paso a paso para qué sirve cada botón en la pantalla para que controle su negocio sin complicaciones. ¡Vamos a ver cómo funciona!'
+            description: 'Le rediseñé la pantalla para que sea más simple y no se abrume con tantos botones. Ahora todo está organizado en un solo menú. Le explico paso a paso cómo quedó.'
           }
         },
         {
           element: '#btn-historial',
           popover: {
             title: '📂 Historial de Chats',
-            description: 'Al presionar esta estrella blanca, se abrirá una barra lateral con sus conversaciones anteriores. Así podrá retomar cualquier chat previo con Nexus.'
+            description: 'Esta estrella blanca abre la barra lateral con sus conversaciones anteriores. Ahí puede retomar cualquier chat pasado con Nexus.'
           }
         },
         {
-          element: '#btn-alertas',
+          element: '#btn-menu-nexus',
           popover: {
-            title: '🔔 Alertas del Negocio',
-            description: 'Este botón activa o desactiva las alertas automáticas. Cuando tiene la campana verde activa, Nexus le avisará de inmediato si hay cobros vencidos o trámites detenidos en aduanas.'
-          }
-        },
-        {
-          element: '#btn-proveedor',
-          popover: {
-            title: '🧠 Selector de Inteligencia',
-            description: 'Aquí puede cambiar entre los motores GPT-4o y Gemini. Si siente que uno le responde mejor o analiza mejor sus fotos, cámbielo aquí con un toque.'
-          }
-        },
-        {
-          element: '#btn-voz',
-          popover: {
-            title: '🔊 Voz de Nexus',
-            description: 'Enciende o apaga la voz de Nexus. Cuando está activo (con la bocina blanca), Nexus le leerá sus respuestas en voz alta de manera clara.'
-          }
-        },
-        {
-          element: '#btn-manos-libres',
-          popover: {
-            title: '🎤 Modo Manos Libres',
-            description: '¡Este botón es maravilloso! Si lo enciende, podrá hablar con Nexus de corrido sin presionar nada. Termine su frase, guarde silencio por un instante, y Nexus le responderá.'
-          }
-        },
-        {
-          element: '#btn-nueva-conversacion',
-          popover: {
-            title: '➕ Nueva Conversación',
-            description: 'Use este botón de más si desea limpiar la pantalla y comenzar una nueva plática limpia sobre otro tema diferente.'
+            title: '📋 Menú de Opciones',
+            description: 'Los botones de configuración (alertas, modelo de IA, voz, manos libres, nuevo chat y ayuda) están todos aquí adentro. Toque los <b>tres puntos</b> ⋮ y se despliega el menú. Así la pantalla se ve más limpia y usted elige qué quiere usar.'
           }
         },
         {
@@ -1741,14 +1713,13 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
           element: '#btn-enviar-PTT',
           popover: {
             title: '🎤 Botón de Hablar y Enviar',
-            description: 'Si el manos libres está apagado, mantenga presionado este botón mientras habla y suéltelo al terminar para mandar su voz. Si ya escribió texto, este botón servirá para enviar su escrito.'
+            description: 'Mantenga presionado mientras habla y suéltelo al terminar para mandar su voz. Si ya escribió texto, este botón sirve para enviar el mensaje escrito.'
           }
         },
         {
-          element: '#btn-ayuda-nexus',
           popover: {
             title: '❓ ¿Necesita Ayuda?',
-            description: 'Si alguna vez olvida para qué sirve algo, toque este signo de interrogación. Volverá a iniciar esta guía interactiva paso a paso inmediatamente.'
+            description: 'Si en cualquier momento se le olvida para qué sirve algo, toque el botón <b>⋮</b> en la esquina derecha y seleccione <b>"Ayuda — guía paso a paso"</b>. Esta guía se volverá a mostrar.'
           }
         }
       ]
