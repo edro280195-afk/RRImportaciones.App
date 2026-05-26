@@ -14,6 +14,9 @@ import { TramitadorDto, TramitadorService } from '../../services/tramitador.serv
 import { CotizacionService, CotizacionInput } from '../../services/cotizacion.service';
 import { NotificationService } from '../../services/notification.service';
 import { lastValueFrom } from 'rxjs';
+import { BrowserMultiFormatReader } from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { ViewChild, ElementRef } from '@angular/core';
 
 interface LoteVehiculoRow {
   vin: string;
@@ -193,14 +196,19 @@ interface LoteVehiculoRow {
                     (input)="onVinInput()"
                     maxlength="17"
                     placeholder="17 caracteres"
-                    class="w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 text-[13px] font-mono font-medium outline-none transition-colors focus:border-[#C61D26] focus:bg-white"
+                    class="w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 pr-14 text-[13px] font-mono font-medium outline-none transition-colors focus:border-[#C61D26] focus:bg-white"
                   />
-                  <div
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium"
-                    [class.text-[#16A34A]]="currentVin().length === 17"
-                    [class.text-[#9EA3AE]]="currentVin().length !== 17"
-                  >
-                    {{ currentVin().length }}/17
+                  <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <span
+                      class="text-[11px] font-medium mr-1"
+                      [class.text-[#16A34A]]="currentVin().length === 17"
+                      [class.text-[#9EA3AE]]="currentVin().length !== 17"
+                    >
+                      {{ currentVin().length }}/17
+                    </span>
+                    <button type="button" (click)="openScanner()" class="rounded-lg p-1 text-[#4B5162] hover:bg-[#E4E7EC] hover:text-[#0D1017] transition-colors" title="Escanear código de barras">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8v8M11 8v8M17 8v8M14 8v8"/></svg>
+                    </button>
                   </div>
                 </div>
                 @if (decodingVin()) {
@@ -355,8 +363,33 @@ interface LoteVehiculoRow {
         </div>
       </form>
     </div>
+
+    @if (scannerOpen()) {
+      <div class="fixed inset-0 z-50 flex flex-col bg-black/90">
+        <div class="flex items-center justify-between p-4">
+          <span class="text-sm font-medium text-white">Escáner de VIN</span>
+          <button type="button" (click)="closeScanner()" class="rounded-full bg-white/20 p-2 text-white hover:bg-white/30">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-6 w-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div class="relative flex-1">
+          <video #scannerVideo autoplay playsinline muted class="h-full w-full object-cover"></video>
+          <div class="absolute inset-0 border-[40px] border-black/40"></div>
+          <div class="absolute inset-x-8 inset-y-32 rounded-lg border-2 border-[#16A34A] shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+            <div class="absolute left-0 right-0 top-1/2 h-0.5 -translate-y-1/2 bg-[#ef4444] shadow-[0_0_8px_#ef4444]" style="animation: scan 2s infinite linear alternate;"></div>
+            <p class="absolute -bottom-8 left-0 right-0 text-center text-[13px] font-bold text-white shadow-black drop-shadow-md">Enfoca el código de barras</p>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [
+    `
+    @keyframes scan {
+      0% { transform: translateY(-40px); }
+      100% { transform: translateY(40px); }
+    }
+    `,
     `
       .cell-input {
         width: 100%;
@@ -426,8 +459,13 @@ export class LoteFormComponent implements OnInit {
   bulkProcessing = signal(false);
   bulkProgress = signal<{ total: number; current: number } | null>(null);
 
+  scannerOpen = signal(false);
+  @ViewChild('scannerVideo') scannerVideo?: ElementRef<HTMLVideoElement>;
+  private zxingReader: BrowserMultiFormatReader | null = null;
+  private stream: MediaStream | null = null;
+
   private calcTimer: any = null;
-  private readonly DRAFT_KEY = 'lote-draft-v1';
+  private readonly DRAFT_KEY = 'rr_lote_draft';
 
   constructor() {
     this.clienteService.getList({ pageSize: 500 }).subscribe(res => this.clientes.set(res.items));
@@ -725,6 +763,65 @@ export class LoteFormComponent implements OnInit {
         this.notifications.error(err?.error?.message || 'No se pudo crear el lote.');
       },
     });
+  }
+
+  openScanner(): void {
+    this.scannerOpen.set(true);
+    setTimeout(() => {
+      this.startScanner();
+    }, 100);
+  }
+
+  closeScanner(): void {
+    this.scannerOpen.set(false);
+    this.stopScanner();
+  }
+
+  private async startScanner(): Promise<void> {
+    if (!navigator.mediaDevices?.getUserMedia || !this.scannerVideo) {
+      this.notifications.error('Este navegador no soporta acceso a la cámara.');
+      this.closeScanner();
+      return;
+    }
+
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      const video = this.scannerVideo.nativeElement;
+      video.srcObject = this.stream;
+      await video.play().catch(() => undefined);
+
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_39, BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE]);
+      this.zxingReader = new BrowserMultiFormatReader(hints);
+      
+      this.zxingReader.decodeFromVideoElement(video, (result: any, error: any) => {
+        if (result) {
+          const text = result.getText();
+          const matches = text.match(/[A-HJ-NPR-Z0-9]{17}/gi);
+          if (matches && matches.length > 0) {
+            const vin = matches[0].toUpperCase();
+            this.currentVin.set(vin);
+            this.notifications.success('VIN escaneado: ' + vin);
+            navigator.vibrate?.([40, 40, 40]);
+            this.closeScanner();
+            this.onVinInput();
+          }
+        }
+      });
+    } catch {
+      this.notifications.error('No se pudo acceder a la cámara.');
+      this.closeScanner();
+    }
+  }
+
+  private stopScanner(): void {
+    if (this.stream) {
+      this.stream.getTracks().forEach(t => t.stop());
+      this.stream = null;
+    }
+    this.zxingReader = null;
   }
 
   private mapRow(row: LoteVehiculoRow): LoteVehiculoItemRequest {

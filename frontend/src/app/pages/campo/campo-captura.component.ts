@@ -15,8 +15,11 @@ import { environment } from '../../../environments/environment';
 import { CampoService, TareaCampoDto } from '../../services/campo.service';
 import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
+import { BrowserMultiFormatReader } from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 type CaptureState = 'loading' | 'ready' | 'sending' | 'error';
+type CameraMode = 'photo' | 'vin';
 
 interface LocalPhoto {
   id: string;
@@ -315,19 +318,19 @@ const MIN_PHOTOS = 3;
           <div class="field-divider"></div>
 
           <label class="field-row">
-            <span class="field-label">
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                class="field-icon"
-              >
-                <rect x="2" y="4" width="16" height="12" rx="2" />
-                <path stroke-linecap="round" d="M5 8h5M5 12h3" />
-              </svg>
-              VIN confirmado (últimos 6)
-            </span>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 6px;">
+              <span class="field-label" style="margin-bottom: 0;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" class="field-icon">
+                  <rect x="2" y="4" width="16" height="12" rx="2" />
+                  <path stroke-linecap="round" d="M5 8h5M5 12h3" />
+                </svg>
+                VIN confirmado (últimos 6)
+              </span>
+              <button class="btn-ghost" style="padding: 4px 8px; font-size: 12px; display: flex; gap: 4px; align-items: center; border: 1.5px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2); background: white;" (click)="openVinScanner()" type="button">
+                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8v8M11 8v8M17 8v8M14 8v8"/></svg>
+                 Escanear
+              </button>
+            </div>
             <input
               [(ngModel)]="vinConfirmado"
               (ngModelChange)="onVinChange($event)"
@@ -428,17 +431,21 @@ const MIN_PHOTOS = 3;
           <!-- Camera top bar -->
           <div class="cam-top">
             <button class="cam-pill-btn" (click)="closeCamera()" type="button">✕ Cerrar</button>
-            <div class="cam-counter">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M2.5 5.5A1.5 1.5 0 014 4h1.2L6 2.5A1.5 1.5 0 017.2 2h1.6A1.5 1.5 0 0110 2.5l.8 1.5H12a1.5 1.5 0 011.5 1.5v6A1.5 1.5 0 0112 13H4a1.5 1.5 0 01-1.5-1.5v-6z"
-                />
-                <circle cx="8" cy="8.5" r="2" />
-              </svg>
-              {{ photos().length }} foto{{ photos().length !== 1 ? 's' : '' }}
-            </div>
+            @if (cameraMode() === 'photo') {
+              <div class="cam-counter">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M2.5 5.5A1.5 1.5 0 014 4h1.2L6 2.5A1.5 1.5 0 017.2 2h1.6A1.5 1.5 0 0110 2.5l.8 1.5H12a1.5 1.5 0 011.5 1.5v6A1.5 1.5 0 0112 13H4a1.5 1.5 0 01-1.5-1.5v-6z"
+                  />
+                  <circle cx="8" cy="8.5" r="2" />
+                </svg>
+                {{ photos().length }} foto{{ photos().length !== 1 ? 's' : '' }}
+              </div>
+            } @else {
+              <div class="cam-counter">Escaneando VIN...</div>
+            }
             <button class="cam-pill-btn" (click)="flipCamera()" type="button">⟳ Girar</button>
           </div>
 
@@ -451,42 +458,48 @@ const MIN_PHOTOS = 3;
           }
 
           <!-- Viewfinder guide -->
-          <div class="cam-guide">
+          <div class="cam-guide" [class.cam-guide--vin]="cameraMode() === 'vin'">
             <div class="corner corner--tl"></div>
             <div class="corner corner--tr"></div>
             <div class="corner corner--bl"></div>
             <div class="corner corner--br"></div>
+            @if (cameraMode() === 'vin') {
+              <div class="scan-line"></div>
+              <p class="scan-text">Enfoca el código de barras del VIN</p>
+            }
           </div>
 
           <!-- Shutter -->
-          <div class="cam-bottom">
-            <div class="cam-bottom__side">
-              @if (photos().length > 0) {
-                <div class="last-thumb">
-                  <img [src]="photos()[photos().length - 1].dataUrl" alt="Última foto" />
-                </div>
-              }
-            </div>
+          @if (cameraMode() === 'photo') {
+            <div class="cam-bottom">
+              <div class="cam-bottom__side">
+                @if (photos().length > 0) {
+                  <div class="last-thumb">
+                    <img [src]="photos()[photos().length - 1].dataUrl" alt="Última foto" />
+                  </div>
+                }
+              </div>
 
-            <button
-              class="shutter"
-              (click)="capturePhoto()"
-              [disabled]="!cameraReady() || state() === 'sending'"
-              type="button"
-              aria-label="Tomar foto"
-            >
-              <span class="shutter__inner"></span>
-            </button>
+              <button
+                class="shutter"
+                (click)="capturePhoto()"
+                [disabled]="!cameraReady() || state() === 'sending'"
+                type="button"
+                aria-label="Tomar foto"
+              >
+                <span class="shutter__inner"></span>
+              </button>
 
-            <div class="cam-bottom__side cam-bottom__side--right">
-              @if (photos().length >= MIN_PHOTOS) {
-                <button class="cam-done-btn" (click)="closeCamera()" type="button">
-                  Listo<br />
-                  <small>{{ photos().length }} fotos</small>
-                </button>
-              }
+              <div class="cam-bottom__side cam-bottom__side--right">
+                @if (photos().length >= MIN_PHOTOS) {
+                  <button class="cam-done-btn" (click)="closeCamera()" type="button">
+                    Listo<br />
+                    <small>{{ photos().length }} fotos</small>
+                  </button>
+                }
+              </div>
             </div>
-          </div>
+          }
         </div>
       }
     </main>
@@ -624,6 +637,35 @@ const MIN_PHOTOS = 3;
         font-size: 14px;
         color: var(--text-2);
         margin: 0;
+      }
+
+      @keyframes scan {
+        0% { transform: translateY(-50px); }
+        100% { transform: translateY(50px); }
+      }
+      .cam-guide--vin {
+        height: 140px !important;
+      }
+      .scan-line {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #ef4444;
+        box-shadow: 0 0 6px #ef4444;
+        animation: scan 2s infinite linear alternate;
+      }
+      .scan-text {
+        position: absolute;
+        bottom: -40px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        color: white;
+        font-size: 14px;
+        font-weight: bold;
+        text-shadow: 0 1px 4px rgba(0,0,0,0.8);
       }
 
       /* ── Top bar ────────────────────────────────────────────────────── */
@@ -1558,6 +1600,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   readonly photos = signal<LocalPhoto[]>([]);
   readonly cameraOpen = signal(false);
   readonly cameraReady = signal(false);
+  readonly cameraMode = signal<CameraMode>('photo');
+  private zxingReader: BrowserMultiFormatReader | null = null;
   readonly cameraError = signal('');
   readonly flash = signal(false);
   readonly facingMode = signal<'environment' | 'user'>('environment');
@@ -1627,8 +1671,18 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     });
   }
 
+  openVinScanner(): void {
+    if (this.state() === 'sending') return;
+    this.cameraMode.set('vin');
+    this.cameraOpen.set(true);
+    this.cameraError.set('');
+    this.cameraReady.set(false);
+    window.setTimeout(() => void this.startCamera(), 0);
+  }
+
   openCamera(): void {
     if (this.state() === 'sending') return;
+    this.cameraMode.set('photo');
     this.cameraOpen.set(true);
     this.cameraError.set('');
     this.cameraReady.set(false);
@@ -1791,6 +1845,27 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
         await video.play().catch(() => undefined);
       }
       this.cameraReady.set(true);
+      
+      if (this.cameraMode() === 'vin' && video) {
+        const hints = new Map();
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_39, BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE]);
+        this.zxingReader = new BrowserMultiFormatReader(hints);
+        
+        this.zxingReader.decodeFromVideoElement(video, (result: any, error: any) => {
+          if (result) {
+            const text = result.getText();
+            const matches = text.match(/[A-HJ-NPR-Z0-9]{17}/gi);
+            if (matches && matches.length > 0) {
+              const vin = matches[0];
+              this.vinConfirmado = this.normalizeVin(vin);
+              this.persistDraft();
+              this.notifications.success('VIN escaneado: ' + vin);
+              this.vibrate([40, 40, 40]);
+              this.closeCamera();
+            }
+          }
+        });
+      }
     } catch {
       this.cameraError.set('No se pudo acceder a la cámara. Verifica los permisos del navegador.');
     }
@@ -1800,6 +1875,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     this.stream?.getTracks().forEach(t => t.stop());
     this.stream = null;
     this.cameraReady.set(false);
+    this.zxingReader = null;
   }
 
   private normalizeVin(value: string): string {
