@@ -284,8 +284,8 @@ interface QuickCard {
           }
         }
 
-        <!-- Typing indicator -->
-        @if (loading()) {
+        <!-- Typing indicator (se oculta cuando ya llegan tokens) -->
+        @if (loading() && isTyping()) {
           <div class="flex items-end gap-2">
             <div
               class="w-7 h-7 rounded-full bg-[#C61D26] flex items-center justify-center shrink-0"
@@ -517,8 +517,9 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   @ViewChild('chatContainer') chatContainer!: ElementRef;
   @ViewChild('inputRef') inputRef!: ElementRef<HTMLTextAreaElement>;
 
-  provider = signal<'openai' | 'gemini'>('gemini'); // Toggle manual — nunca se llama getProviders()
+  provider = signal<'openai' | 'gemini'>('openai');
   loading = signal(false);
+  isTyping = signal(false);
   inputText = '';
 
   private allMessages = signal<ChatMessage[]>([]);
@@ -908,51 +909,109 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // ENVIAR MENSAJE
+  // ENVIAR MENSAJE — con streaming
   // ─────────────────────────────────────────────────────────────────────
-  private sendMessage(texto: string): void {
+  private async sendMessage(texto: string): Promise<void> {
     this.allMessages.update(msgs => [...msgs, { role: 'user', texto, timestamp: new Date() }]);
     this.loading.set(true);
+    this.isTyping.set(true);
     this.shouldScrollToBottom = true;
 
+    // Placeholder para la respuesta (se irá llenando con streaming)
+    this.allMessages.update(msgs => [
+      ...msgs,
+      { role: 'model', texto: '', timestamp: new Date(), toolCalls: [] },
+    ]);
+
     const historial: RodriMessage[] = this.allMessages()
-      .slice(0, -1)
-      .slice(-6) // últimos 3 intercambios (6 mensajes) para ahorrar tokens
+      .slice(0, -2) // quitar el user que acabamos de agregar y el placeholder
+      .slice(-6)
       .map(m => ({ role: m.role, texto: m.texto }));
 
-    this.rodriService.chat(texto, historial, this.provider()).subscribe({
-      next: res => {
-        this.loading.set(false);
-        this.allMessages.update(msgs => [
-          ...msgs,
-          {
-            role: 'model',
-            texto: res.respuesta,
-            timestamp: new Date(),
-            error: res.error,
-            toolCalls: res.toolCallsEjecutados?.length ? res.toolCallsEjecutados : undefined,
-          },
-        ]);
-        this.shouldScrollToBottom = true;
-
-        if (!res.error) {
-          this.speak(res.respuesta);
-          this.suggestedReplies.set(this.generateSuggestions(res.respuesta));
-        }
-      },
-      error: () => {
-        this.loading.set(false);
-        this.allMessages.update(msgs => [
-          ...msgs,
-          {
-            role: 'model',
-            texto: 'Don Ricardo, no pude conectarme ahorita. ¿Le puedo ayudar en algo más?',
-            timestamp: new Date(),
-            error: true,
-          },
-        ]);
-        this.shouldScrollToBottom = true;
-      },
-    });
+    try {
+      await this.rodriService.chatStream(
+        texto,
+        historial,
+        (chunk) => {
+          if (chunk.type === 'token' || chunk.type === 'tool_call') {
+            this.isTyping.set(false);
+          }
+          if (chunk.type === 'token') {
+            this.allMessages.update(msgs => {
+              const copy = [...msgs];
+              const last = { ...copy[copy.length - 1] };
+              last.texto += chunk.content;
+              copy[copy.length - 1] = last;
+              return copy;
+            });
+            this.shouldScrollToBottom = true;
+          } else if (chunk.type === 'tool_call') {
+            this.allMessages.update(msgs => {
+              const copy = [...msgs];
+              const last = { ...copy[copy.length - 1] };
+              last.toolCalls = [...(last.toolCalls || []), chunk.toolName!];
+              copy[copy.length - 1] = last;
+              return copy;
+            });
+            this.shouldScrollToBottom = true;
+          } else if (chunk.type === 'error') {
+            this.isTyping.set(false);
+            this.allMessages.update(msgs => {
+              const copy = [...msgs];
+              const last = { ...copy[copy.length - 1] };
+              last.texto = chunk.content || 'Ocurrió un error.';
+              last.error = true;
+              copy[copy.length - 1] = last;
+              return copy;
+            });
+          } else if (chunk.type === 'done') {
+            this.loading.set(false);
+            const msgs = this.allMessages();
+            const last = msgs[msgs.length - 1];
+            if (!last.error && last.texto) this.speak(last.texto);
+            this.suggestedReplies.set(this.generateSuggestions(last.texto));
+          }
+        },
+        this.provider()
+      );
+    } catch {
+      // Fallback a non-streaming si el streaming falla
+      this.isTyping.set(false);
+      this.rodriService.chat(texto, historial, this.provider()).subscribe({
+        next: res => {
+          this.loading.set(false);
+          this.allMessages.update(msgs => {
+            const copy = [...msgs];
+            copy[copy.length - 1] = {
+              role: 'model',
+              texto: res.respuesta,
+              timestamp: new Date(),
+              error: res.error,
+              toolCalls: res.toolCallsEjecutados?.length ? res.toolCallsEjecutados : undefined,
+            };
+            return copy;
+          });
+          this.shouldScrollToBottom = true;
+          if (!res.error) {
+            this.speak(res.respuesta);
+            this.suggestedReplies.set(this.generateSuggestions(res.respuesta));
+          }
+        },
+        error: () => {
+          this.loading.set(false);
+          this.allMessages.update(msgs => {
+            const copy = [...msgs];
+            copy[copy.length - 1] = {
+              role: 'model',
+              texto: 'Don Ricardo, no pude conectarme ahorita. ¿Le puedo ayudar en algo más?',
+              timestamp: new Date(),
+              error: true,
+            };
+            return copy;
+          });
+          this.shouldScrollToBottom = true;
+        },
+      });
+    }
   }
 }

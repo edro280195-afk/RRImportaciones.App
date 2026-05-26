@@ -36,6 +36,22 @@ public class RodriController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost("chat-stream")]
+    public async Task ChatStream([FromBody] RodriChatRequest request, CancellationToken cancellationToken)
+    {
+        Response.ContentType = "text/event-stream";
+        Response.Headers["Cache-Control"] = "no-cache";
+        Response.Headers["Connection"] = "keep-alive";
+        Response.Headers["X-Accel-Buffering"] = "no";
+
+        await foreach (var chunk in _rodriService.ChatStreamAsync(request, cancellationToken))
+        {
+            var json = JsonSerializer.Serialize(chunk);
+            await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+        }
+    }
+
     [HttpGet("providers")]
     public async Task<IActionResult> GetProviders()
     {

@@ -6,6 +6,10 @@ public class RodriChatRequest
     public List<RodriHistorialItem> Historial { get; set; } = [];
     /// <summary>Proveedor a usar: "openai" | "gemini". Omite para usar el default de configuración.</summary>
     public string? Provider { get; set; }
+    /// <summary>Imagen en base64 (opcional) para análisis multimodal.</summary>
+    public string? ImagenBase64 { get; set; }
+    /// <summary>Tipo MIME de la imagen (ej. "image/jpeg").</summary>
+    public string? ImagenMime { get; set; }
 }
 
 public class RodriHistorialItem
@@ -22,6 +26,16 @@ public class RodriChatResponse
     /// <summary>Proveedor que generó la respuesta ("openai" | "gemini").</summary>
     public string? Provider { get; set; }
     /// <summary>Nombre legible del proveedor ("GPT-4" | "Gemini 2.5 Flash").</summary>
+    public string? ProviderLabel { get; set; }
+}
+
+/// <summary>Chunk individual para el streaming SSE.</summary>
+public class RodriStreamChunk
+{
+    public string Type { get; set; } = ""; // "token" | "tool_call" | "done" | "error"
+    public string? Content { get; set; }
+    public string? ToolName { get; set; }
+    public string? Provider { get; set; }
     public string? ProviderLabel { get; set; }
 }
 

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,12 @@ public class RodriService : IRodriService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly Dictionary<string, IRodriTool> _toolMap;
     private readonly ICurrentUserService _currentUser;
+
+    // Cache del system prompt
+    private string? _cachedSystemPrompt;
+    private string? _cachedSystemPromptRole;
+    private DateTime _promptCacheTime = DateTime.MinValue;
+    private static readonly TimeSpan PromptCacheDuration = TimeSpan.FromSeconds(30);
 
     // Rate limiting
     private static readonly ConcurrentDictionary<string, List<DateTime>> _requestLog = new();
@@ -99,7 +106,7 @@ public class RodriService : IRodriService
                 new RodriProviderInfo
                 {
                     Id = "openai",
-                    Label = "GPT-4",
+                    Label = "GPT-4o",
                     HasTools = true,
                     IsAvailable = openAiAvailable
                 },
@@ -107,7 +114,7 @@ public class RodriService : IRodriService
                 {
                     Id = "gemini",
                     Label = "Gemini 2.5 Flash",
-                    HasTools = false,
+                    HasTools = true,
                     IsAvailable = geminiAvailable
                 }
             ]
@@ -139,7 +146,7 @@ public class RodriService : IRodriService
                 logs.Add(ahora);
             }
 
-            var systemPrompt = await BuildSystemPromptAsync(_currentUser.Role);
+            var systemPrompt = await GetCachedSystemPromptAsync(_currentUser.Role);
 
             // Elegir proveedor: request.Provider > config
             var activeProvider = (!string.IsNullOrWhiteSpace(request.Provider))
@@ -177,6 +184,97 @@ public class RodriService : IRodriService
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // CHAT STREAMING
+    // ─────────────────────────────────────────────────────────────────────
+    public async IAsyncEnumerable<RodriStreamChunk> ChatStreamAsync(RodriChatRequest request, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        // Rate limiting
+        var ahora = DateTime.UtcNow;
+        var ventana = ahora.AddMinutes(-1);
+        var logs = _requestLog.GetOrAdd("global", _ => []);
+        lock (logs)
+        {
+            logs.RemoveAll(t => t < ventana);
+            if (logs.Count >= MaxRequestsPerMinute)
+            {
+                yield return new RodriStreamChunk
+                {
+                    Type = "error",
+                    Content = "Se ha alcanzado el límite de consultas por minuto. Espera unos segundos e intenta de nuevo."
+                };
+                yield break;
+            }
+            logs.Add(ahora);
+        }
+
+        RodriChatResponse response = null!;
+        string? errorMessage = null;
+        try
+        {
+            var systemPrompt = await GetCachedSystemPromptAsync(_currentUser.Role);
+            var activeProvider = (!string.IsNullOrWhiteSpace(request.Provider)) ? request.Provider : _provider;
+
+            if (activeProvider == "gemini")
+                response = await CallGeminiAsync(systemPrompt, request);
+            else
+                response = await CallOpenAiAsync(systemPrompt, request);
+        }
+        catch (TaskCanceledException)
+        {
+            errorMessage = "La consulta tardó demasiado. Intenta con una pregunta más específica.";
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "No pude conectarme al servicio de IA. Revisa la conexión del servidor.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ocurrió un error al procesar tu solicitud: {ex.Message}";
+        }
+
+        if (errorMessage != null)
+        {
+            yield return new RodriStreamChunk { Type = "error", Content = errorMessage };
+            yield break;
+        }
+
+        // Enviar tool calls ejecutados
+        if (response.ToolCallsEjecutados?.Count > 0)
+        {
+            foreach (var tool in response.ToolCallsEjecutados)
+                yield return new RodriStreamChunk { Type = "tool_call", ToolName = tool };
+        }
+
+        // Enviar provider info
+        yield return new RodriStreamChunk { Type = "provider", Provider = response.Provider, ProviderLabel = response.ProviderLabel };
+
+        if (response.Error)
+        {
+            yield return new RodriStreamChunk { Type = "error", Content = response.Respuesta };
+            yield break;
+        }
+
+        // Streaming del texto en chunks
+        var text = response.Respuesta;
+        if (string.IsNullOrEmpty(text))
+        {
+            yield return new RodriStreamChunk { Type = "done" };
+            yield break;
+        }
+
+        var chunkSize = 3; // caracteres por chunk para sensación natural
+        for (int i = 0; i < text.Length; i += chunkSize)
+        {
+            if (cancellationToken.IsCancellationRequested) yield break;
+            var chunk = text.Substring(i, Math.Min(chunkSize, text.Length - i));
+            yield return new RodriStreamChunk { Type = "token", Content = chunk };
+            await Task.Delay(15, cancellationToken).ContinueWith(_ => { }, CancellationToken.None);
+        }
+
+        yield return new RodriStreamChunk { Type = "done" };
+    }
+
     // ──── RUTA GEMINI ────────────────────────────────────────────────────
     private async Task<RodriChatResponse> CallGeminiAsync(string systemPrompt, RodriChatRequest request)
     {
@@ -189,32 +287,167 @@ public class RodriService : IRodriService
             };
         }
 
+        var toolDefs = BuildGeminiTools();
+        var toolsEjecutados = new List<string>();
+        var messages = BuildGeminiMessages(request);
+        var finalResponse = await ExecuteGeminiFunctionCallingLoopAsync(messages, toolDefs, systemPrompt, toolsEjecutados, 0);
+
+        return new RodriChatResponse
+        {
+            Respuesta = finalResponse,
+            Error = finalResponse.StartsWith("Error") || finalResponse.StartsWith("El asistente llegó"),
+            ToolCallsEjecutados = toolsEjecutados.Count > 0 ? toolsEjecutados : null,
+            Provider = "gemini",
+            ProviderLabel = "Gemini 2.5 Flash"
+        };
+    }
+
+    private object BuildGeminiTools()
+    {
+        var declarations = new List<object>();
+        foreach (var tool in _tools)
+            declarations.Add(new
+            {
+                name = tool.Name,
+                description = tool.Description,
+                parameters = tool.ParametersSchema
+            });
+        return new[] { new { function_declarations = declarations } };
+    }
+
+    private List<object> BuildGeminiMessages(RodriChatRequest request)
+    {
         var contents = new List<object>();
         foreach (var item in request.Historial)
-            contents.Add(new { role = item.Role, parts = new[] { new { text = item.Texto } } });
-        contents.Add(new { role = "user", parts = new[] { new { text = request.Mensaje } } });
-
-        var payload = new
         {
-            system_instruction = new { parts = new[] { new { text = systemPrompt } } },
-            contents,
-            generationConfig = new { temperature = 0.4, maxOutputTokens = 4096 }
+            var role = item.Role == "model" ? "model" : "user";
+            contents.Add(new { role, parts = new[] { new { text = item.Texto } } });
+        }
+
+        // Mensaje actual del usuario, con imagen opcional
+        var userParts = new List<object> { new { text = request.Mensaje } };
+        if (!string.IsNullOrWhiteSpace(request.ImagenBase64) && !string.IsNullOrWhiteSpace(request.ImagenMime))
+            userParts.Add(new { inline_data = new { mime_type = request.ImagenMime, data = request.ImagenBase64 } });
+        contents.Add(new { role = "user", parts = userParts.ToArray() });
+
+        return contents;
+    }
+
+    private async Task<string> ExecuteGeminiFunctionCallingLoopAsync(
+        List<object> contents, object tools, string systemPrompt, List<string> toolsEjecutados, int depth)
+    {
+        if (depth >= 5)
+            return "El asistente llegó al límite de operaciones encadenadas. Por favor reformula tu solicitud.";
+
+        var payload = new Dictionary<string, object>
+        {
+            ["contents"] = contents,
+            ["tools"] = tools,
+            ["system_instruction"] = new { parts = new[] { new { text = systemPrompt } } },
+            ["generationConfig"] = new { temperature = 0.4, maxOutputTokens = 4096 }
         };
 
         var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={_geminiKey}";
         using var response = await SendWithRetryGeminiAsync(url, payload);
-
         if (!response.IsSuccessStatusCode)
-            return new RodriChatResponse
-            {
-                Respuesta = "No pude completar la consulta con Gemini. La conexión respondió con error.",
-                Error = true
-            };
+        {
+            var errorBody = await response.Content.ReadAsStringAsync();
+            return $"Error de Gemini ({(int)response.StatusCode}): {Truncate(errorBody, 200)}";
+        }
 
         using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-        var text = TryReadGeminiText(doc) ?? "El servicio de IA respondió sin texto. Intenta reformular la pregunta.";
 
-        return new RodriChatResponse { Respuesta = text, Provider = "gemini", ProviderLabel = "Gemini 2.5 Flash" };
+        if (!doc.RootElement.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+            return "Gemini no generó ninguna respuesta. Intenta reformular la pregunta.";
+
+        var candidate = candidates[0];
+        if (!candidate.TryGetProperty("content", out var content))
+            return "Gemini respondió sin contenido.";
+
+        var parts = content.GetProperty("parts");
+        var textBuilder = new StringBuilder();
+        List<object>? functionCallParts = null;
+
+        foreach (var part in parts.EnumerateArray())
+        {
+            if (part.TryGetProperty("text", out var textVal))
+                textBuilder.Append(textVal.GetString());
+
+            if (part.TryGetProperty("functionCall", out var funcCall))
+            {
+                functionCallParts ??= new List<object>();
+                var name = funcCall.GetProperty("name").GetString()!;
+                var args = funcCall.TryGetProperty("args", out var a) ? a.ToString() : "{}";
+                functionCallParts.Add(new { functionCall = new { name, args = JsonDocument.Parse(args).RootElement.Clone() } });
+            }
+        }
+
+        // Si hay function calls, ejecutarlos y loop
+        if (functionCallParts != null && functionCallParts.Count > 0)
+        {
+            // Agregar la respuesta del modelo con los function calls al historial
+            var modelParts = new List<object>();
+            if (textBuilder.Length > 0)
+                modelParts.Add(new { text = textBuilder.ToString() });
+            modelParts.AddRange(functionCallParts);
+            contents.Add(new { role = "model", parts = modelParts.ToArray() });
+
+            foreach (var fc in functionCallParts)
+            {
+                // Extraer el nombre del function call de forma manual
+                var json = JsonSerializer.Serialize(fc);
+                using var fcDoc = JsonDocument.Parse(json);
+                var name = fcDoc.RootElement.GetProperty("functionCall").GetProperty("name").GetString()!;
+                var argsStr = fcDoc.RootElement.GetProperty("functionCall").GetProperty("args").GetRawText();
+
+                toolsEjecutados.Add(name);
+
+                string result;
+                if (_toolMap.TryGetValue(name, out var tool))
+                {
+                    try
+                    {
+                        using var toolScope = _scopeFactory.CreateScope();
+                        result = await tool.ExecuteAsync(argsStr, toolScope.ServiceProvider);
+                    }
+                    catch (Exception ex)
+                    {
+                        result = JsonSerializer.Serialize(new { error = $"Error ejecutando {name}: {ex.Message}" });
+                    }
+                }
+                else
+                {
+                    result = JsonSerializer.Serialize(new { error = $"La herramienta '{name}' no está disponible." });
+                }
+
+                contents.Add(new
+                {
+                    role = "function",
+                    parts = new[]
+                    {
+                        new
+                        {
+                            functionResponse = new
+                            {
+                                name,
+                                response = new { result }
+                            }
+                        }
+                    }
+                });
+            }
+
+            return await ExecuteGeminiFunctionCallingLoopAsync(contents, tools, systemPrompt, toolsEjecutados, depth + 1);
+        }
+
+        return textBuilder.Length > 0 ? textBuilder.ToString() : "Gemini respondió sin texto. Intenta reformular.";
+    }
+
+    private static string? ExtractSystemFromContents(List<object> contents)
+    {
+        // El system prompt se pasa aparte en Gemini, no en contents
+        // Lo extraemos del primer mensaje que tenga role "system" si existe
+        return null; // Se maneja via system_instruction en el payload
     }
 
     private async Task<HttpResponseMessage> SendWithRetryGeminiAsync(string url, object payload)
@@ -473,6 +706,19 @@ public class RodriService : IRodriService
     // ─────────────────────────────────────────────────────────────────────
     // SYSTEM PROMPT — conocimiento del sistema + datos del negocio
     // ─────────────────────────────────────────────────────────────────────
+    private async Task<string> GetCachedSystemPromptAsync(string? userRole)
+    {
+        if (_cachedSystemPrompt != null
+            && _cachedSystemPromptRole == userRole
+            && DateTime.UtcNow - _promptCacheTime < PromptCacheDuration)
+            return _cachedSystemPrompt;
+
+        _cachedSystemPrompt = await BuildSystemPromptAsync(userRole);
+        _cachedSystemPromptRole = userRole;
+        _promptCacheTime = DateTime.UtcNow;
+        return _cachedSystemPrompt;
+    }
+
     private async Task<string> BuildSystemPromptAsync(string? userRole)
     {
         var now = DateTime.UtcNow;
@@ -845,6 +1091,9 @@ public class RodriService : IRodriService
 
         return sb.ToString();
     }
+
+    private static string Truncate(string value, int maxLength) =>
+        value.Length <= maxLength ? value : value[..maxLength] + "...";
 
     private static string FormatEstatus(string EstadoLogistico) => EstadoLogistico switch
     {
