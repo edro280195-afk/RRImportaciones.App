@@ -17,6 +17,11 @@ namespace RR.Api.Controllers;
 [Authorize(Roles = "ADMIN,DUEÑO")]
 public class RodriController : ControllerBase
 {
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly IRodriService _rodriService;
     private readonly IConfiguration _config;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -48,7 +53,7 @@ public class RodriController : ControllerBase
 
         await foreach (var chunk in _rodriService.ChatStreamAsync(request, cancellationToken))
         {
-            var json = JsonSerializer.Serialize(chunk);
+            var json = JsonSerializer.Serialize(chunk, _jsonOptions);
             await Response.WriteAsync($"data: {json}\n\n", cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
         }

@@ -25,7 +25,7 @@ services:
       - key: JwtSettings__Audience
         value: RRImportacionesApp
       - key: JwtSettings__ExpirationMinutes
-        value: 60
+        value: 1440
       - key: JwtSettings__RefreshTokenExpirationDays
         value: 7
       - key: PortalAccess__SecretKey
