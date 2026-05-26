@@ -338,7 +338,7 @@ interface QuickCard {
                 </div>
               </div>
             </div>
-          } @else {
+          } @else if (msg.texto || msg.toolCalls?.length || msg.isProactiveAlert) {
             <div class="flex items-end gap-2 max-w-[82%]">
               <div
                 class="w-7 h-7 rounded-full bg-[#C61D26] flex items-center justify-center shrink-0 mb-0.5"
@@ -1554,6 +1554,7 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
             this.shouldScrollToBottom = true;
           } else if (chunk.type === 'error') {
             this.isTyping.set(false);
+            this.loading.set(false);
             this.allMessages.update(msgs => {
               const copy = [...msgs];
               const last = { ...copy[copy.length - 1] };

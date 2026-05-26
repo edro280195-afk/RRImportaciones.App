@@ -213,22 +213,23 @@ public class RodriController : ControllerBase
             .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId.Value, ct);
         if (conv == null) return NotFound("Conversación no encontrada.");
 
-        var msgs = await db.MensajesNexus
+        var rawMsgs = await db.MensajesNexus
             .Where(m => m.ConversacionId == id)
             .OrderBy(m => m.Orden)
-            .Select(m => new MensajeNexusDto
-            {
-                Id = m.Id,
-                Role = m.Role,
-                Texto = m.Texto,
-                ImagenMime = m.ImagenMime,
-                TieneImagen = m.TieneImagen,
-                ToolCalls = !string.IsNullOrEmpty(m.ToolCallsJson) 
-                    ? JsonSerializer.Deserialize<List<string>>(m.ToolCallsJson, (JsonSerializerOptions)null!) 
-                    : null,
-                Fecha = m.Fecha
-            })
             .ToListAsync(ct);
+
+        var msgs = rawMsgs.Select(m => new MensajeNexusDto
+        {
+            Id = m.Id,
+            Role = m.Role,
+            Texto = m.Texto,
+            ImagenMime = m.ImagenMime,
+            TieneImagen = m.TieneImagen,
+            ToolCalls = !string.IsNullOrEmpty(m.ToolCallsJson) 
+                ? JsonSerializer.Deserialize<List<string>>(m.ToolCallsJson, (JsonSerializerOptions)null!) 
+                : null,
+            Fecha = m.Fecha
+        }).ToList();
 
         return Ok(msgs);
     }
