@@ -280,6 +280,9 @@ public class RodriService : IRodriService
         var contentAccum = new StringBuilder();
         var toolsEjecutados = new List<string>();
 
+        // NOTA: StreamGeminiRealAsync y StreamOpenAiRealAsync ya manejan errores internamente
+        // con try-catch alrededor solo del ReadLineAsync/JsonDocument.Parse (sin yield return dentro).
+        // Por diseño de C#, no podemos poner yield return dentro de try-catch aquí.
         if (activeProvider == "gemini")
         {
             await foreach (var chunk in StreamGeminiRealAsync(systemPrompt, request, dbMessages, conversacion.Id, cancellationToken))
@@ -387,44 +390,73 @@ public class RodriService : IRodriService
 
                 var textAccum = new StringBuilder();
                 List<(string name, string args)>? functionCalls = null;
+                string? streamingError = null;
 
                 while (true)
                 {
-                    var line = await reader.ReadLineAsync(ct);
+                    string? line;
+                    try
+                    {
+                        line = await reader.ReadLineAsync(ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        streamingError = $"Error leyendo stream de Gemini: {ex.Message}";
+                        break;
+                    }
                     if (line == null) break;
 
                     if (!line.StartsWith("data: ")) continue;
                     var jsonStr = line[6..];
                     if (string.IsNullOrWhiteSpace(jsonStr)) continue;
 
-                    using var doc = JsonDocument.Parse(jsonStr);
-                    if (!doc.RootElement.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
-                        continue;
-
-                    var candidate = candidates[0];
-                    if (!candidate.TryGetProperty("content", out var content) ||
-                        !content.TryGetProperty("parts", out var parts))
-                        continue;
-
-                    foreach (var part in parts.EnumerateArray())
+                    JsonDocument doc;
+                    try
                     {
-                        if (part.TryGetProperty("text", out var textVal))
+                        doc = JsonDocument.Parse(jsonStr);
+                    }
+                    catch (Exception ex)
+                    {
+                        streamingError = $"Error parseando respuesta de Gemini: {ex.Message}";
+                        break;
+                    }
+
+                    using (doc)
+                    {
+                        if (!doc.RootElement.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+                            continue;
+
+                        var candidate = candidates[0];
+                        if (!candidate.TryGetProperty("content", out var content) ||
+                            !content.TryGetProperty("parts", out var parts))
+                            continue;
+
+                        foreach (var part in parts.EnumerateArray())
                         {
-                            var text = textVal.GetString() ?? "";
-                            if (!string.IsNullOrEmpty(text))
+                            if (part.TryGetProperty("text", out var textVal))
                             {
-                                textAccum.Append(text);
-                                yield return new RodriStreamChunk { Type = "token", Content = text };
+                                var text = textVal.GetString() ?? "";
+                                if (!string.IsNullOrEmpty(text))
+                                {
+                                    textAccum.Append(text);
+                                    yield return new RodriStreamChunk { Type = "token", Content = text };
+                                }
+                            }
+                            if (part.TryGetProperty("functionCall", out var funcCall))
+                            {
+                                functionCalls ??= [];
+                                var name = funcCall.GetProperty("name").GetString()!;
+                                var args = funcCall.TryGetProperty("args", out var a) ? a.GetRawText() : "{}";
+                                functionCalls.Add((name, args));
                             }
                         }
-                        if (part.TryGetProperty("functionCall", out var funcCall))
-                        {
-                            functionCalls ??= [];
-                            var name = funcCall.GetProperty("name").GetString()!;
-                            var args = funcCall.TryGetProperty("args", out var a) ? a.GetRawText() : "{}";
-                            functionCalls.Add((name, args));
-                        }
                     }
+                }
+
+                if (streamingError != null)
+                {
+                    yield return new RodriStreamChunk { Type = "error", Content = streamingError };
+                    yield break;
                 }
 
                 // Si hay function calls, ejecutarlos y re-llamar
@@ -594,10 +626,20 @@ public class RodriService : IRodriService
                 var contentAccum = new StringBuilder();
                 // Para acumular tool calls parciales (OpenAI envía tool_calls en deltas)
                 var pendingToolCalls = new Dictionary<int, (string id, string name, StringBuilder args)>();
+                string? streamingError = null;
 
                 while (true)
                 {
-                    var line = await reader.ReadLineAsync(ct);
+                    string? line;
+                    try
+                    {
+                        line = await reader.ReadLineAsync(ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        streamingError = $"Error leyendo stream de OpenAI: {ex.Message}";
+                        break;
+                    }
                     if (line == null) break;
                     if (!line.StartsWith("data: ")) continue;
 
@@ -605,42 +647,61 @@ public class RodriService : IRodriService
                     if (data == "[DONE]") break;
                     if (string.IsNullOrEmpty(data)) continue;
 
-                    using var doc = JsonDocument.Parse(data);
-                    var choices = doc.RootElement.GetProperty("choices");
-                    if (choices.GetArrayLength() == 0) continue;
-
-                    var delta = choices[0].GetProperty("delta");
-
-                    // Texto
-                    if (delta.TryGetProperty("content", out var contentVal) && contentVal.ValueKind == JsonValueKind.String)
+                    JsonDocument doc;
+                    try
                     {
-                        var text = contentVal.GetString() ?? "";
-                        if (!string.IsNullOrEmpty(text))
-                        {
-                            contentAccum.Append(text);
-                            yield return new RodriStreamChunk { Type = "token", Content = text };
-                        }
+                        doc = JsonDocument.Parse(data);
+                    }
+                    catch (Exception ex)
+                    {
+                        streamingError = $"Error parseando respuesta de OpenAI: {ex.Message}";
+                        break;
                     }
 
-                    // Tool calls (parciales)
-                    if (delta.TryGetProperty("tool_calls", out var tcArray))
+                    using (doc)
                     {
-                        foreach (var tc in tcArray.EnumerateArray())
+                        var choices = doc.RootElement.GetProperty("choices");
+                        if (choices.GetArrayLength() == 0) continue;
+
+                        var delta = choices[0].GetProperty("delta");
+
+                        // Texto
+                        if (delta.TryGetProperty("content", out var contentVal) && contentVal.ValueKind == JsonValueKind.String)
                         {
-                            var idx = tc.GetProperty("index").GetInt32();
-                            if (!pendingToolCalls.ContainsKey(idx))
+                            var text = contentVal.GetString() ?? "";
+                            if (!string.IsNullOrEmpty(text))
                             {
-                                var id = tc.TryGetProperty("id", out var idVal) ? idVal.GetString()! : "";
-                                var name = tc.TryGetProperty("function", out var fn) && fn.TryGetProperty("name", out var nameVal)
-                                    ? nameVal.GetString()! : "";
-                                pendingToolCalls[idx] = (id, name, new StringBuilder());
+                                contentAccum.Append(text);
+                                yield return new RodriStreamChunk { Type = "token", Content = text };
                             }
-                            if (tc.TryGetProperty("function", out var func) && func.TryGetProperty("arguments", out var argsVal))
+                        }
+
+                        // Tool calls (parciales)
+                        if (delta.TryGetProperty("tool_calls", out var tcArray))
+                        {
+                            foreach (var tc in tcArray.EnumerateArray())
                             {
-                                pendingToolCalls[idx].args.Append(argsVal.GetString() ?? "");
+                                var idx = tc.GetProperty("index").GetInt32();
+                                if (!pendingToolCalls.ContainsKey(idx))
+                                {
+                                    var id = tc.TryGetProperty("id", out var idVal) ? idVal.GetString()! : "";
+                                    var name = tc.TryGetProperty("function", out var fn) && fn.TryGetProperty("name", out var nameVal)
+                                        ? nameVal.GetString()! : "";
+                                    pendingToolCalls[idx] = (id, name, new StringBuilder());
+                                }
+                                if (tc.TryGetProperty("function", out var func) && func.TryGetProperty("arguments", out var argsVal))
+                                {
+                                    pendingToolCalls[idx].args.Append(argsVal.GetString() ?? "");
+                                }
                             }
                         }
                     }
+                }
+
+                if (streamingError != null)
+                {
+                    yield return new RodriStreamChunk { Type = "error", Content = streamingError };
+                    yield break;
                 }
 
                 // Si hay tool calls pendientes, ejecutarlos

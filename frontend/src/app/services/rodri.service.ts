@@ -102,6 +102,7 @@ export class RodriService {
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let receivedTerminalChunk = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -116,9 +117,18 @@ export class RodriService {
         if (!trimmed || !trimmed.startsWith('data: ')) continue;
         try {
           const chunk: RodriStreamChunk = JSON.parse(trimmed.slice(6));
+          if (chunk.type === 'done' || chunk.type === 'error') {
+            receivedTerminalChunk = true;
+          }
           onChunk(chunk);
         } catch { /* saltar chunks malformados */ }
       }
+    }
+
+    // Si el stream se cerró sin un chunk terminal (done/error), emitir uno sintético
+    // para que el UI no se quede atorado en "procesando" para siempre.
+    if (!receivedTerminalChunk) {
+      onChunk({ type: 'done' });
     }
   }
 

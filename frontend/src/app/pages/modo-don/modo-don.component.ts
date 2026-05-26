@@ -1631,6 +1631,10 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
           this.shouldScrollToBottom = true;
         },
       });
+    } finally {
+      // Garantizar que loading siempre se resetea, incluso si chatStream
+      // retornó sin emitir chunk 'done' ni 'error' (stream truncado).
+      this.loading.set(false);
     }
   }
 
