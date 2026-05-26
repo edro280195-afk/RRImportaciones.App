@@ -91,10 +91,31 @@ public class CampoService : ICampoService
 
     public async Task<TareaCampoDto> CrearPreInspeccionAsync(CrearPreInspeccionRequest request)
     {
+        Guid? vehiculoId = null;
+
+        if (!string.IsNullOrWhiteSpace(request.Vin))
+        {
+            var vehiculo = new Vehiculo
+            {
+                Id = Guid.NewGuid(),
+                Vin = request.Vin.ToUpperInvariant(),
+                VinCorto = request.Vin.Length >= 6 ? request.Vin.Substring(request.Vin.Length - 6) : null,
+                MarcaId = request.MarcaId,
+                ModeloId = request.ModeloId,
+                Anno = request.Anno,
+                Estado = "PENDIENTE_DE_TRAMITE",
+                UbicacionActual = request.Ubicacion,
+                FechaRegistro = DateTime.UtcNow
+            };
+            _db.Vehiculos.Add(vehiculo);
+            vehiculoId = vehiculo.Id;
+        }
+
         var tarea = new TareaCampo
         {
             Id = Guid.NewGuid(),
             TramiteId = null,
+            VehiculoId = vehiculoId,
             Tipo = "PRE_INSPECCION",
             EstadoLogistico = "ABIERTA",
             Ubicacion = request.Ubicacion,
@@ -280,6 +301,20 @@ public class CampoService : ICampoService
         var fotos = tarea.FotosUrls.ToList();
         fotos.Add(fotoUrl);
         tarea.FotosUrls = fotos.ToArray();
+
+        if (tarea.VehiculoId.HasValue)
+        {
+            var vehiculo = await _db.Vehiculos.FindAsync(tarea.VehiculoId.Value);
+            if (vehiculo != null)
+            {
+                var vFotos = vehiculo.FotosUrls.ToList();
+                if (!vFotos.Contains(fotoUrl))
+                {
+                    vFotos.Add(fotoUrl);
+                    vehiculo.FotosUrls = vFotos.ToArray();
+                }
+            }
+        }
 
         if (tarea.EstadoLogistico is "ABIERTA" or "TOMADA")
             tarea.EstadoLogistico = "EN_YARDA";

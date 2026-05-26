@@ -308,6 +308,19 @@ public class TramiteService : ITramiteService
 
         _db.Tramites.Add(tramite);
 
+        if (request.VehiculoId.HasValue)
+        {
+            var vehiculo = await _db.Vehiculos.FindAsync(request.VehiculoId.Value);
+            if (vehiculo != null)
+            {
+                vehiculo.Estado = "EN_TRAMITE";
+                if (!vehiculo.ClienteId.HasValue)
+                {
+                    vehiculo.ClienteId = request.ClienteId;
+                }
+            }
+        }
+
         _db.Eventos.Add(new Evento
         {
             Id = Guid.NewGuid(),

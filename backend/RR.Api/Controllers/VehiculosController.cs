@@ -26,12 +26,13 @@ public class VehiculosController : ControllerBase
         [FromQuery] int? annoMin,
         [FromQuery] int? annoMax,
         [FromQuery] bool? enPatio,
+        [FromQuery] string? estado,
         [FromQuery] string? orderBy,
         [FromQuery] string? orderDir,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        var result = await _vehiculoService.GetListAsync(search, clienteId, clienteNombre, marcaId, annoMin, annoMax, enPatio, orderBy, orderDir, page, pageSize);
+        var result = await _vehiculoService.GetListAsync(search, clienteId, clienteNombre, marcaId, annoMin, annoMax, enPatio, estado, orderBy, orderDir, page, pageSize);
         return Ok(result);
     }
 

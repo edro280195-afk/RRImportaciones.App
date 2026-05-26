@@ -22,9 +22,9 @@ public class VehiculoService : IVehiculoService
         _tenantContext = tenantContext;
     }
 
-    public async Task<PagedResult<VehiculoListDto>> GetListAsync(string? search, Guid? clienteId, string? clienteNombre, Guid? marcaId, int? annoMin, int? annoMax, bool? enPatio, string? orderBy, string? orderDir, int page = 1, int pageSize = 20)
+    public async Task<PagedResult<VehiculoListDto>> GetListAsync(string? search, Guid? clienteId, string? clienteNombre, Guid? marcaId, int? annoMin, int? annoMax, bool? enPatio, string? estado, string? orderBy, string? orderDir, int page = 1, int pageSize = 20)
     {
-        var query = BuildListQuery(search, clienteId, clienteNombre, marcaId, annoMin, annoMax, enPatio);
+        var query = BuildListQuery(search, clienteId, clienteNombre, marcaId, annoMin, annoMax, enPatio, estado);
 
         var total = await query.CountAsync();
 
@@ -47,6 +47,8 @@ public class VehiculoService : IVehiculoService
                 TieneTramiteActivo = v.Tramites.Any(t => t.EstadoLogistico != "ENTREGADO_AL_CLIENTE" && t.EstadoLogistico != "CANCELADO"),
                 CumplioRequisitos = v.CumplioRequisitos,
                 TieneSelloAduanal = v.TieneSelloAduanal,
+                Estado = v.Estado,
+                FotosUrls = v.FotosUrls
             })
             .ToListAsync();
 
@@ -59,7 +61,7 @@ public class VehiculoService : IVehiculoService
         };
     }
 
-    private IQueryable<Vehiculo> BuildListQuery(string? search, Guid? clienteId, string? clienteNombre, Guid? marcaId, int? annoMin, int? annoMax, bool? enPatio)
+    private IQueryable<Vehiculo> BuildListQuery(string? search, Guid? clienteId, string? clienteNombre, Guid? marcaId, int? annoMin, int? annoMax, bool? enPatio, string? estado)
     {
         var query = _db.Vehiculos
             .Include(v => v.Cliente)
@@ -101,6 +103,9 @@ public class VehiculoService : IVehiculoService
             query = enPatio.Value
                 ? query.Where(v => v.FechaIngresoPatio != null)
                 : query.Where(v => v.FechaIngresoPatio == null);
+
+        if (!string.IsNullOrWhiteSpace(estado))
+            query = query.Where(v => v.Estado == estado);
 
         return query;
     }
@@ -155,6 +160,8 @@ public class VehiculoService : IVehiculoService
                 TieneTramiteActivo = v.Tramites.Any(t => t.EstadoLogistico != "ENTREGADO_AL_CLIENTE" && t.EstadoLogistico != "CANCELADO"),
                 CumplioRequisitos = v.CumplioRequisitos,
                 TieneSelloAduanal = v.TieneSelloAduanal,
+                Estado = v.Estado,
+                FotosUrls = v.FotosUrls,
                 CilindradaCm3 = v.CilindradaCm3,
                 Categoria = v.Categoria,
                 FraccionArancelaria = v.FraccionArancelaria != null ? v.FraccionArancelaria.Fraccion : null,
@@ -350,6 +357,8 @@ public class VehiculoService : IVehiculoService
                 TieneTramiteActivo = v.Tramites.Any(t => t.EstadoLogistico != "ENTREGADO_AL_CLIENTE" && t.EstadoLogistico != "CANCELADO"),
                 CumplioRequisitos = v.CumplioRequisitos,
                 TieneSelloAduanal = v.TieneSelloAduanal,
+                Estado = v.Estado,
+                FotosUrls = v.FotosUrls
             })
             .ToListAsync();
     }

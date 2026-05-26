@@ -145,6 +145,8 @@ public class AppDbContext : DbContext
             e.Property(x => x.Vin).HasMaxLength(17).IsRequired();
             e.HasIndex(x => new { x.TenantId, x.Vin }).IsUnique();
             e.Property(x => x.VinCorto).HasMaxLength(6);
+            e.Property(x => x.Estado).HasMaxLength(50).HasDefaultValue("PENDIENTE_DE_TRAMITE");
+            e.Property(x => x.FotosUrls).HasColumnType("text[]");
             e.Property(x => x.Categoria).HasMaxLength(50);
             e.Property(x => x.CilindradaCm3);
             e.Property(x => x.Color).HasMaxLength(50);
@@ -338,6 +340,7 @@ public class AppDbContext : DbContext
             e.HasIndex(x => new { x.TramiteId, x.EstadoLogistico });
             e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.Tramite).WithMany(t => t.TareasCampo).HasForeignKey(x => x.TramiteId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Vehiculo).WithMany().HasForeignKey(x => x.VehiculoId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.PersonalCampo).WithMany().HasForeignKey(x => x.PersonalCampoId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.UsuarioCampo).WithMany().HasForeignKey(x => x.TomadaPorUsuarioId).OnDelete(DeleteBehavior.SetNull);
             e.HasQueryFilter(e => e.TenantId == CurrentTenantId);

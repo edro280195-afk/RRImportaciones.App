@@ -6,7 +6,9 @@ public class Vehiculo : ITenantEntity
 {
     public Guid Id { get; set; }
     public Guid TenantId { get; set; }
-    public Guid ClienteId { get; set; }
+    public Guid? ClienteId { get; set; }
+    public string Estado { get; set; } = "PENDIENTE_DE_TRAMITE";
+    public string[] FotosUrls { get; set; } = [];
     public string Vin { get; set; } = string.Empty;
     public string? VinCorto { get; set; }
     public Guid? MarcaId { get; set; }
@@ -29,7 +31,7 @@ public class Vehiculo : ITenantEntity
     public DateTime? DeletedAt { get; set; }
 
     public Tenant Tenant { get; set; } = null!;
-    public Cliente Cliente { get; set; } = null!;
+    public Cliente? Cliente { get; set; }
     public Marca? Marca { get; set; }
     public Modelo? Modelo { get; set; }
     public FraccionArancelaria? FraccionArancelaria { get; set; }

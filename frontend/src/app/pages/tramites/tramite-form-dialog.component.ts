@@ -102,7 +102,7 @@ import { environment } from '../../../environments/environment';
                 <label
                   class="block text-[11px] font-semibold text-[#4B5162] uppercase tracking-[0.6px] mb-1.5"
                 >
-                  Vehículo
+                  Vehículo (Pendientes en yarda)
                 </label>
                 <select
                   [(ngModel)]="form.vehiculoId"
@@ -311,7 +311,7 @@ export class TramiteFormDialogComponent {
   private async loadCatalogs(): Promise<void> {
     const [clientesRes, vehiculosRes, tramitadoresRes, aduanasRes] = await Promise.all([
       fetch(`${environment.apiUrl}/api/clientes?pageSize=100`),
-      fetch(`${environment.apiUrl}/api/vehiculos?pageSize=100`),
+      fetch(`${environment.apiUrl}/api/vehiculos?estado=PENDIENTE_DE_TRAMITE&pageSize=100`),
       fetch(`${environment.apiUrl}/api/tramitadores?soloActivos=true`),
       fetch(`${environment.apiUrl}/api/aduanas`),
     ]);

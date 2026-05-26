@@ -37,10 +37,14 @@ public class CrearTareaCampoRequest
 
 public class CrearPreInspeccionRequest
 {
-    public string DescripcionVehiculo { get; set; } = string.Empty;
+    public string? DescripcionVehiculo { get; set; }
     public string? ClienteNombreLibre { get; set; }
     public string? Ubicacion { get; set; }
     public string? NotasInternas { get; set; }
+    public string? Vin { get; set; }
+    public Guid? MarcaId { get; set; }
+    public Guid? ModeloId { get; set; }
+    public int? Anno { get; set; }
 }
 
 public class TomarTareaCampoRequest

@@ -14,4 +14,6 @@ public class VehiculoListDto
     public bool TieneTramiteActivo { get; set; }
     public bool CumplioRequisitos { get; set; }
     public bool TieneSelloAduanal { get; set; }
+    public string Estado { get; set; } = string.Empty;
+    public string[] FotosUrls { get; set; } = [];
 }

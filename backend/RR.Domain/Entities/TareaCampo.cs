@@ -7,6 +7,7 @@ public class TareaCampo : ITenantEntity
     public Guid Id { get; set; }
     public Guid TenantId { get; set; }
     public Guid? TramiteId { get; set; }
+    public Guid? VehiculoId { get; set; }
     public Guid? PersonalCampoId { get; set; }
     public string Tipo { get; set; } = "FOTOS_YARDA";
     public string EstadoLogistico { get; set; } = "ABIERTA";
@@ -26,6 +27,7 @@ public class TareaCampo : ITenantEntity
 
     public Tenant Tenant { get; set; } = null!;
     public Tramite? Tramite { get; set; }
+    public Vehiculo? Vehiculo { get; set; }
     public PersonalCampo? PersonalCampo { get; set; }
     public User? UsuarioCampo { get; set; }
 }

@@ -5,10 +5,12 @@ import { CampoService, TareaCampoDto } from '../../services/campo.service';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
+import { CampoRegistroModalComponent } from './campo-registro-modal.component';
 
 @Component({
   selector: 'app-campo-tareas',
   standalone: true,
+  imports: [CampoRegistroModalComponent],
   template: `
     <div class="shell">
       <!-- ── Header ──────────────────────────────────────────────── -->
@@ -32,6 +34,15 @@ import { RealtimeService } from '../../services/realtime.service';
           </div>
         </div>
         <div class="topbar-actions">
+          <button
+            class="icon-btn"
+            (click)="showRegistro.set(true)"
+            aria-label="Registrar Unidad"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
           <button
             class="icon-btn"
             (click)="load()"
@@ -286,6 +297,13 @@ import { RealtimeService } from '../../services/realtime.service';
             </div>
           </div>
         </div>
+      }
+
+      @if (showRegistro()) {
+        <app-campo-registro-modal
+          (close)="showRegistro.set(false)"
+          (registered)="load()"
+        ></app-campo-registro-modal>
       }
     </div>
   `,
@@ -919,6 +937,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   loading = signal(false);
   activeFilter = signal('');
   showLogout = signal(false);
+  showRegistro = signal(false);
 
   filters = [
     { label: 'Todas', value: '' },
