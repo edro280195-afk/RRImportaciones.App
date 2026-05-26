@@ -14,6 +14,7 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AuthService } from '../../services/auth.service';
 import { RodriService, RodriMessage, RodriStreamChunk } from '../../services/rodri.service';
 import { RealtimeService } from '../../services/realtime.service';
+import { driver } from 'driver.js';
 
 interface ChatMessage {
   role: 'user' | 'model';
@@ -40,13 +41,14 @@ interface QuickCard {
       <!-- ══ HEADER TIPO WHATSAPP ══ -->
       <div class="bg-[#C61D26] text-white flex items-center gap-3 px-4 py-3 shadow-md shrink-0 z-30">
         <div
+          id="btn-historial"
           class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 ring-2 ring-white/30 cursor-pointer hover:bg-white/30 transition-colors"
           (click)="showConversacionesDrawer.set(true)"
           title="Ver conversaciones anteriores"
         >
           <svg fill="currentColor" viewBox="0 0 24 24" class="w-5 h-5 text-white">
             <path
-              d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"
+              d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0 3.09 3.09Z"
             />
           </svg>
         </div>
@@ -73,6 +75,7 @@ interface QuickCard {
 
         <!-- Botón Historial lateral -->
         <button
+          id="btn-historial-v2"
           (click)="showConversacionesDrawer.set(true)"
           title="Ver historial de chats"
           class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white"
@@ -84,6 +87,7 @@ interface QuickCard {
 
         <!-- Toggle Alertas Proactivas -->
         <button
+          id="btn-alertas"
           (click)="toggleProactiveAlerts()"
           [title]="proactiveAlertsEnabled() ? 'Silenciar alertas proactivas' : 'Activar alertas proactivas'"
           class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
@@ -103,6 +107,7 @@ interface QuickCard {
 
         <!-- Toggle proveedor de IA -->
         <button
+          id="btn-proveedor"
           (click)="toggleProvider()"
           [title]="
             provider() === 'openai'
@@ -121,6 +126,7 @@ interface QuickCard {
         <!-- Toggle voz -->
         @if (speechAvailable()) {
           <button
+            id="btn-voz"
             (click)="toggleVoice()"
             [title]="voiceEnabled() ? 'Silenciar a Nexus' : 'Activar voz de Nexus'"
             class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
@@ -148,7 +154,7 @@ interface QuickCard {
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"
+                  d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z"
                 />
               </svg>
             }
@@ -158,6 +164,7 @@ interface QuickCard {
         <!-- Toggle manos libres -->
         @if (speechAvailable()) {
           <button
+            id="btn-manos-libres"
             (click)="toggleHandsFree()"
             [title]="handsFreeMode() ? 'Desactivar manos libres' : 'Activar manos libres'"
             class="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
@@ -171,12 +178,25 @@ interface QuickCard {
 
         <!-- Nueva Conversación -->
         <button
+          id="btn-nueva-conversacion"
           (click)="iniciarNuevaConversacion()"
           title="Nueva conversación persistida"
           class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white"
         >
           <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        </button>
+
+        <!-- Botón Ayuda Guía Visual -->
+        <button
+          id="btn-ayuda-nexus"
+          (click)="iniciarGuiaVisual()"
+          title="Ver guía de ayuda paso a paso"
+          class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white"
+        >
+          <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
           </svg>
         </button>
       </div>
@@ -282,7 +302,7 @@ interface QuickCard {
             <div class="w-7 h-7 shrink-0"></div>
             <div class="wa-bubble-received">
               <p class="text-[14px] text-[#555] mb-3">¿Por dónde empezamos?</p>
-              <div class="grid grid-cols-2 gap-2">
+              <div id="tarjetas-rapidas" class="grid grid-cols-2 gap-2">
                 @for (card of quickCards; track card.question) {
                   <button
                     (click)="sendCard(card.question)"
@@ -471,6 +491,7 @@ interface QuickCard {
             class="flex-1 bg-white rounded-[24px] flex items-end px-4 py-2.5 shadow-sm min-h-[46px]"
           >
             <textarea
+              id="input-mensaje"
               #inputRef
               [(ngModel)]="inputText"
               (keydown)="handleKeydown($event)"
@@ -484,23 +505,52 @@ interface QuickCard {
             ></textarea>
           </div>
 
-          <!-- Cámara -->
-          <input #fileInput type="file" accept="image/*" class="hidden" (change)="onImageSelected($event)" />
-          <button
-            (click)="fileInput.click()"
-            [disabled]="loading() || isRecording()"
-            title="Tomar foto o seleccionar imagen"
-            class="w-[42px] h-[46px] flex items-center justify-center shrink-0 transition-all text-[#8696A0] hover:text-[#C61D26] active:scale-95 disabled:opacity-40"
-          >
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-5 h-5 stroke-[1.8]">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
-            </svg>
-          </button>
+          <!-- Cámara con Menú de Dos Opciones -->
+          <input #cameraInput type="file" accept="image/*" capture="environment" class="hidden" (change)="onImageSelected($event)" />
+          <input #galleryInput type="file" accept="image/*" class="hidden" (change)="onImageSelected($event)" />
+          
+          <div class="relative shrink-0">
+            <button
+              id="btn-camara"
+              (click)="showCameraMenu.set(!showCameraMenu())"
+              [disabled]="loading() || isRecording()"
+              title="Cámara y Fotos"
+              class="w-[42px] h-[46px] flex items-center justify-center transition-all text-[#8696A0] hover:text-[#C61D26] active:scale-95 disabled:opacity-40"
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-5 h-5 stroke-[1.8]">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+              </svg>
+            </button>
+
+            <!-- Menú Flotante de Selección -->
+            @if (showCameraMenu()) {
+              <div class="absolute bottom-14 right-0 w-44 bg-white/95 backdrop-blur-md border border-[#E0D8D0] rounded-2xl p-1.5 shadow-2xl flex flex-col gap-0.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                <button
+                  (click)="abrirCamaraDirecta(cameraInput)"
+                  class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-gray-100 active:bg-gray-200 text-left transition-all w-full"
+                >
+                  <span class="text-base">📸</span>
+                  <span class="text-[12.5px] font-semibold text-gray-800">Tomar Foto</span>
+                </button>
+                <div class="h-px bg-gray-100 my-0.5"></div>
+                <button
+                  (click)="abrirGaleriaDirecta(galleryInput)"
+                  class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-gray-100 active:bg-gray-200 text-left transition-all w-full"
+                >
+                  <span class="text-base">🖼️</span>
+                  <span class="text-[12.5px] font-semibold text-gray-800">Elegir de Galería</span>
+                </button>
+              </div>
+              <!-- Overlay invisible para cerrar -->
+              <div class="fixed inset-0 z-40" (click)="showCameraMenu.set(false)"></div>
+            }
+          </div>
 
           <!-- Botón enviar -->
           @if ((inputText.trim() || pendingImage()) && !isRecording()) {
             <button
+              id="btn-enviar-PTT"
               (click)="send()"
               [disabled]="loading()"
               class="w-[46px] h-[46px] bg-[#C61D26] rounded-full flex items-center justify-center shrink-0 shadow-md hover:bg-[#A01520] active:scale-95 transition-all disabled:opacity-40"
@@ -521,6 +571,7 @@ interface QuickCard {
           } @else if (speechAvailable()) {
             <!-- Botón micrófono PTT -->
             <button
+              id="btn-enviar-PTT"
               (mousedown)="startRecording($event)"
               (mouseup)="stopRecording($event)"
               (mouseleave)="stopRecordingIfActive()"
@@ -554,6 +605,7 @@ interface QuickCard {
             </button>
           } @else {
             <button
+              id="btn-enviar-PTT"
               (click)="send()"
               [disabled]="loading() || !inputText.trim()"
               class="w-[46px] h-[46px] bg-[#C61D26] rounded-full flex items-center justify-center shrink-0 shadow-md hover:bg-[#A01520] active:scale-95 transition-all disabled:opacity-40"
@@ -664,6 +716,7 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   isTyping = signal(false);
   inputText = '';
   pendingImage = signal<{base64: string; mime: string; preview: string} | null>(null);
+  showCameraMenu = signal(false);
   handsFreeMode = signal(false);
   private silenceTimer: any = null;
   private readonly SILENCE_TIMEOUT = 1800; // ms
@@ -755,6 +808,14 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
         this.handleProactiveAlert(alerta);
       }
     });
+
+    // Lanzar el onboarding visual automáticamente la primera vez para Don Ricardo
+    const tourShown = localStorage.getItem('nexus_tour_shown');
+    if (!tourShown) {
+      setTimeout(() => {
+        this.iniciarGuiaVisual();
+      }, 1200);
+    }
   }
 
   ngOnDestroy(): void {
@@ -1362,6 +1423,16 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
     input.value = '';
   }
 
+  abrirCamaraDirecta(input: HTMLInputElement): void {
+    this.showCameraMenu.set(false);
+    input.click();
+  }
+
+  abrirGaleriaDirecta(input: HTMLInputElement): void {
+    this.showCameraMenu.set(false);
+    input.click();
+  }
+
   private compressAndStore(file: File): void {
     const reader = new FileReader();
     reader.onload = () => {
@@ -1579,6 +1650,107 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.inputText = '';
     this.pendingImage.set(null);
     this.showConversacionesDrawer.set(false);
+  }
+
+  iniciarGuiaVisual(): void {
+    // Detener reproducción de voz antes de iniciar la guía
+    this.stopSpeaking();
+
+    const driverObj = driver({
+      showProgress: true,
+      nextBtnText: 'Siguiente 👉',
+      prevBtnText: '👈 Atrás',
+      doneBtnText: '¡Entendido! 👍',
+      progressText: 'Paso {{current}} de {{total}}',
+      steps: [
+        {
+          popover: {
+            title: '¡Bienvenido a Nexus Pro, Don Ricardo! 👋',
+            description: 'Diseñé esta guía especialmente para usted. Le mostraré paso a paso para qué sirve cada botón en la pantalla para que controle su negocio sin complicaciones. ¡Vamos a ver cómo funciona!'
+          }
+        },
+        {
+          element: '#btn-historial',
+          popover: {
+            title: '📂 Historial de Chats',
+            description: 'Al presionar esta estrella blanca, se abrirá una barra lateral con sus conversaciones anteriores. Así podrá retomar cualquier chat previo con Nexus.'
+          }
+        },
+        {
+          element: '#btn-alertas',
+          popover: {
+            title: '🔔 Alertas del Negocio',
+            description: 'Este botón activa o desactiva las alertas automáticas. Cuando tiene la campana verde activa, Nexus le avisará de inmediato si hay cobros vencidos o trámites detenidos en aduanas.'
+          }
+        },
+        {
+          element: '#btn-proveedor',
+          popover: {
+            title: '🧠 Selector de Inteligencia',
+            description: 'Aquí puede cambiar entre los motores GPT-4o y Gemini. Si siente que uno le responde mejor o analiza mejor sus fotos, cámbielo aquí con un toque.'
+          }
+        },
+        {
+          element: '#btn-voz',
+          popover: {
+            title: '🔊 Voz de Nexus',
+            description: 'Enciende o apaga la voz de Nexus. Cuando está activo (con la bocina blanca), Nexus le leerá sus respuestas en voz alta de manera clara.'
+          }
+        },
+        {
+          element: '#btn-manos-libres',
+          popover: {
+            title: '🎤 Modo Manos Libres',
+            description: '¡Este botón es maravilloso! Si lo enciende, podrá hablar con Nexus de corrido sin presionar nada. Termine su frase, guarde silencio por un instante, y Nexus le responderá.'
+          }
+        },
+        {
+          element: '#btn-nueva-conversacion',
+          popover: {
+            title: '➕ Nueva Conversación',
+            description: 'Use este botón de más si desea limpiar la pantalla y comenzar una nueva plática limpia sobre otro tema diferente.'
+          }
+        },
+        {
+          element: '#tarjetas-rapidas',
+          popover: {
+            title: '⚡ Preguntas Rápidas',
+            description: 'Estas tarjetas le permiten consultar las deudas de sus clientes, el estado de sus carros o lo pendiente en aduana con un solo toque, sin necesidad de escribir nada.'
+          }
+        },
+        {
+          element: '#input-mensaje',
+          popover: {
+            title: '✏️ Cuadro de Texto',
+            description: 'Aquí puede escribir sus mensajes directamente con el teclado cuando prefiera no hablar en voz alta.'
+          }
+        },
+        {
+          element: '#btn-camara',
+          popover: {
+            title: '📷 Cámara e Imágenes',
+            description: 'Presione esta camarita para tomar una foto con su celular o elegir un archivo. Puede enviarle fotos de VINs de carros, facturas o pedimentos para que Nexus los lea y procese por usted.'
+          }
+        },
+        {
+          element: '#btn-enviar-PTT',
+          popover: {
+            title: '🎤 Botón de Hablar y Enviar',
+            description: 'Si el manos libres está apagado, mantenga presionado este botón mientras habla y suéltelo al terminar para mandar su voz. Si ya escribió texto, este botón servirá para enviar su escrito.'
+          }
+        },
+        {
+          element: '#btn-ayuda-nexus',
+          popover: {
+            title: '❓ ¿Necesita Ayuda?',
+            description: 'Si alguna vez olvida para qué sirve algo, toque este signo de interrogación. Volverá a iniciar esta guía interactiva paso a paso inmediatamente.'
+          }
+        }
+      ]
+    });
+
+    localStorage.setItem('nexus_tour_shown', 'true');
+    driverObj.drive();
   }
 
   seleccionarConversacion(id: string): void {

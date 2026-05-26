@@ -1,6 +1,7 @@
 /* Tailwind v4 source — only Tailwind directives here.
    Custom design system is in design-system.css (loaded separately by Angular). */
 @import "tailwindcss";
+@import 'driver.js/dist/driver.css';
 
 /* Utilidad global para ocultar scrollbar manteniendo scroll funcional */
 .scrollbar-hide {

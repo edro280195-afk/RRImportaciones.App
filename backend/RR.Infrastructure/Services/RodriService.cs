@@ -26,6 +26,7 @@ public class RodriService : IRodriService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly Dictionary<string, IRodriTool> _toolMap;
     private readonly ICurrentUserService _currentUser;
+    private readonly ITenantContext _tenantContext;
 
     // Cache del system prompt
     private string? _cachedSystemPrompt;
@@ -70,7 +71,8 @@ public class RodriService : IRodriService
         IConfiguration config,
         IEnumerable<IRodriTool> tools,
         IServiceScopeFactory scopeFactory,
-        ICurrentUserService currentUser)
+        ICurrentUserService currentUser,
+        ITenantContext tenantContext)
     {
         _httpClient = httpClient;
         _db = db;
@@ -89,6 +91,7 @@ public class RodriService : IRodriService
         _scopeFactory = scopeFactory;
         _toolMap = tools.ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
         _currentUser = currentUser;
+        _tenantContext = tenantContext;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -1629,6 +1632,11 @@ public class RodriService : IRodriService
         try
         {
             using var scope = _scopeFactory.CreateScope();
+            var tenantCtx = scope.ServiceProvider.GetRequiredService<ITenantContext>();
+            if (_tenantContext.HasTenant)
+            {
+                tenantCtx.SetTenant(_tenantContext.TenantId);
+            }
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             var maxOrden = await db.MensajesNexus
@@ -1680,6 +1688,11 @@ public class RodriService : IRodriService
         try
         {
             using var scope = _scopeFactory.CreateScope();
+            var tenantCtx = scope.ServiceProvider.GetRequiredService<ITenantContext>();
+            if (_tenantContext.HasTenant)
+            {
+                tenantCtx.SetTenant(_tenantContext.TenantId);
+            }
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             var conversacion = await db.ConversacionesNexus
