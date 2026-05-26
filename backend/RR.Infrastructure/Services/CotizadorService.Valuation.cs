@@ -210,6 +210,13 @@ public partial class CotizadorService
         if (score == 0)
             return 0;
 
+        // Boost cuando todos los tokens significativos (3+ chars) del input están en el candidate.
+        // Ej. "Grand Cherokee" → tokens {GRAND, CHEROKEE} ambos en "GRAND CHEROKEE-6 CYL." → +10.
+        // Sube los matches multi-palabra correctos por encima de matches accidentales por una sola palabra.
+        var meaningfulInputTokens = inputTokens.Where(t => t.Length >= 3).ToList();
+        if (meaningfulInputTokens.Count >= 2 && meaningfulInputTokens.All(t => candidateTokens.Contains(t) || normalizedCandidate.Contains(t)))
+            score += 10;
+
         var candidateForSearch = Normalize(candidate);
         if (categoria.Equals("PICKUP", StringComparison.OrdinalIgnoreCase) && candidateForSearch.Contains("PICKUP"))
             score += 20;
@@ -227,6 +234,13 @@ public partial class CotizadorService
                 score += 25;
             if (candidateForSearch.Contains("4CYL"))
                 score -= 40;
+        }
+        else if (engineCylinders is 8)
+        {
+            if (candidateForSearch.Contains("V8") || candidateForSearch.Contains("8CYL"))
+                score += 25;
+            if (candidateForSearch.Contains("4CYL"))
+                score -= 30;
         }
 
         return Math.Max(0, score);

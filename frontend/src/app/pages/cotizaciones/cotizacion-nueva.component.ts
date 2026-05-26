@@ -216,6 +216,10 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
                     type="number"
                     placeholder="Sobrescribe Anexo 2"
                   />
+                  <small class="hint">
+                    Captura el valor en USD y presiona <em>Calcular cotización</em>. Se ignora el
+                    catálogo.
+                  </small>
                 </div>
                 <div class="field">
                   <label>Override honorarios (MXN)</label>
@@ -332,19 +336,30 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
                 Se consulta NHTSA, Anexo 2, Banxico y parámetros fiscales del régimen.
               </p>
             </div>
-          } @else if (candidatos()?.requiereSeleccion && !resultado()) {
+          } @else if (candidatos() && !resultado()) {
             <!-- Paso de selección de candidato -->
             <div class="cand-header">
               <p class="eyebrow">Paso 2 de 3</p>
-              <h3 class="cand-title">¿Cuál entrada del catálogo es la correcta?</h3>
-              <p class="cand-sub">
-                Encontramos {{ candidatos()!.candidatos.length }} coincidencias para
-                <strong>{{ candidatos()!.marca }} {{ candidatos()!.modelo }}</strong>
-                ({{ candidatos()!.antiguedadAnios }} año{{
-                  candidatos()!.antiguedadAnios === 1 ? '' : 's'
-                }}
-                de antigüedad). Elige la que corresponde a este vehículo.
-              </p>
+              @if (candidatos()!.candidatos.length === 0) {
+                <h3 class="cand-title">No encontramos este vehículo en el catálogo</h3>
+                <p class="cand-sub">
+                  No hay entradas que coincidan con
+                  <strong>{{ candidatos()!.marca }} {{ candidatos()!.modelo }}</strong>
+                  en el Anexo 2. Puedes capturar el valor aduana manualmente o ajustar los datos del
+                  vehículo y volver a intentar.
+                </p>
+              } @else {
+                <h3 class="cand-title">¿Cuál entrada del catálogo es la correcta?</h3>
+                <p class="cand-sub">
+                  Encontramos {{ especificosCount() }}
+                  {{ especificosCount() === 1 ? 'coincidencia' : 'coincidencias' }} para
+                  <strong>{{ candidatos()!.marca }} {{ candidatos()!.modelo }}</strong>
+                  ({{ candidatos()!.antiguedadAnios }} año{{
+                    candidatos()!.antiguedadAnios === 1 ? '' : 's'
+                  }}
+                  de antigüedad). Elige la que corresponde a este vehículo.
+                </p>
+              }
             </div>
 
             <div class="cand-list">
@@ -353,6 +368,7 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
                   type="button"
                   class="cand-card"
                   [class.cand-card--suggested]="c.esSugerido"
+                  [class.cand-card--generic]="c.esGenerico"
                   (click)="calcularConCandidato(c)"
                 >
                   <div class="cand-card__top">
@@ -361,9 +377,24 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
                     @if (c.esSugerido) {
                       <span class="cand-badge">Sugerido</span>
                     }
+                    @if (c.esGenerico) {
+                      <span class="cand-badge cand-badge--generic">Precio estimado</span>
+                    }
                   </div>
                   <div class="cand-card__body">
-                    <p class="cand-modelo">{{ c.marcaTextoCatalogo }} {{ c.modeloCatalogo }}</p>
+                    @if (c.esGenerico) {
+                      <p class="cand-modelo">
+                        Precio estimado de fracción {{ c.fraccion }}
+                        @if (c.inciso) {
+                          · inciso {{ c.inciso }}
+                        }
+                      </p>
+                      <p class="cand-sub-small">
+                        Aplica cuando el modelo no está listado en el catálogo SAT
+                      </p>
+                    } @else {
+                      <p class="cand-modelo">{{ c.marcaTextoCatalogo }} {{ c.modeloCatalogo }}</p>
+                    }
                     <div class="cand-meta">
                       <span class="cand-price">\${{ c.precioUsd | number: '1.0-0' }} USD</span>
                       @if (!c.esAntiguedadExacta) {
@@ -388,12 +419,17 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
                 </button>
               }
 
-              <!-- Opción manual -->
+              <!-- Opción manual: siempre disponible como última tarjeta -->
               <button type="button" class="cand-card cand-card--manual" (click)="abrirManual()">
                 <div class="cand-card__body">
                   <p class="cand-modelo">Capturar precio aduana manualmente</p>
                   <p class="cand-sub-small">
-                    Ninguna de las opciones anteriores corresponde a este vehículo
+                    @if (candidatos()!.candidatos.length === 0) {
+                      No se encontró este vehículo. Captura el valor aduana en USD y continúa con el
+                      cálculo.
+                    } @else {
+                      Ninguna de las opciones anteriores corresponde a este vehículo
+                    }
                   </p>
                 </div>
               </button>
@@ -1613,6 +1649,21 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         border-style: solid;
         background: white;
       }
+      .cand-card--generic {
+        border-color: rgba(217, 119, 6, 0.35);
+        background: #fffbeb;
+      }
+      .cand-card--generic:hover {
+        border-color: #d97706;
+        box-shadow: 0 4px 14px rgba(217, 119, 6, 0.14);
+      }
+      .cand-card--generic .cand-card__top {
+        background: rgba(217, 119, 6, 0.06);
+      }
+      .cand-badge--generic {
+        background: #fef3c7;
+        color: #92400e;
+      }
 
       .cand-card__top {
         display: flex;
@@ -1783,6 +1834,11 @@ export class CotizacionNuevaComponent {
 
   /** True mientras haya cualquier operación de fondo en curso */
   cargando = computed(() => this.calculating() || this.buscandoCandidatos());
+
+  /** Conteo de candidatos específicos (sin contar la entrada genérica de la fracción) */
+  especificosCount = computed(
+    () => this.candidatos()?.candidatos.filter(c => !c.esGenerico).length ?? 0
+  );
   clienteId: string | null = null;
   clienteText = '';
   notas = '';
@@ -1947,7 +2003,20 @@ export class CotizacionNuevaComponent {
     this.calcError.set('');
     this.resultado.set(null);
     this.candidatos.set(null);
-    this.form.precioEstimadoIdOverride = null;
+
+    // Si el usuario ya capturó un override de valor aduana, saltar candidatos y calcular directo.
+    // Sin este atajo el flujo entra en bucle: candidatos ignora el override → reabre el picker.
+    if (this.form.valorAduanaUsdOverride && this.form.valorAduanaUsdOverride > 0) {
+      this.form.precioEstimadoIdOverride = null;
+      this.calcular();
+      return;
+    }
+
+    // Si ya eligió un candidato del picker, respetar esa elección.
+    if (this.form.precioEstimadoIdOverride) {
+      this.calcular();
+      return;
+    }
 
     this.buscandoCandidatos.set(true);
     this.calcStage.set('Buscando en catálogo Anexo 2…');
@@ -1955,14 +2024,14 @@ export class CotizacionNuevaComponent {
     this.cotizacionService.obtenerCandidatos(this.form).subscribe({
       next: res => {
         this.buscandoCandidatos.set(false);
-        if (res.requiereSeleccion && res.candidatos.length > 0) {
+        if (res.candidatos.length === 0) {
+          // Sin candidatos — mostrar UI explicativa con opciones (captura manual / editar datos)
+          this.candidatos.set(res);
+        } else if (res.requiereSeleccion) {
           // Mostrar el picker para que el admin elija
           this.candidatos.set(res);
-        } else if (res.candidatos.length === 0) {
-          // Sin candidatos — ir directo a calcular (usará genérico o lanzará error)
-          this.calcular();
         } else {
-          // Un solo match claro y año exacto → calcular directo, sin interrumpir
+          // Match dominante e inequívoco → calcular directo
           this.calcular();
         }
       },
@@ -1981,16 +2050,20 @@ export class CotizacionNuevaComponent {
     this.calcular();
   }
 
-  /** El admin prefiere capturar el valor manualmente — abre el campo de override. */
+  /** El admin prefiere capturar el valor manualmente — abre el campo de override y le da foco. */
   abrirManual(): void {
     this.candidatos.set(null);
+    this.form.precioEstimadoIdOverride = null;
     this.advancedOpen = true;
-    // Hacer scroll al campo de override
+    // Scroll al panel avanzado y foco en el input de override
     setTimeout(() => {
-      document
-        .querySelector<HTMLElement>('.advanced')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
+      const advanced = document.querySelector<HTMLElement>('.advanced');
+      advanced?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const input = document.querySelector<HTMLInputElement>(
+        '.advanced input[placeholder="Sobrescribe Anexo 2"]'
+      );
+      input?.focus();
+    }, 150);
   }
 
   calcular(): void {

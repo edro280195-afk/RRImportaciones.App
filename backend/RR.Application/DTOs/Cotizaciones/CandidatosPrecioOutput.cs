@@ -31,6 +31,12 @@ public class CandidatoPrecio
 
     /// <summary>Años disponibles en el catálogo para esta entrada.</summary>
     public List<int> AniosDisponibles { get; set; } = [];
+
+    /// <summary>True cuando la entrada es del fallback "PRECIOS ESTIMADOS APLICABLES..." del Anexo 2.</summary>
+    public bool EsGenerico { get; set; }
+
+    /// <summary>Inciso del catálogo SAT: A (automóvil), B (camioneta), PICKUP, etc.</summary>
+    public string? Inciso { get; set; }
 }
 
 /// <summary>

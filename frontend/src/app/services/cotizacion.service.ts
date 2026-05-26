@@ -33,6 +33,8 @@ export interface CandidatoPrecio {
   precioUsd: number;
   esSugerido: boolean;
   aniosDisponibles: number[];
+  esGenerico: boolean;
+  inciso: string | null;
 }
 
 export interface CandidatosPrecioOutput {

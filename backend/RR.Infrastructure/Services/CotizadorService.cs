@@ -91,8 +91,11 @@ public partial class CotizadorService : ICotizadorService
                     throw new InvalidOperationException("La entrada del catálogo seleccionada no existe");
 
                 var antiguedad = Math.Clamp(DateTime.Today.Year - resolved.Anno.Value, 1, 12);
-                precioLookup = BuildPriceLookup(seleccionAdmin, antiguedad, "ESPECIFICO", 100,
-                    "Precio seleccionado manualmente por el administrador.");
+                var matchTipo = seleccionAdmin.EsGenerico ? "GENERICO" : "ESPECIFICO";
+                var advertencia = seleccionAdmin.EsGenerico
+                    ? "Precio estimado de fracción seleccionado manualmente (modelo no listado en catálogo SAT)."
+                    : "Precio seleccionado manualmente por el administrador.";
+                precioLookup = BuildPriceLookup(seleccionAdmin, antiguedad, matchTipo, 100, advertencia);
                 valorUsd = precioLookup?.PrecioUsd;
 
                 if (seleccionAdmin.Fraccion?.Fraccion is { } fraccionSeleccionada)
@@ -147,6 +150,7 @@ public partial class CotizadorService : ICotizadorService
         var clasificacion = DetermineFraccion(resolved.CilindradaCm3, input.TipoVehiculo, resolved.VehicleType, resolved.BodyClass, resolved.FuelType);
         var antiguedad = Math.Clamp(DateTime.Today.Year - resolved.Anno.Value, 1, 12);
         var normalizedModel = Normalize(resolved.Modelo ?? "");
+        var normalizedMarca = Normalize(resolved.Marca ?? "");
 
         var fraccionesABuscar = _fraccionesGasolina.Contains(clasificacion.Fraccion)
             ? _fraccionesGasolina
@@ -157,15 +161,34 @@ public partial class CotizadorService : ICotizadorService
             .ToListAsync();
 
         var fraccionIds = fraccionEntities.Select(f => f.Id).ToHashSet();
+        var fraccionPrimariaId = fraccionEntities.FirstOrDefault(f => f.Fraccion == clasificacion.Fraccion)?.Id;
 
+        // Trae específicos y genéricos en una sola pasada
         var precios = await _db.PreciosEstimados
             .Include(x => x.PreciosPorAntiguedad)
             .Include(x => x.Fraccion)
-            .Where(x => fraccionIds.Contains(x.FraccionId) && x.PreciosPorAntiguedad.Any() && !x.EsGenerico)
+            .Where(x => fraccionIds.Contains(x.FraccionId) && x.PreciosPorAntiguedad.Any())
             .ToListAsync();
 
+        // Filtro suave por marca: incluye entradas con MarcaId que coincide O con MarcaTexto normalizado que coincide.
+        // Esto recupera filas que el importador no logró ligar a una Marca (MarcaId=null) pero que sí traen el nombre correcto.
+        bool MarcaMatches(PrecioEstimado x)
+        {
+            if (!resolved.MarcaId.HasValue && string.IsNullOrWhiteSpace(normalizedMarca))
+                return true;
+
+            if (resolved.MarcaId.HasValue && x.MarcaId == resolved.MarcaId)
+                return true;
+
+            if (!string.IsNullOrWhiteSpace(normalizedMarca) && Normalize(x.MarcaTexto) == normalizedMarca)
+                return true;
+
+            return false;
+        }
+
+        // === Específicos ===
         var scored = precios
-            .Where(x => !resolved.MarcaId.HasValue || x.MarcaId == resolved.MarcaId)
+            .Where(x => !x.EsGenerico && MarcaMatches(x))
             .Select(x =>
             {
                 var score = ScoreModelMatch(normalizedModel, x.Modelo, resolved.EngineCylinders, clasificacion.Categoria);
@@ -178,13 +201,12 @@ public partial class CotizadorService : ICotizadorService
                     Precio = x,
                     Score = score,
                     Price = price,
-                    EsEspecifico = score > 0,
                 };
             })
-            .Where(x => x.EsEspecifico)
+            .Where(x => x.Score > 0)
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.Price.PrecioUsd)
-            .Take(8)
+            .Take(6)
             .ToList();
 
         var candidatos = scored.Select((x, idx) => new CandidatoPrecio
@@ -204,12 +226,59 @@ public partial class CotizadorService : ICotizadorService
                 .Select(p => p.AntiguedadAnios)
                 .OrderBy(a => a)
                 .ToList(),
+            EsGenerico = false,
+            Inciso = x.Precio.Inciso,
         }).ToList();
 
-        var requiereSeleccion = candidatos.Count == 0
-            || candidatos.Count > 1
-            || !candidatos[0].EsAntiguedadExacta
-            || (candidatos.Count > 1 && candidatos[0].Score - candidatos[1].Score <= 5);
+        // === Genérico de la fracción primaria + inciso (fallback "PRECIOS ESTIMADOS APLICABLES...") ===
+        var incisoBuscado = InferirIncisoDesdeCategoria(clasificacion.Categoria);
+        var generico = precios
+            .Where(x => x.EsGenerico && (fraccionPrimariaId is null || x.FraccionId == fraccionPrimariaId))
+            .Where(x => incisoBuscado is null || string.Equals(x.Inciso, incisoBuscado, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(x.Inciso))
+            .OrderBy(x => string.IsNullOrWhiteSpace(x.Inciso) ? 1 : 0) // prefer match con inciso explícito
+            .FirstOrDefault()
+            // Si no encontramos genérico en la fracción primaria, buscar en cualquiera de las fracciones gemelas
+            ?? precios.FirstOrDefault(x => x.EsGenerico && (incisoBuscado is null || string.Equals(x.Inciso, incisoBuscado, StringComparison.OrdinalIgnoreCase)));
+
+        if (generico is not null)
+        {
+            var genPrice = generico.PreciosPorAntiguedad
+                .OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad))
+                .ThenByDescending(p => p.AntiguedadAnios)
+                .First();
+
+            candidatos.Add(new CandidatoPrecio
+            {
+                PrecioEstimadoId = generico.Id,
+                Fraccion = generico.Fraccion?.Fraccion ?? clasificacion.Fraccion,
+                ModeloCatalogo = generico.Modelo,
+                MarcaTextoCatalogo = generico.MarcaTexto,
+                HojaOrigen = generico.HojaOrigen ?? string.Empty,
+                MatchTipo = "GENERICO",
+                Score = 0,
+                AntiguedadDisponible = genPrice.AntiguedadAnios,
+                EsAntiguedadExacta = genPrice.AntiguedadAnios == antiguedad,
+                PrecioUsd = genPrice.PrecioUsd,
+                EsSugerido = false,
+                AniosDisponibles = generico.PreciosPorAntiguedad
+                    .Select(p => p.AntiguedadAnios)
+                    .OrderBy(a => a)
+                    .ToList(),
+                EsGenerico = true,
+                Inciso = generico.Inciso,
+            });
+        }
+
+        // Requiere selección salvo que haya un match dominante e inequívoco.
+        // Match dominante = único específico con score >= 60 y antigüedad exacta y sin empates.
+        var especificos = candidatos.Where(c => !c.EsGenerico).ToList();
+        var topEspecifico = especificos.FirstOrDefault();
+        var matchDominante = topEspecifico is not null
+            && topEspecifico.Score >= 60
+            && topEspecifico.EsAntiguedadExacta
+            && (especificos.Count == 1 || (especificos.Count > 1 && topEspecifico.Score - especificos[1].Score > 5));
+
+        var requiereSeleccion = !matchDominante;
 
         return new CandidatosPrecioOutput
         {
@@ -221,4 +290,12 @@ public partial class CotizadorService : ICotizadorService
             Candidatos = candidatos,
         };
     }
+
+    private static string? InferirIncisoDesdeCategoria(string categoria) => categoria.ToUpperInvariant() switch
+    {
+        "AUTOMOVIL" => "A",
+        "CAMIONETA" => "B",
+        "PICKUP" => "PICKUP",
+        _ => null,
+    };
 }
