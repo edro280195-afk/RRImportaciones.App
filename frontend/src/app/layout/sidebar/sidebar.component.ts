@@ -126,7 +126,8 @@ interface MenuGroup {
       <!-- User block -->
       <div class="p-2.5 border-t border-white/[0.06]">
         <div
-          class="flex items-center justify-center gap-2.5 px-2.5 py-2.5 rounded-lg hover:bg-white/[0.06] transition-all duration-150 cursor-pointer group"
+          class="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg hover:bg-white/[0.06] transition-all duration-150 cursor-pointer group"
+          [class.justify-center]="!showLabels()"
           [title]="!showLabels() ? displayName() : ''"
         >
           <div
@@ -143,25 +144,25 @@ interface MenuGroup {
               </p>
               <p class="text-white/30 text-[11px] truncate">{{ userRole() }}</p>
             </div>
-            <button
-              (click)="auth.logout()"
-              class="text-white/25 hover:text-white/70 transition-colors duration-150 p-1 rounded shrink-0"
-              title="Cerrar sesión"
-            >
-              <svg
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                class="w-[13px] h-[13px] stroke-2"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
-            </button>
           }
+          <button
+            (click)="auth.logout()"
+            class="text-white/35 hover:text-white transition-colors duration-150 p-1 rounded shrink-0"
+            title="Cerrar sesión"
+          >
+            <svg
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              class="w-[15px] h-[15px] stroke-2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+              />
+            </svg>
+          </button>
         </div>
       </div>
     </aside>
