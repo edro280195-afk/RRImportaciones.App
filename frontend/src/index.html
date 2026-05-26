@@ -13,13 +13,22 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;600&family=Onest:wght@300..900&display=swap"
       rel="stylesheet"
     />
-    <!-- PWA: Módulo de campo instalable -->
-    <link rel="manifest" href="/campo.webmanifest" />
+    <!-- PWA: Módulo de campo y asistente instalable -->
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="RR Campo" />
+    <meta name="apple-mobile-web-app-title" content="RR Importaciones" />
     <meta name="theme-color" content="#C61D26" />
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('Service Worker registrado:', reg.scope))
+            .catch(err => console.warn('Error al registrar Service Worker:', err));
+        });
+      }
+    </script>
   </head>
   <body>
     <app-root></app-root>
