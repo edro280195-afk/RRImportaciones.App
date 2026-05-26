@@ -140,6 +140,7 @@ builder.Services.AddHttpContextAccessor();
 
 // Background services
 builder.Services.AddHostedService<CotizacionesExpirationJob>();
+builder.Services.AddHostedService<NexusProactiveJob>();
 
 // Seed config
 builder.Services.Configure<SeedConfig>(builder.Configuration.GetSection("SeedConfig"));

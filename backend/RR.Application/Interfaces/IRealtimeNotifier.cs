@@ -24,4 +24,10 @@ public interface IRealtimeNotifier
         string usuarioNombre,
         string username,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Notifica a los admins una alerta proactiva de Nexus.</summary>
+    Task NexusAlertaAsync(
+        string tipo,
+        string mensaje,
+        CancellationToken cancellationToken = default);
 }

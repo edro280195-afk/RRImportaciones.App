@@ -1,4 +1,4 @@
-﻿import { Injectable, inject } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
@@ -13,6 +13,7 @@ export interface RodriChatResponse {
   toolCallsEjecutados?: string[];
   provider?: string;
   providerLabel?: string;
+  conversacionId?: string;
 }
 
 export interface RodriProviderInfo {
@@ -33,6 +34,7 @@ export interface RodriStreamChunk {
   toolName?: string;
   provider?: string;
   providerLabel?: string;
+  conversacionId?: string;
 }
 
 import { environment } from '../../environments/environment';
@@ -44,10 +46,16 @@ export class RodriService {
   chat(
     mensaje: string,
     historial: RodriMessage[],
-    provider?: string
+    provider?: string,
+    imagenBase64?: string,
+    imagenMime?: string,
+    conversacionId?: string | null
   ): Observable<RodriChatResponse> {
     const body: any = { mensaje, historial };
     if (provider) body.provider = provider;
+    if (imagenBase64) body.imagenBase64 = imagenBase64;
+    if (imagenMime) body.imagenMime = imagenMime;
+    if (conversacionId) body.conversacionId = conversacionId;
     return this.http.post<RodriChatResponse>(`${this.base}/chat`, body);
   }
 
@@ -67,14 +75,16 @@ export class RodriService {
     onChunk: (chunk: RodriStreamChunk) => void,
     provider?: string,
     imagenBase64?: string,
-    imagenMime?: string
+    imagenMime?: string,
+    conversacionId?: string | null
   ): Promise<void> {
     const body: any = { mensaje, historial };
     if (provider) body.provider = provider;
     if (imagenBase64) body.imagenBase64 = imagenBase64;
     if (imagenMime) body.imagenMime = imagenMime;
+    if (conversacionId) body.conversacionId = conversacionId;
 
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -110,5 +120,25 @@ export class RodriService {
         } catch { /* saltar chunks malformados */ }
       }
     }
+  }
+
+  // ── STT — Whisper Speech-to-Text ──
+  stt(audioBlob: Blob): Observable<{text: string}> {
+    const form = new FormData();
+    form.append('audio', audioBlob, 'audio.webm');
+    return this.http.post<{text: string}>(`${this.base}/stt`, form);
+  }
+
+  // ── HISTORIAL DE CHATS ──
+  getConversaciones(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/conversaciones`);
+  }
+
+  getConversacion(id: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/conversaciones/${id}`);
+  }
+
+  deleteConversacion(id: string): Observable<{success: boolean}> {
+    return this.http.delete<{success: boolean}>(`${this.base}/conversaciones/${id}`);
   }
 }

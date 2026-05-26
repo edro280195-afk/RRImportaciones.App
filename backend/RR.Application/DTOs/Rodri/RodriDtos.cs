@@ -10,6 +10,8 @@ public class RodriChatRequest
     public string? ImagenBase64 { get; set; }
     /// <summary>Tipo MIME de la imagen (ej. "image/jpeg").</summary>
     public string? ImagenMime { get; set; }
+    /// <summary>ID de la conversación persistida en base de datos.</summary>
+    public Guid? ConversacionId { get; set; }
 }
 
 public class RodriHistorialItem
@@ -27,6 +29,8 @@ public class RodriChatResponse
     public string? Provider { get; set; }
     /// <summary>Nombre legible del proveedor ("GPT-4" | "Gemini 2.5 Flash").</summary>
     public string? ProviderLabel { get; set; }
+    /// <summary>ID de la conversación asociada a esta respuesta.</summary>
+    public Guid? ConversacionId { get; set; }
 }
 
 /// <summary>Chunk individual para el streaming SSE.</summary>
@@ -37,6 +41,7 @@ public class RodriStreamChunk
     public string? ToolName { get; set; }
     public string? Provider { get; set; }
     public string? ProviderLabel { get; set; }
+    public Guid? ConversacionId { get; set; }
 }
 
 public class RodriProviderInfo
@@ -65,4 +70,24 @@ public class RodriToolDefinition
     public string Description { get; set; } = string.Empty;
     public object Parameters { get; set; } = new { };
     public bool RequiresConfirmation { get; set; }
+}
+
+public class ConversacionNexusDto
+{
+    public Guid Id { get; set; }
+    public string? Titulo { get; set; }
+    public string? Resumen { get; set; }
+    public DateTime FechaCreacion { get; set; }
+    public DateTime FechaUltimaActividad { get; set; }
+}
+
+public class MensajeNexusDto
+{
+    public Guid Id { get; set; }
+    public string Role { get; set; } = string.Empty;
+    public string Texto { get; set; } = string.Empty;
+    public string? ImagenMime { get; set; }
+    public bool TieneImagen { get; set; }
+    public List<string>? ToolCalls { get; set; }
+    public DateTime Fecha { get; set; }
 }

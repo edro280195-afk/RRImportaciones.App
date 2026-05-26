@@ -5,8 +5,10 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 using RR.Application.DTOs.Rodri;
 using RR.Application.Interfaces;
+using RR.Infrastructure.Data;
 
 namespace RR.Api.Controllers;
 
@@ -118,6 +120,47 @@ public class RodriController : ControllerBase
         return File(audioBytes, "audio/mpeg");
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // STT — Speech-to-Text con Whisper (mejor calidad)
+    // ─────────────────────────────────────────────────────────────────────
+    [HttpPost("stt")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB máx
+    public async Task<IActionResult> SpeechToText(IFormFile audio)
+    {
+        var apiKey = _config["OpenAi:ApiKey"];
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return StatusCode(503, new { error = "OpenAI no está configurado para transcripción." });
+
+        if (audio == null || audio.Length == 0)
+            return BadRequest(new { error = "No se recibió audio." });
+
+        using var form = new MultipartFormDataContent();
+        var streamContent = new StreamContent(audio.OpenReadStream());
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue(audio.ContentType ?? "audio/webm");
+        form.Add(streamContent, "file", audio.FileName ?? "audio.webm");
+        form.Add(new StringContent("whisper-1"), "model");
+        form.Add(new StringContent("es"), "language");
+        // Vocabulario del negocio para mejorar precisión
+        form.Add(new StringContent(
+            "VIN, pedimento, aduana, fracción arancelaria, R&R Importaciones, " +
+            "cotización, trámite, tramitador, desaduanamiento, despacho, " +
+            "Nexus, folio, cobro, importación, cruce, retención"), "prompt");
+
+        var client = _httpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+        var response = await client.PostAsync(
+            "https://api.openai.com/v1/audio/transcriptions", form);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync();
+            return StatusCode(502, new { error = "Error de Whisper", detalle = err });
+        }
+
+        var result = await response.Content.ReadAsStringAsync();
+        return Content(result, "application/json");
+    }
+
     // Limpia texto para que ElevenLabs no lea símbolos de markdown
     private static string LimpiarParaTts(string texto)
     {
@@ -129,5 +172,86 @@ public class RodriController : ControllerBase
         texto = Regex.Replace(texto, @"\[([^\]]+)\]\([^)]+\)", "$1"); // [links](url)
         texto = Regex.Replace(texto, @"\s+", " ").Trim();
         return texto;
+    }
+
+    [HttpGet("conversaciones")]
+    public async Task<IActionResult> ListConversaciones(
+        [FromServices] AppDbContext db,
+        [FromServices] ICurrentUserService currentUser,
+        CancellationToken ct)
+    {
+        var userId = currentUser.UserId;
+        if (!userId.HasValue) return Unauthorized();
+
+        var list = await db.ConversacionesNexus
+            .Where(c => c.UserId == userId.Value)
+            .OrderByDescending(c => c.FechaUltimaActividad)
+            .Select(c => new ConversacionNexusDto
+            {
+                Id = c.Id,
+                Titulo = c.Titulo,
+                Resumen = c.Resumen,
+                FechaCreacion = c.FechaCreacion,
+                FechaUltimaActividad = c.FechaUltimaActividad
+            })
+            .ToListAsync(ct);
+
+        return Ok(list);
+    }
+
+    [HttpGet("conversaciones/{id:guid}")]
+    public async Task<IActionResult> GetConversacion(
+        Guid id,
+        [FromServices] AppDbContext db,
+        [FromServices] ICurrentUserService currentUser,
+        CancellationToken ct)
+    {
+        var userId = currentUser.UserId;
+        if (!userId.HasValue) return Unauthorized();
+
+        var conv = await db.ConversacionesNexus
+            .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId.Value, ct);
+        if (conv == null) return NotFound("Conversación no encontrada.");
+
+        var msgs = await db.MensajesNexus
+            .Where(m => m.ConversacionId == id)
+            .OrderBy(m => m.Orden)
+            .Select(m => new MensajeNexusDto
+            {
+                Id = m.Id,
+                Role = m.Role,
+                Texto = m.Texto,
+                ImagenMime = m.ImagenMime,
+                TieneImagen = m.TieneImagen,
+                ToolCalls = !string.IsNullOrEmpty(m.ToolCallsJson) 
+                    ? JsonSerializer.Deserialize<List<string>>(m.ToolCallsJson, (JsonSerializerOptions)null!) 
+                    : null,
+                Fecha = m.Fecha
+            })
+            .ToListAsync(ct);
+
+        return Ok(msgs);
+    }
+
+    [HttpDelete("conversaciones/{id:guid}")]
+    public async Task<IActionResult> DeleteConversacion(
+        Guid id,
+        [FromServices] AppDbContext db,
+        [FromServices] ICurrentUserService currentUser,
+        CancellationToken ct)
+    {
+        var userId = currentUser.UserId;
+        if (!userId.HasValue) return Unauthorized();
+
+        var conv = await db.ConversacionesNexus
+            .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId.Value, ct);
+        if (conv == null) return NotFound("Conversación no encontrada.");
+
+        var msgs = await db.MensajesNexus.Where(m => m.ConversacionId == id).ToListAsync(ct);
+        db.MensajesNexus.RemoveRange(msgs);
+        db.ConversacionesNexus.Remove(conv);
+
+        await db.SaveChangesAsync(ct);
+        return Ok(new { success = true });
     }
 }

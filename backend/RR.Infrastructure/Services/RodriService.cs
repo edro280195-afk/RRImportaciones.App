@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RR.Application.DTOs.Rodri;
 using RR.Application.Interfaces;
 using RR.Infrastructure.Data;
+using RR.Domain.Entities;
 
 namespace RR.Infrastructure.Services;
 
@@ -146,17 +147,42 @@ public class RodriService : IRodriService
                 logs.Add(ahora);
             }
 
+            // 1. Obtener o crear conversación y cargar historial
+            var (conversacion, dbMessages) = await GetOrCreateConversacionAsync(request.ConversacionId, request.Mensaje);
+
+            // 2. Guardar el nuevo mensaje del usuario en la base de datos
+            await SaveMessageToDatabaseAsync(conversacion.Id, "user", request.Mensaje, request.ImagenMime, !string.IsNullOrEmpty(request.ImagenBase64));
+
+            // 3. Preparar el system prompt con memoria
             var systemPrompt = await GetCachedSystemPromptAsync(_currentUser.Role);
+            if (!string.IsNullOrWhiteSpace(conversacion.Resumen))
+            {
+                systemPrompt += $"\n\n[MEMORIA DE CONVERSACIÓN ANTERIOR]: El usuario y tú ya han conversado sobre lo siguiente. Usa esto como contexto de memoria larga:\n{conversacion.Resumen}";
+            }
 
             // Elegir proveedor: request.Provider > config
             var activeProvider = (!string.IsNullOrWhiteSpace(request.Provider))
                 ? request.Provider
                 : _provider;
 
+            RodriChatResponse response;
             if (activeProvider == "gemini")
-                return await CallGeminiAsync(systemPrompt, request);
+                response = await CallGeminiAsync(systemPrompt, request, dbMessages, conversacion.Id);
             else
-                return await CallOpenAiAsync(systemPrompt, request);
+                response = await CallOpenAiAsync(systemPrompt, request, dbMessages, conversacion.Id);
+
+            // 4. Guardar respuesta del modelo en base de datos si no es un error
+            if (response != null && !response.Error)
+            {
+                await SaveMessageToDatabaseAsync(conversacion.Id, "model", response.Respuesta, null, false, response.ToolCallsEjecutados);
+            }
+
+            if (response != null)
+            {
+                response.ConversacionId = conversacion.Id;
+            }
+
+            return response;
         }
         catch (TaskCanceledException)
         {
@@ -208,75 +234,480 @@ public class RodriService : IRodriService
             logs.Add(ahora);
         }
 
-        RodriChatResponse response = null!;
-        string? errorMessage = null;
+        ConversacionNexus conversacion = null!;
+        List<MensajeNexus> dbMessages = null!;
+        string systemPrompt = null!;
+        string activeProvider = null!;
+
         try
         {
-            var systemPrompt = await GetCachedSystemPromptAsync(_currentUser.Role);
-            var activeProvider = (!string.IsNullOrWhiteSpace(request.Provider)) ? request.Provider : _provider;
+            // 1. Obtener o crear conversación y cargar historial
+            var result = await GetOrCreateConversacionAsync(request.ConversacionId, request.Mensaje);
+            conversacion = result.conversacion;
+            dbMessages = result.history;
 
-            if (activeProvider == "gemini")
-                response = await CallGeminiAsync(systemPrompt, request);
-            else
-                response = await CallOpenAiAsync(systemPrompt, request);
+            // 2. Guardar el nuevo mensaje del usuario en la base de datos
+            await SaveMessageToDatabaseAsync(conversacion.Id, "user", request.Mensaje, request.ImagenMime, !string.IsNullOrEmpty(request.ImagenBase64));
+
+            // 3. Preparar el system prompt con memoria
+            systemPrompt = await GetCachedSystemPromptAsync(_currentUser.Role);
+            if (!string.IsNullOrWhiteSpace(conversacion.Resumen))
+            {
+                systemPrompt += $"\n\n[MEMORIA DE CONVERSACIÓN ANTERIOR]: El usuario y tú ya han conversado sobre lo siguiente. Usa esto como contexto de memoria larga:\n{conversacion.Resumen}";
+            }
+
+            activeProvider = (!string.IsNullOrWhiteSpace(request.Provider)) ? request.Provider : _provider;
         }
-        catch (TaskCanceledException)
+        catch (Exception)
         {
-            errorMessage = "La consulta tardó demasiado. Intenta con una pregunta más específica.";
-        }
-        catch (HttpRequestException)
-        {
-            errorMessage = "No pude conectarme al servicio de IA. Revisa la conexión del servidor.";
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Ocurrió un error al procesar tu solicitud: {ex.Message}";
+            systemPrompt = null!;
+            activeProvider = null!;
         }
 
-        if (errorMessage != null)
+        if (systemPrompt == null || conversacion == null)
         {
-            yield return new RodriStreamChunk { Type = "error", Content = errorMessage };
+            yield return new RodriStreamChunk { Type = "error", Content = "Error al preparar la consulta o guardar en base de datos." };
             yield break;
         }
 
-        // Enviar tool calls ejecutados
-        if (response.ToolCallsEjecutados?.Count > 0)
+        // Emitir provider info
+        var providerLabel = activeProvider == "gemini" ? "Gemini 2.5 Flash" : "GPT-4o";
+        yield return new RodriStreamChunk { Type = "provider", Provider = activeProvider, ProviderLabel = providerLabel, ConversacionId = conversacion.Id };
+
+        var contentAccum = new StringBuilder();
+        var toolsEjecutados = new List<string>();
+
+        if (activeProvider == "gemini")
         {
-            foreach (var tool in response.ToolCallsEjecutados)
-                yield return new RodriStreamChunk { Type = "tool_call", ToolName = tool };
+            await foreach (var chunk in StreamGeminiRealAsync(systemPrompt, request, dbMessages, conversacion.Id, cancellationToken))
+            {
+                if (chunk.Type == "token" && chunk.Content != null)
+                {
+                    contentAccum.Append(chunk.Content);
+                }
+                else if (chunk.Type == "tool_call" && chunk.ToolName != null)
+                {
+                    toolsEjecutados.Add(chunk.ToolName);
+                }
+                
+                chunk.ConversacionId = conversacion.Id;
+                yield return chunk;
+            }
+        }
+        else
+        {
+            await foreach (var chunk in StreamOpenAiRealAsync(systemPrompt, request, dbMessages, conversacion.Id, cancellationToken))
+            {
+                if (chunk.Type == "token" && chunk.Content != null)
+                {
+                    contentAccum.Append(chunk.Content);
+                }
+                else if (chunk.Type == "tool_call" && chunk.ToolName != null)
+                {
+                    toolsEjecutados.Add(chunk.ToolName);
+                }
+
+                chunk.ConversacionId = conversacion.Id;
+                yield return chunk;
+            }
         }
 
-        // Enviar provider info
-        yield return new RodriStreamChunk { Type = "provider", Provider = response.Provider, ProviderLabel = response.ProviderLabel };
-
-        if (response.Error)
+        // 4. Guardar respuesta del modelo si no hubo error
+        var finalResponse = contentAccum.ToString();
+        if (!string.IsNullOrWhiteSpace(finalResponse))
         {
-            yield return new RodriStreamChunk { Type = "error", Content = response.Respuesta };
+            await SaveMessageToDatabaseAsync(conversacion.Id, "model", finalResponse, null, false, toolsEjecutados);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STREAMING REAL — GEMINI
+    // ─────────────────────────────────────────────────────────────────────
+    private async IAsyncEnumerable<RodriStreamChunk> StreamGeminiRealAsync(
+        string systemPrompt, RodriChatRequest request, List<MensajeNexus> dbMessages, Guid conversacionId,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(_geminiKey))
+        {
+            yield return new RodriStreamChunk { Type = "error", Content = "Gemini no tiene API key configurada." };
             yield break;
         }
 
-        // Streaming del texto en chunks
-        var text = response.Respuesta;
-        if (string.IsNullOrEmpty(text))
+        var toolDefs = BuildGeminiTools();
+        var toolsEjecutados = new List<string>();
+        var contents = BuildGeminiMessages(dbMessages, request);
+
+        // Function calling loop con streaming
+        for (int depth = 0; depth < 5; depth++)
         {
-            yield return new RodriStreamChunk { Type = "done" };
+            var payload = new Dictionary<string, object>
+            {
+                ["contents"] = contents,
+                ["tools"] = toolDefs,
+                ["system_instruction"] = new { parts = new[] { new { text = systemPrompt } } },
+                ["generationConfig"] = new { temperature = 0.4, maxOutputTokens = 4096 }
+            };
+
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key={_geminiKey}";
+
+            HttpResponseMessage response;
+            string? httpError = null;
+            try
+            {
+                response = await _httpClient.PostAsJsonAsync(url, payload, ct);
+            }
+            catch (Exception ex)
+            {
+                httpError = $"Error de conexión a Gemini: {ex.Message}";
+                response = null!;
+            }
+
+            if (httpError != null)
+            {
+                yield return new RodriStreamChunk { Type = "error", Content = httpError };
+                yield break;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                yield return new RodriStreamChunk { Type = "error", Content = $"Error de Gemini ({(int)response.StatusCode}): {Truncate(errorBody, 200)}" };
+                response.Dispose();
+                yield break;
+            }
+
+            // Leer SSE stream de Gemini
+            using (response)
+            {
+                using var stream = await response.Content.ReadAsStreamAsync(ct);
+                using var reader = new System.IO.StreamReader(stream);
+
+                var textAccum = new StringBuilder();
+                List<(string name, string args)>? functionCalls = null;
+
+                while (true)
+                {
+                    var line = await reader.ReadLineAsync(ct);
+                    if (line == null) break;
+
+                    if (!line.StartsWith("data: ")) continue;
+                    var jsonStr = line[6..];
+                    if (string.IsNullOrWhiteSpace(jsonStr)) continue;
+
+                    using var doc = JsonDocument.Parse(jsonStr);
+                    if (!doc.RootElement.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+                        continue;
+
+                    var candidate = candidates[0];
+                    if (!candidate.TryGetProperty("content", out var content) ||
+                        !content.TryGetProperty("parts", out var parts))
+                        continue;
+
+                    foreach (var part in parts.EnumerateArray())
+                    {
+                        if (part.TryGetProperty("text", out var textVal))
+                        {
+                            var text = textVal.GetString() ?? "";
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                textAccum.Append(text);
+                                yield return new RodriStreamChunk { Type = "token", Content = text };
+                            }
+                        }
+                        if (part.TryGetProperty("functionCall", out var funcCall))
+                        {
+                            functionCalls ??= [];
+                            var name = funcCall.GetProperty("name").GetString()!;
+                            var args = funcCall.TryGetProperty("args", out var a) ? a.GetRawText() : "{}";
+                            functionCalls.Add((name, args));
+                        }
+                    }
+                }
+
+                // Si hay function calls, ejecutarlos y re-llamar
+                if (functionCalls != null && functionCalls.Count > 0)
+                {
+                    // Agregar respuesta del modelo al historial
+                    var modelParts = new List<object>();
+                    if (textAccum.Length > 0)
+                        modelParts.Add(new { text = textAccum.ToString() });
+                    foreach (var (name, args) in functionCalls)
+                    {
+                        var parsedArgs = JsonDocument.Parse(args).RootElement.Clone();
+                        modelParts.Add(new { functionCall = new { name, args = parsedArgs } });
+                    }
+                    contents.Add(new { role = "model", parts = modelParts.ToArray() });
+
+                    // Ejecutar cada función
+                    foreach (var (name, args) in functionCalls)
+                    {
+                        toolsEjecutados.Add(name);
+                        yield return new RodriStreamChunk { Type = "tool_call", ToolName = name };
+
+                        string result;
+                        if (_toolMap.TryGetValue(name, out var tool))
+                        {
+                            try
+                            {
+                                using var toolScope = _scopeFactory.CreateScope();
+                                result = await tool.ExecuteAsync(args, toolScope.ServiceProvider);
+                            }
+                            catch (Exception ex)
+                            {
+                                result = JsonSerializer.Serialize(new { error = $"Error ejecutando {name}: {ex.Message}" });
+                            }
+                        }
+                        else
+                        {
+                            result = JsonSerializer.Serialize(new { error = $"La herramienta '{name}' no está disponible." });
+                        }
+
+                        contents.Add(new
+                        {
+                            role = "function",
+                            parts = new[]
+                            {
+                                new
+                                {
+                                    functionResponse = new
+                                    {
+                                        name,
+                                        response = new { result }
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    // Continuar el loop para la respuesta post-tool
+                    continue;
+                }
+
+                // Sin function calls — ya terminamos
+                yield return new RodriStreamChunk { Type = "done" };
+                yield break;
+            }
+        }
+
+        yield return new RodriStreamChunk { Type = "error", Content = "El asistente llegó al límite de operaciones encadenadas." };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STREAMING REAL — OPENAI
+    // ─────────────────────────────────────────────────────────────────────
+    private async IAsyncEnumerable<RodriStreamChunk> StreamOpenAiRealAsync(
+        string systemPrompt, RodriChatRequest request, List<MensajeNexus> dbMessages, Guid conversacionId,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(_openAiKey))
+        {
+            yield return new RodriStreamChunk { Type = "error", Content = "OpenAI no tiene API key configurada." };
             yield break;
         }
 
-        var chunkSize = 3; // caracteres por chunk para sensación natural
-        for (int i = 0; i < text.Length; i += chunkSize)
+        var toolDefs = BuildOpenAiTools();
+        var toolsEjecutados = new List<string>();
+
+        var messages = new List<object>
         {
-            if (cancellationToken.IsCancellationRequested) yield break;
-            var chunk = text.Substring(i, Math.Min(chunkSize, text.Length - i));
-            yield return new RodriStreamChunk { Type = "token", Content = chunk };
-            await Task.Delay(15, cancellationToken).ContinueWith(_ => { }, CancellationToken.None);
+            new { role = "system", content = systemPrompt }
+        };
+
+        foreach (var item in dbMessages.TakeLast(12))
+        {
+            var role = item.Role == "model" ? "assistant" : "user";
+            messages.Add(new { role, content = item.Texto });
         }
 
-        yield return new RodriStreamChunk { Type = "done" };
+        // Soporte multimodal GPT-4o en streaming
+        if (!string.IsNullOrWhiteSpace(request.ImagenBase64) && !string.IsNullOrWhiteSpace(request.ImagenMime))
+        {
+            messages.Add(new
+            {
+                role = "user",
+                content = (object)new object[]
+                {
+                    new { type = "text", text = request.Mensaje },
+                    new { type = "image_url", image_url = new { url = $"data:{request.ImagenMime};base64,{request.ImagenBase64}" } }
+                }
+            });
+        }
+        else
+        {
+            messages.Add(new { role = "user", content = request.Mensaje });
+        }
+
+        // Function calling loop con streaming
+        for (int depth = 0; depth < 5; depth++)
+        {
+            var requestBody = new Dictionary<string, object>
+            {
+                ["model"] = "gpt-4o",
+                ["messages"] = messages,
+                ["temperature"] = 0.3,
+                ["max_tokens"] = 4096,
+                ["stream"] = true
+            };
+            if (toolDefs != null)
+                requestBody["tools"] = toolDefs;
+
+            var json = JsonSerializer.Serialize(requestBody);
+            var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
+            var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _openAiKey);
+            httpRequest.Content = httpContent;
+
+            HttpResponseMessage response;
+            string? httpError = null;
+            try
+            {
+                response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+            }
+            catch (Exception ex)
+            {
+                httpError = $"Error de conexión a OpenAI: {ex.Message}";
+                response = null!;
+            }
+
+            if (httpError != null)
+            {
+                yield return new RodriStreamChunk { Type = "error", Content = httpError };
+                yield break;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                yield return new RodriStreamChunk { Type = "error", Content = $"Error de OpenAI ({(int)response.StatusCode}): {Truncate(errorBody, 200)}" };
+                response.Dispose();
+                yield break;
+            }
+
+            using (response)
+            {
+                using var stream = await response.Content.ReadAsStreamAsync(ct);
+                using var reader = new System.IO.StreamReader(stream);
+
+                var contentAccum = new StringBuilder();
+                // Para acumular tool calls parciales (OpenAI envía tool_calls en deltas)
+                var pendingToolCalls = new Dictionary<int, (string id, string name, StringBuilder args)>();
+
+                while (true)
+                {
+                    var line = await reader.ReadLineAsync(ct);
+                    if (line == null) break;
+                    if (!line.StartsWith("data: ")) continue;
+
+                    var data = line[6..].Trim();
+                    if (data == "[DONE]") break;
+                    if (string.IsNullOrEmpty(data)) continue;
+
+                    using var doc = JsonDocument.Parse(data);
+                    var choices = doc.RootElement.GetProperty("choices");
+                    if (choices.GetArrayLength() == 0) continue;
+
+                    var delta = choices[0].GetProperty("delta");
+
+                    // Texto
+                    if (delta.TryGetProperty("content", out var contentVal) && contentVal.ValueKind == JsonValueKind.String)
+                    {
+                        var text = contentVal.GetString() ?? "";
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            contentAccum.Append(text);
+                            yield return new RodriStreamChunk { Type = "token", Content = text };
+                        }
+                    }
+
+                    // Tool calls (parciales)
+                    if (delta.TryGetProperty("tool_calls", out var tcArray))
+                    {
+                        foreach (var tc in tcArray.EnumerateArray())
+                        {
+                            var idx = tc.GetProperty("index").GetInt32();
+                            if (!pendingToolCalls.ContainsKey(idx))
+                            {
+                                var id = tc.TryGetProperty("id", out var idVal) ? idVal.GetString()! : "";
+                                var name = tc.TryGetProperty("function", out var fn) && fn.TryGetProperty("name", out var nameVal)
+                                    ? nameVal.GetString()! : "";
+                                pendingToolCalls[idx] = (id, name, new StringBuilder());
+                            }
+                            if (tc.TryGetProperty("function", out var func) && func.TryGetProperty("arguments", out var argsVal))
+                            {
+                                pendingToolCalls[idx].args.Append(argsVal.GetString() ?? "");
+                            }
+                        }
+                    }
+                }
+
+                // Si hay tool calls pendientes, ejecutarlos
+                if (pendingToolCalls.Count > 0)
+                {
+                    // Agregar mensaje del asistente con tool calls al historial
+                    var toolCallsList = new List<object>();
+                    foreach (var (idx, (id, name, args)) in pendingToolCalls.OrderBy(kv => kv.Key))
+                    {
+                        toolCallsList.Add(new
+                        {
+                            id,
+                            type = "function",
+                            function = new { name, arguments = args.ToString() }
+                        });
+                    }
+                    messages.Add(new
+                    {
+                        role = "assistant",
+                        content = contentAccum.Length > 0 ? contentAccum.ToString() : (string?)null,
+                        tool_calls = toolCallsList.ToArray()
+                    });
+
+                    // Ejecutar cada tool
+                    foreach (var (idx, (id, name, args)) in pendingToolCalls.OrderBy(kv => kv.Key))
+                    {
+                        toolsEjecutados.Add(name);
+                        yield return new RodriStreamChunk { Type = "tool_call", ToolName = name };
+
+                        string result;
+                        if (_toolMap.TryGetValue(name, out var tool))
+                        {
+                            try
+                            {
+                                using var toolScope = _scopeFactory.CreateScope();
+                                result = await tool.ExecuteAsync(args.ToString(), toolScope.ServiceProvider);
+                            }
+                            catch (Exception ex)
+                            {
+                                result = JsonSerializer.Serialize(new { error = $"Error ejecutando {name}: {ex.Message}" });
+                            }
+                        }
+                        else
+                        {
+                            result = JsonSerializer.Serialize(new { error = $"La herramienta '{name}' no está disponible." });
+                        }
+
+                        messages.Add(new
+                        {
+                            role = "tool",
+                            tool_call_id = id,
+                            content = result
+                        });
+                    }
+
+                    // Continuar el loop para la respuesta post-tool
+                    continue;
+                }
+
+                // Sin tool calls — ya terminamos
+                yield return new RodriStreamChunk { Type = "done" };
+                yield break;
+            }
+        }
+
+        yield return new RodriStreamChunk { Type = "error", Content = "El asistente llegó al límite de operaciones encadenadas." };
     }
 
     // ──── RUTA GEMINI ────────────────────────────────────────────────────
-    private async Task<RodriChatResponse> CallGeminiAsync(string systemPrompt, RodriChatRequest request)
+    private async Task<RodriChatResponse> CallGeminiAsync(string systemPrompt, RodriChatRequest request, List<MensajeNexus> dbMessages, Guid conversacionId)
     {
         if (string.IsNullOrWhiteSpace(_geminiKey))
         {
@@ -289,7 +720,7 @@ public class RodriService : IRodriService
 
         var toolDefs = BuildGeminiTools();
         var toolsEjecutados = new List<string>();
-        var messages = BuildGeminiMessages(request);
+        var messages = BuildGeminiMessages(dbMessages, request);
         var finalResponse = await ExecuteGeminiFunctionCallingLoopAsync(messages, toolDefs, systemPrompt, toolsEjecutados, 0);
 
         return new RodriChatResponse
@@ -298,7 +729,8 @@ public class RodriService : IRodriService
             Error = finalResponse.StartsWith("Error") || finalResponse.StartsWith("El asistente llegó"),
             ToolCallsEjecutados = toolsEjecutados.Count > 0 ? toolsEjecutados : null,
             Provider = "gemini",
-            ProviderLabel = "Gemini 2.5 Flash"
+            ProviderLabel = "Gemini 2.5 Flash",
+            ConversacionId = conversacionId
         };
     }
 
@@ -315,10 +747,10 @@ public class RodriService : IRodriService
         return new[] { new { function_declarations = declarations } };
     }
 
-    private List<object> BuildGeminiMessages(RodriChatRequest request)
+    private List<object> BuildGeminiMessages(List<MensajeNexus> dbMessages, RodriChatRequest request)
     {
         var contents = new List<object>();
-        foreach (var item in request.Historial)
+        foreach (var item in dbMessages.TakeLast(12))
         {
             var role = item.Role == "model" ? "model" : "user";
             contents.Add(new { role, parts = new[] { new { text = item.Texto } } });
@@ -485,7 +917,7 @@ public class RodriService : IRodriService
     }
 
     // ──── RUTA OPENAI ───────────────────────────────────────────────────
-    private async Task<RodriChatResponse> CallOpenAiAsync(string systemPrompt, RodriChatRequest request)
+    private async Task<RodriChatResponse> CallOpenAiAsync(string systemPrompt, RodriChatRequest request, List<MensajeNexus> dbMessages, Guid conversacionId)
     {
         if (string.IsNullOrWhiteSpace(_openAiKey))
         {
@@ -503,10 +935,29 @@ public class RodriService : IRodriService
             new { role = "system", content = systemPrompt }
         };
 
-        foreach (var item in request.Historial)
-            messages.Add(new { role = item.Role, content = item.Texto });
+        foreach (var item in dbMessages.TakeLast(12))
+        {
+            var role = item.Role == "model" ? "assistant" : "user";
+            messages.Add(new { role, content = item.Texto });
+        }
 
-        messages.Add(new { role = "user", content = request.Mensaje });
+        // Soporte multimodal GPT-4o: si hay imagen, enviar content como array
+        if (!string.IsNullOrWhiteSpace(request.ImagenBase64) && !string.IsNullOrWhiteSpace(request.ImagenMime))
+        {
+            messages.Add(new
+            {
+                role = "user",
+                content = (object)new object[]
+                {
+                    new { type = "text", text = request.Mensaje },
+                    new { type = "image_url", image_url = new { url = $"data:{request.ImagenMime};base64,{request.ImagenBase64}" } }
+                }
+            });
+        }
+        else
+        {
+            messages.Add(new { role = "user", content = request.Mensaje });
+        }
 
         var toolsEjecutados = new List<string>();
         var finalResponse = await ExecuteFunctionCallingLoopAsync(messages, toolDefs, toolsEjecutados, 0);
@@ -522,7 +973,8 @@ public class RodriService : IRodriService
             Error = isError,
             ToolCallsEjecutados = !isError && toolsEjecutados.Count > 0 ? toolsEjecutados : null,
             Provider = "openai",
-            ProviderLabel = "GPT-4"
+            ProviderLabel = "GPT-4",
+            ConversacionId = conversacionId
         };
     }
 
@@ -811,6 +1263,22 @@ public class RodriService : IRodriService
         sb.AppendLine();
         sb.AppendLine("El sidebar del admin tiene las secciones: Dashboard, Trámites, Clientes, Cotizaciones, Pagos, Gastos Hormiga, Catálogo Precios SAT, Pedimentos, Tramitadores, Personal de Campo, Reportes, Fracciones, Usuarios.");
         sb.AppendLine("En la topbar hay: búsqueda global, botón de Rodri (tú), notificaciones, perfil del usuario.");
+        sb.AppendLine();
+
+        // ════════════════════════════════════════════════
+        // 2b. CAPACIDAD DE VISIÓN
+        // ════════════════════════════════════════════════
+        sb.AppendLine("══════════════════════════════════════════════════════");
+        sb.AppendLine("CAPACIDAD DE VISIÓN — ANÁLISIS DE IMÁGENES");
+        sb.AppendLine("══════════════════════════════════════════════════════");
+        sb.AppendLine("Si el usuario envía una imagen junto con su mensaje, analízala en detalle:");
+        sb.AppendLine("- FACTURAS / NOTAS: extrae proveedor, RFC, monto, concepto, fecha. Si coincide con un saldo pendiente, sugiérelo.");
+        sb.AppendLine("- COMPROBANTES DE PAGO: extrae banco, monto, referencia, fecha. Busca si coincide con algún saldo pendiente.");
+        sb.AppendLine("- VIN / PLACAS: extrae VIN o placa y búscalo en el sistema con las herramientas.");
+        sb.AppendLine("- PEDIMENTOS: extrae número de pedimento, aduana, fecha, fracción arancelaria. Relaciona con trámites.");
+        sb.AppendLine("- IDENTIFICACIONES: extrae nombre y búscalo en clientes.");
+        sb.AppendLine("- FOTOS VEHÍCULOS: describe estado, daños visibles, color, modelo aproximado.");
+        sb.AppendLine("Siempre confirma antes de ejecutar acciones basadas en imágenes.");
         sb.AppendLine();
 
         // ════════════════════════════════════════════════
@@ -1116,4 +1584,162 @@ public class RodriService : IRodriService
         "CANCELADO"                => "Cancelado",
         _                          => EstadoLogistico
     };
+
+    private async Task<(ConversacionNexus conversacion, List<MensajeNexus> history)> GetOrCreateConversacionAsync(Guid? requestConversacionId, string firstUserMessage)
+    {
+        var userId = _currentUser.UserId ?? Guid.Empty;
+        ConversacionNexus? conversacion = null;
+        List<MensajeNexus> history = [];
+
+        if (requestConversacionId.HasValue && requestConversacionId.Value != Guid.Empty)
+        {
+            conversacion = await _db.ConversacionesNexus
+                .FirstOrDefaultAsync(c => c.Id == requestConversacionId.Value);
+            
+            if (conversacion != null)
+            {
+                history = await _db.MensajesNexus
+                    .Where(m => m.ConversacionId == conversacion.Id)
+                    .OrderBy(m => m.Orden)
+                    .ToListAsync();
+            }
+        }
+
+        if (conversacion == null)
+        {
+            // Crear nueva conversación
+            var titulo = firstUserMessage.Length > 60 ? firstUserMessage[..60] + "..." : firstUserMessage;
+            conversacion = new ConversacionNexus
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Titulo = titulo,
+                FechaCreacion = DateTime.UtcNow,
+                FechaUltimaActividad = DateTime.UtcNow
+            };
+            _db.ConversacionesNexus.Add(conversacion);
+            await _db.SaveChangesAsync();
+        }
+
+        return (conversacion, history);
+    }
+
+    private async Task SaveMessageToDatabaseAsync(Guid conversacionId, string role, string texto, string? imagenMime = null, bool tieneImagen = false, List<string>? toolCalls = null)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var maxOrden = await db.MensajesNexus
+                .IgnoreQueryFilters()
+                .Where(m => m.ConversacionId == conversacionId)
+                .Select(m => (int?)m.Orden)
+                .MaxAsync() ?? 0;
+
+            var mensaje = new MensajeNexus
+            {
+                Id = Guid.NewGuid(),
+                ConversacionId = conversacionId,
+                Role = role,
+                Texto = texto,
+                ImagenMime = imagenMime,
+                TieneImagen = tieneImagen,
+                ToolCallsJson = toolCalls != null ? JsonSerializer.Serialize(toolCalls) : null,
+                Fecha = DateTime.UtcNow,
+                Orden = maxOrden + 1
+            };
+
+            db.MensajesNexus.Add(mensaje);
+
+            var conv = await db.ConversacionesNexus
+                .FirstOrDefaultAsync(c => c.Id == conversacionId);
+            if (conv != null)
+            {
+                conv.FechaUltimaActividad = DateTime.UtcNow;
+            }
+
+            await db.SaveChangesAsync();
+
+            var msgCount = await db.MensajesNexus
+                .Where(m => m.ConversacionId == conversacionId)
+                .CountAsync();
+            if (msgCount >= 10 && msgCount % 6 == 0)
+            {
+                _ = Task.Run(() => GenerateAndSaveSummaryAsync(conversacionId));
+            }
+        }
+        catch
+        {
+            // Registrar error silencioso
+        }
+    }
+
+    private async Task GenerateAndSaveSummaryAsync(Guid conversacionId)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var conversacion = await db.ConversacionesNexus
+                .FirstOrDefaultAsync(c => c.Id == conversacionId);
+            if (conversacion == null) return;
+
+            var mensajes = await db.MensajesNexus
+                .Where(m => m.ConversacionId == conversacionId)
+                .OrderBy(m => m.Orden)
+                .Select(m => $"{m.Role}: {m.Texto}")
+                .ToListAsync();
+
+            var conversationHistoryText = string.Join("\n", mensajes);
+            var prompt = $"Resume el siguiente historial de conversación entre el usuario y el asistente en un párrafo corto de no más de 3 oraciones. Enfoque en los trámites aduanales, VINs de carros, facturas o deudas discutidas:\n\n{conversationHistoryText}";
+
+            var resumen = "";
+            var key = _provider == "gemini" ? _geminiKey : _openAiKey;
+            if (string.IsNullOrEmpty(key)) return;
+
+            if (_provider == "gemini")
+            {
+                var payload = new
+                {
+                    contents = new[] { new { parts = new[] { new { text = prompt } } } }
+                };
+                var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={_geminiKey}";
+                using var client = new HttpClient();
+                var response = await client.PostAsJsonAsync(url, payload);
+                if (response.IsSuccessStatusCode)
+                {
+                    using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                    resumen = doc.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString()?.Trim();
+                }
+            }
+            else
+            {
+                var payload = new
+                {
+                    model = "gpt-4o-mini",
+                    messages = new[] { new { role = "user", content = prompt } }
+                };
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _openAiKey);
+                var response = await client.PostAsJsonAsync("https://api.openai.com/v1/chat/completions", payload);
+                if (response.IsSuccessStatusCode)
+                {
+                    using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                    resumen = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()?.Trim();
+                }
+            }
+
+            if (!string.IsNullOrEmpty(resumen))
+            {
+                conversacion.Resumen = resumen;
+                await db.SaveChangesAsync();
+            }
+        }
+        catch
+        {
+            // Silencioso
+        }
+    }
 }

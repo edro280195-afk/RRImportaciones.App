@@ -12,7 +12,8 @@ import {
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AuthService } from '../../services/auth.service';
-import { RodriService, RodriMessage } from '../../services/rodri.service';
+import { RodriService, RodriMessage, RodriStreamChunk } from '../../services/rodri.service';
+import { RealtimeService } from '../../services/realtime.service';
 
 interface ChatMessage {
   role: 'user' | 'model';
@@ -20,6 +21,8 @@ interface ChatMessage {
   timestamp: Date;
   error?: boolean;
   toolCalls?: string[];
+  imagenPreview?: string;
+  isProactiveAlert?: boolean;
 }
 
 interface QuickCard {
@@ -33,11 +36,13 @@ interface QuickCard {
   standalone: true,
   imports: [FormsModule],
   template: `
-    <div class="flex flex-col h-[calc(100vh-56px)]" style="background:#E5DDD5;">
+    <div class="flex flex-col h-[calc(100vh-56px)] relative overflow-hidden" style="background:#E5DDD5;">
       <!-- ══ HEADER TIPO WHATSAPP ══ -->
-      <div class="bg-[#C61D26] text-white flex items-center gap-3 px-4 py-3 shadow-md shrink-0">
+      <div class="bg-[#C61D26] text-white flex items-center gap-3 px-4 py-3 shadow-md shrink-0 z-30">
         <div
-          class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 ring-2 ring-white/30"
+          class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 ring-2 ring-white/30 cursor-pointer hover:bg-white/30 transition-colors"
+          (click)="showConversacionesDrawer.set(true)"
+          title="Ver conversaciones anteriores"
         >
           <svg fill="currentColor" viewBox="0 0 24 24" class="w-5 h-5 text-white">
             <path
@@ -47,7 +52,12 @@ interface QuickCard {
         </div>
 
         <div class="flex-1 min-w-0">
-          <p class="font-semibold text-[16px] leading-tight">Nexus</p>
+          <p class="font-semibold text-[16px] leading-tight flex items-center gap-1.5">
+            <span>Nexus Pro</span>
+            @if (currentConversacionId()) {
+              <span class="text-[10px] bg-white/25 px-1.5 py-0.5 rounded font-normal">Persistido</span>
+            }
+          </p>
           <p class="text-[12px] text-white/80 leading-tight">
             @if (isRecording()) {
               🎤 escuchando...
@@ -61,6 +71,36 @@ interface QuickCard {
           </p>
         </div>
 
+        <!-- Botón Historial lateral -->
+        <button
+          (click)="showConversacionesDrawer.set(true)"
+          title="Ver historial de chats"
+          class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white"
+        >
+          <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+        </button>
+
+        <!-- Toggle Alertas Proactivas -->
+        <button
+          (click)="toggleProactiveAlerts()"
+          [title]="proactiveAlertsEnabled() ? 'Silenciar alertas proactivas' : 'Activar alertas proactivas'"
+          class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+        >
+          @if (proactiveAlertsEnabled()) {
+            <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4 text-green-400">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a9.04 9.04 0 0 1-5.714 0M3.14 9.486M12 18.75A9.75 9.75 0 0 1 2.25 9c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75a9.75 9.75 0 0 1-9.75 9.75Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a9.04 9.04 0 0 1-5.714 0M3.14 9.486a4.5 4.5 0 0 0-4.494 4.494v3.743a1.5 1.5 0 0 0 .586 1.185c.5.383 1.118.6 1.761.6H17.25c.643 0 1.261-.217 1.761-.6a1.5 1.5 0 0 0 .586-1.185v-3.743A4.5 4.5 0 0 0 14.857 9.486Z" />
+            </svg>
+          } @else {
+            <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4 text-white/40">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.143 17.082a24.248 24.248 0 0 0 3.844.148m-3.844-.148a2.238 2.238 0 0 1-2.25-2.24v-3.009m3.844 5.249c-2.942-.1-5.314-2.519-5.314-5.517V12a9.75 9.75 0 0 1-9.75-9.75M3.987 3.987A9.75 9.75 0 0 0 12 18.75m0 0a9.75 9.75 0 0 0 8.013-14.763" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="m3 3 18 18" />
+            </svg>
+          }
+        </button>
+
         <!-- Toggle proveedor de IA -->
         <button
           (click)="toggleProvider()"
@@ -72,19 +112,9 @@ interface QuickCard {
           class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/15 hover:bg-white/25 active:scale-95 transition-all select-none shrink-0"
         >
           @if (provider() === 'openai') {
-            <svg viewBox="0 0 24 24" fill="currentColor" class="w-3 h-3 text-white">
-              <path
-                d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.677l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.843-3.369 2.02-1.168a.076.076 0 0 1 .071 0l4.83 2.786a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.402-.676zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08-4.778 2.758a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"
-              />
-            </svg>
-            <span class="text-white">GPT</span>
+            <span class="text-white font-bold text-[10px]">GPT-4o</span>
           } @else {
-            <svg viewBox="0 0 24 24" fill="currentColor" class="w-3 h-3 text-white">
-              <path
-                d="M11.9 24C5.33 24 0 18.67 0 12.1S5.33.2 11.9.2 23.8 5.53 23.8 12.1 18.47 24 11.9 24zm7.73-8.15c.28-.64.44-1.35.44-2.1s-.16-1.46-.44-2.1c-.26-.58-.62-1.1-1.07-1.55-.45-.45-.97-.81-1.55-1.07-.64-.28-1.35-.44-2.1-.44H7.54c-.75 0-1.46.16-2.1.44-.58.26-1.1.62-1.55 1.07-.45.45-.81.97-1.07 1.55-.28.64-.44 1.35-.44 2.1s.16 1.46.44 2.1c.26.58.62 1.1 1.07 1.55.45.45.97.81 1.55 1.07.64.28 1.35.44 2.1.44h7.37c.75 0 1.46-.16 2.1-.44.58-.26 1.1-.62 1.55-1.07.45-.45.81-.97 1.07-1.55z"
-              />
-            </svg>
-            <span class="text-white">Gem</span>
+            <span class="text-white font-bold text-[10px]">Gemini</span>
           }
         </button>
 
@@ -125,22 +155,99 @@ interface QuickCard {
           </button>
         }
 
-        @if (!showCards()) {
+        <!-- Toggle manos libres -->
+        @if (speechAvailable()) {
           <button
-            (click)="clearChat()"
-            title="Nueva conversación"
-            class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+            (click)="toggleHandsFree()"
+            [title]="handsFreeMode() ? 'Desactivar manos libres' : 'Activar manos libres'"
+            class="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            [class]="handsFreeMode() ? 'bg-green-500/30 ring-1 ring-green-400' : 'hover:bg-white/10'"
           >
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
-              />
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2" [class]="handsFreeMode() ? 'text-green-400' : 'text-white/60'">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
             </svg>
           </button>
         }
+
+        <!-- Nueva Conversación -->
+        <button
+          (click)="iniciarNuevaConversacion()"
+          title="Nueva conversación persistida"
+          class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-white"
+        >
+          <svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" class="w-4 h-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        </button>
       </div>
+
+      <!-- ══ SIDEBAR DE CHATS PERSISTIDOS ══ -->
+      @if (showConversacionesDrawer()) {
+        <div class="fixed inset-y-0 left-0 w-80 bg-white/95 backdrop-blur-md border-r border-[#E0D8D0] shadow-2xl z-50 flex flex-col transition-all duration-300">
+          <div class="bg-[#C61D26] text-white p-4 flex items-center justify-between shadow-sm shrink-0">
+            <span class="font-semibold text-md tracking-wide">Conversaciones de Nexus</span>
+            <button (click)="showConversacionesDrawer.set(false)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/15 transition-colors text-white font-bold">✕</button>
+          </div>
+          
+          <div class="flex-1 overflow-y-auto p-3 space-y-2">
+            <button (click)="iniciarNuevaConversacion()" class="w-full py-2.5 px-4 mb-2 bg-[#C61D26] text-white hover:bg-[#A01520] font-semibold rounded-xl text-xs shadow transition-all text-center block active:scale-98">
+              + Nueva Conversación
+            </button>
+            
+            @if (conversaciones().length === 0) {
+              <p class="text-xs text-gray-400 text-center py-12">No hay conversaciones previas en el servidor.</p>
+            } @else {
+              @for (c of conversaciones(); track c.id) {
+                <div 
+                  [class]="c.id === currentConversacionId() ? 'bg-[#FFF5F5] border-[#C61D26] shadow-sm' : 'hover:bg-gray-100 border-gray-100'"
+                  class="flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group"
+                  (click)="seleccionarConversacion(c.id)"
+                >
+                  <div class="flex-1 min-w-0 pr-2">
+                    <p class="text-[13px] font-semibold text-gray-800 truncate">{{ c.titulo || 'Conversación sin título' }}</p>
+                    <p class="text-[11px] text-gray-500 truncate">{{ c.resumen || 'Sin resumen aún...' }}</p>
+                    <p class="text-[9px] text-gray-400 mt-1 font-medium">{{ formatFecha(c.fechaUltimaActividad) }}</p>
+                  </div>
+                  <button (click)="eliminarConversacion($event, c.id)" class="text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-white hover:bg-red-50 rounded-lg shadow-sm border border-gray-100">
+                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="w-3.5 h-3.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9 9m1.228-9 .168 1.11H18.75m-5.418 0H18.75m-.001 0a2.25 2.25 0 0 1 2.244 2.077L20.354 18a2.25 2.25 0 0 1-2.244 2.077H5.89A2.25 2.25 0 0 1 3.646 18.003L3.104 5.187A2.25 2.25 0 0 1 5.348 3H18.75Z" />
+                    </svg>
+                  </button>
+                </div>
+              }
+            }
+          </div>
+        </div>
+        <!-- Overlay oscuro -->
+        <div class="fixed inset-0 bg-black/35 backdrop-blur-sm z-40" (click)="showConversacionesDrawer.set(false)"></div>
+      }
+
+      <!-- ══ PANEL FLOTANTE DE VAD MANOS LIBRES (WAVEFORMS REACTIVAS) ══ -->
+      @if (isRecording() && handsFreeMode()) {
+        <div class="fixed inset-x-4 bottom-24 bg-white/90 backdrop-blur-md border border-[#E0D8D0] rounded-2xl p-5 shadow-2xl flex flex-col items-center justify-center gap-4 transition-all duration-300 z-40 scale-100 animate-in fade-in zoom-in duration-200">
+          <div class="flex items-center gap-1.5 px-3 py-1 bg-red-100 text-[#C61D26] rounded-full text-[10px] font-bold tracking-wider uppercase animate-pulse">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#C61D26]"></span>
+            <span>Modo Manos Libres Activo</span>
+          </div>
+          
+          <!-- Visualizador Waveform Reactivo -->
+          <div class="flex items-center justify-center h-16 w-full max-w-[240px]">
+            <svg viewBox="0 0 100 40" class="w-full h-full text-[#C61D26]">
+              <path [attr.d]="getWavePath(0, 1.0)" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.9"></path>
+              <path [attr.d]="getWavePath(2, 0.6)" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.5"></path>
+              <path [attr.d]="getWavePath(4, 0.3)" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.25"></path>
+            </svg>
+          </div>
+          
+          <p class="text-[13px] text-gray-600 font-semibold text-center select-none">
+            @if (isUserSpeaking()) {
+              🎤 Don Ricardo, le estoy escuchando...
+            } @else {
+              Hable cuando guste, detectaré cuando guarde silencio...
+            }
+          </p>
+        </div>
+      }
 
       <!-- ══ ÁREA DE CHAT ══ -->
       <div #chatContainer class="chat-area flex-1 overflow-y-auto px-3 py-4 space-y-2">
@@ -158,10 +265,10 @@ interface QuickCard {
           <div class="wa-bubble-received">
             <p class="text-[15px] leading-relaxed text-[#111827]">
               {{ greeting() }}, <strong>Don {{ nombre() }}</strong> 👋<br />
-              Soy <strong>Nexus</strong>. Pregúnteme lo que quiera del negocio.
+              Soy <strong>Nexus Pro</strong>. Persisto sus conversaciones y le alertaré de cualquier atraso automáticamente.
               @if (speechAvailable()) {
-                <br /><span class="text-[13px] text-[#888]"
-                  >🎤 También puede hablarme — mantenga el botón rojo presionado.</span
+                <br /><span class="text-[12px] text-[#777] font-medium"
+                  >🎧 Pruebe a activar el icono de micrófono superior para manos libres.</span
                 >
               }
             </p>
@@ -197,6 +304,9 @@ interface QuickCard {
           @if (msg.role === 'user') {
             <div class="flex justify-end">
               <div class="wa-bubble-sent">
+                @if (msg.imagenPreview) {
+                  <img [src]="msg.imagenPreview" class="w-full max-w-[200px] rounded-lg mb-1.5" />
+                }
                 <p class="text-[15px] leading-relaxed">{{ msg.texto }}</p>
                 <div class="flex items-center justify-end gap-1 mt-1">
                   <span class="wa-time text-[#7FB5A0]">{{ hora(msg.timestamp) }}</span>
@@ -221,10 +331,19 @@ interface QuickCard {
               </div>
               <div>
                 <div
-                  class="wa-bubble-received"
+                  class="wa-bubble-received border transition-all"
                   [class.border-red-200]="msg.error"
                   [class.bg-red-50]="msg.error"
+                  [style.border]="msg.isProactiveAlert ? '1.5px solid rgba(198, 29, 38, 0.4)' : null"
+                  [style.background]="msg.isProactiveAlert ? '#FFFDF0' : null"
                 >
+                  @if (msg.isProactiveAlert) {
+                    <div class="flex items-center gap-1.5 mb-1.5 text-xs font-bold text-amber-700">
+                      <span class="animate-bounce">🔔</span>
+                      <span>ALERTA DE NEGOCIO</span>
+                    </div>
+                  }
+                  
                   <span
                     class="text-[15px] leading-relaxed block"
                     [class.text-red-800]="msg.error"
@@ -255,7 +374,7 @@ interface QuickCard {
                     </div>
                   }
 
-                  <div class="flex items-center justify-end gap-2 mt-1">
+                  <div class="flex items-center justify-end gap-2 mt-1.5">
                     @if (!msg.error) {
                       <button
                         (click)="speakMessage(msg.texto)"
@@ -284,7 +403,7 @@ interface QuickCard {
           }
         }
 
-        <!-- Typing indicator (se oculta cuando ya llegan tokens) -->
+        <!-- Typing indicator -->
         @if (loading() && isTyping()) {
           <div class="flex items-end gap-2">
             <div
@@ -319,7 +438,7 @@ interface QuickCard {
       </div>
 
       <!-- ══ BARRA DE INPUT ══ -->
-      <div class="bg-[#F0F0F0] px-2 pb-2 pt-1 shrink-0">
+      <div class="bg-[#F0F0F0] px-2 pb-2 pt-1 shrink-0 z-10">
         <!-- Chips de respuesta rápida contextual -->
         @if (suggestedReplies().length > 0 && !loading()) {
           <div class="flex gap-2 overflow-x-auto pb-2 pt-1 px-0.5 scrollbar-hide">
@@ -331,6 +450,17 @@ interface QuickCard {
                 {{ reply }}
               </button>
             }
+          </div>
+        }
+
+        <!-- Preview de imagen adjunta -->
+        @if (pendingImage()) {
+          <div class="flex items-center gap-2 px-1 pb-1.5">
+            <div class="relative">
+              <img [src]="pendingImage()!.preview" class="w-14 h-14 rounded-lg object-cover border border-gray-200 shadow-sm" />
+              <button (click)="clearImage()" class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#C61D26] text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-md hover:bg-red-700 transition-colors">✕</button>
+            </div>
+            <span class="text-[12px] text-gray-500">📷 Foto adjunta</span>
           </div>
         }
 
@@ -354,8 +484,22 @@ interface QuickCard {
             ></textarea>
           </div>
 
-          <!-- Botón enviar (cuando hay texto) -->
-          @if (inputText.trim() && !isRecording()) {
+          <!-- Cámara -->
+          <input #fileInput type="file" accept="image/*" class="hidden" (change)="onImageSelected($event)" />
+          <button
+            (click)="fileInput.click()"
+            [disabled]="loading() || isRecording()"
+            title="Tomar foto o seleccionar imagen"
+            class="w-[42px] h-[46px] flex items-center justify-center shrink-0 transition-all text-[#8696A0] hover:text-[#C61D26] active:scale-95 disabled:opacity-40"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-5 h-5 stroke-[1.8]">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+            </svg>
+          </button>
+
+          <!-- Botón enviar -->
+          @if ((inputText.trim() || pendingImage()) && !isRecording()) {
             <button
               (click)="send()"
               [disabled]="loading()"
@@ -409,7 +553,6 @@ interface QuickCard {
               }
             </button>
           } @else {
-            <!-- Fallback: sin voz disponible, botón enviar siempre -->
             <button
               (click)="send()"
               [disabled]="loading() || !inputText.trim()"
@@ -431,11 +574,11 @@ interface QuickCard {
           }
         </div>
 
-        <!-- Indicador de grabación -->
-        @if (isRecording()) {
+        <!-- Indicador de grabación manual -->
+        @if (isRecording() && !handsFreeMode()) {
           <div class="flex items-center justify-center gap-2 pt-1.5">
             <span class="w-2 h-2 rounded-full bg-red-500 recording-pulse"></span>
-            <span class="text-[12px] text-red-700 font-medium">Grabando — suelte para enviar</span>
+            <span class="text-[12px] text-red-700 font-medium select-none">Grabando — suelte para enviar</span>
           </div>
         }
       </div>
@@ -499,8 +642,6 @@ interface QuickCard {
         animation: rec-pulse 1s ease infinite;
       }
 
-      /* Fondo tipo WhatsApp — definido en CSS para evitar que el parser del template
-       interprete el </svg> de la data URL como un tag HTML. */
       .chat-area {
         background-color: #e5ddd5;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23E5DDD5'/%3E%3Ccircle cx='30' cy='30' r='1.5' fill='%23D4C8BF' opacity='0.6'/%3E%3C/svg%3E");
@@ -512,6 +653,7 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   private auth = inject(AuthService);
   private rodriService = inject(RodriService);
   private sanitizer = inject(DomSanitizer);
+  private realtimeService = inject(RealtimeService);
 
   @ViewChild('chatEnd') chatEnd!: ElementRef;
   @ViewChild('chatContainer') chatContainer!: ElementRef;
@@ -521,12 +663,30 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   loading = signal(false);
   isTyping = signal(false);
   inputText = '';
+  pendingImage = signal<{base64: string; mime: string; preview: string} | null>(null);
+  handsFreeMode = signal(false);
+  private silenceTimer: any = null;
+  private readonly SILENCE_TIMEOUT = 1800; // ms
 
   private allMessages = signal<ChatMessage[]>([]);
   private shouldScrollToBottom = false;
 
   showCards = computed(() => this.allMessages().length === 0);
   visibleMessages = computed(() => this.allMessages());
+
+  // ── HISTORIAL PERSISTIDO EN DB ──
+  conversaciones = signal<any[]>([]);
+  currentConversacionId = signal<string | null>(null);
+  showConversacionesDrawer = signal(false);
+  proactiveAlertsEnabled = signal(localStorage.getItem('nexus_proactive_alerts') !== 'false');
+
+  // ── VAD WEB AUDIO ──
+  isUserSpeaking = signal(false);
+  vadVolumeLevel = signal(0);
+  private wavePhase = 0;
+  private vadStream: MediaStream | null = null;
+  private vadInterval: any = null;
+  private audioCtx: AudioContext | null = null;
 
   // ── VOZ ──
   private recognition: any = null;
@@ -537,9 +697,12 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   isRecording = signal(false);
   isSpeaking = signal(false);
-  voiceEnabled = signal(true);
+  voiceEnabled = signal(localStorage.getItem('nexus_voice_enabled') !== 'false');
   interimText = signal('');
   speechAvailable = signal(false);
+  useWhisper = signal(true);
+  private mediaRecorder: MediaRecorder | null = null;
+  private audioChunks: Blob[] = [];
 
   // ── CHIPS CONTEXTUALES ──
   suggestedReplies = signal<string[]>([]);
@@ -580,13 +743,100 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   // ─────────────────────────────────────────────────────────────────────
   // LIFECYCLE
   // ─────────────────────────────────────────────────────────────────────
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     this.initSpeech();
+    await this.loadEncryptedHistory();
+    this.cargarConversaciones();
+
+    // Conectar SignalR y escuchar alertas proactivas
+    this.realtimeService.start();
+    this.realtimeService.nexusAlerta$.subscribe(alerta => {
+      if (this.proactiveAlertsEnabled()) {
+        this.handleProactiveAlert(alerta);
+      }
+    });
   }
 
   ngOnDestroy(): void {
     this.recognition?.abort();
     this.stopSpeaking();
+    this.saveEncryptedHistory();
+    this.stopVad();
+    if (this.vadStream) {
+      this.vadStream.getTracks().forEach(t => t.stop());
+    }
+  }
+
+  // ── HISTORIAL CIFRADO ──
+  private get historyKey(): string {
+    const user = this.auth.user();
+    return `nexus_hist_${user?.id ?? 'anon'}`;
+  }
+
+  private async deriveKey(): Promise<CryptoKey> {
+    const user = this.auth.user();
+    const secret = `nexus-${user?.id ?? 'default'}-${user?.username ?? ''}`;
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', enc.encode(secret), 'PBKDF2', false, ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: enc.encode('NexusRR2024'), iterations: 100000, hash: 'SHA-256' },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  private async saveEncryptedHistory(): Promise<void> {
+    try {
+      const msgs = this.allMessages();
+      if (msgs.length === 0) {
+        localStorage.removeItem(this.historyKey);
+        return;
+      }
+      // Solo guardar los últimos 50 mensajes para no saturar localStorage
+      const toSave = msgs.slice(-50).map(m => ({
+        role: m.role,
+        texto: m.texto,
+        timestamp: m.timestamp
+      }));
+      const key = await this.deriveKey();
+      const enc = new TextEncoder();
+      const data = enc.encode(JSON.stringify(toSave));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+      // Guardar IV + ciphertext como base64
+      const combined = new Uint8Array(iv.length + new Uint8Array(encrypted).length);
+      combined.set(iv);
+      combined.set(new Uint8Array(encrypted), iv.length);
+      localStorage.setItem(this.historyKey, btoa(String.fromCharCode(...combined)));
+    } catch {
+      // Si falla el cifrado, silenciosamente no guardar
+    }
+  }
+
+  private async loadEncryptedHistory(): Promise<void> {
+    try {
+      const stored = localStorage.getItem(this.historyKey);
+      if (!stored) return;
+      const key = await this.deriveKey();
+      const combined = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
+      const iv = combined.slice(0, 12);
+      const ciphertext = combined.slice(12);
+      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+      const json = new TextDecoder().decode(decrypted);
+      const msgs: any[] = JSON.parse(json);
+      this.allMessages.set(msgs.map((m: any) => ({
+        role: m.role,
+        texto: m.texto,
+        timestamp: new Date(m.timestamp)
+      })));
+    } catch {
+      // Si falla la desencriptación (clave cambió, datos corruptos), empezar limpio
+      localStorage.removeItem(this.historyKey);
+    }
   }
 
   ngAfterViewChecked(): void {
@@ -633,16 +883,43 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
       // Mostrar transcripción en vivo en el textarea
       this.inputText = this.finalTranscript + interim;
       this.interimText.set(interim);
+
+      // Manos libres: resetear timer de silencio con cada resultado (fallback)
+      if (this.handsFreeMode() && !this.vadInterval) {
+        clearTimeout(this.silenceTimer);
+        this.silenceTimer = setTimeout(() => {
+          this.recognition?.stop();
+        }, this.SILENCE_TIMEOUT);
+      }
     };
 
     this.recognition.onend = () => {
       this.isRecording.set(false);
       this.interimText.set('');
+      clearTimeout(this.silenceTimer);
+      this.stopVad();
+      if (this.vadStream) {
+        this.vadStream.getTracks().forEach(t => t.stop());
+        this.vadStream = null;
+      }
+
+      // Detener MediaRecorder si estaba grabando (Whisper)
+      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        this.mediaRecorder.stop();
+        // Whisper maneja el envío en onstop
+        this.finalTranscript = '';
+        this.inputText = '';
+        return;
+      }
+
       const text = this.finalTranscript.trim();
       this.finalTranscript = '';
       this.inputText = '';
       if (text) {
         this.sendMessage(text);
+      } else if (this.handsFreeMode() && !this.loading()) {
+        // Sin texto detectado — re-escuchar silenciosamente
+        setTimeout(() => this.startListening(), 400);
       }
     };
 
@@ -668,6 +945,11 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.finalTranscript = '';
     this.inputText = '';
     this.isRecording.set(true);
+
+    if (this.useWhisper()) {
+      this.startMediaRecorder();
+    }
+
     try {
       this.recognition.start();
     } catch (_) {
@@ -683,6 +965,195 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   stopRecordingIfActive(): void {
     if (this.isRecording()) this.recognition?.stop();
+  }
+
+  // ── MANOS LIBRES ──
+  toggleHandsFree(): void {
+    const next = !this.handsFreeMode();
+    this.handsFreeMode.set(next);
+    if (next) {
+      // Activar: empezar a escuchar y activar voz
+      this.voiceEnabled.set(true);
+      this.startListening();
+    } else {
+      // Desactivar: dejar de grabar
+      clearTimeout(this.silenceTimer);
+      this.stopRecordingIfActive();
+    }
+  }
+
+  private startListening(): void {
+    if (!this.recognition || this.isRecording() || this.loading() || this.isSpeaking()) return;
+    this.stopSpeaking();
+    this.finalTranscript = '';
+    this.inputText = '';
+    this.isRecording.set(true);
+
+    if (this.useWhisper()) {
+      this.startMediaRecorder();
+    } else {
+      // Activar VAD local para browser STT si manos libres está encendido
+      if (this.handsFreeMode()) {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          this.vadStream = stream;
+          this.startVad(stream);
+        }).catch(() => {});
+      }
+    }
+
+    try {
+      this.recognition.start();
+    } catch (_) {
+      this.isRecording.set(false);
+    }
+  }
+
+  private startMediaRecorder(): void {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      this.vadStream = stream;
+      this.startVad(stream);
+      this.audioChunks = [];
+      const options: MediaRecorderOptions = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options.mimeType = 'audio/webm;codecs=opus';
+      }
+      this.mediaRecorder = new MediaRecorder(stream, options);
+      this.mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) this.audioChunks.push(e.data);
+      };
+      this.mediaRecorder.onstop = () => {
+        this.stopVad();
+        if (this.vadStream) {
+          this.vadStream.getTracks().forEach(t => t.stop());
+          this.vadStream = null;
+        }
+        if (this.audioChunks.length > 0) {
+          const blob = new Blob(this.audioChunks, { type: 'audio/webm' });
+          this.transcribeWithWhisper(blob);
+        }
+      };
+      this.mediaRecorder.start();
+    }).catch(() => {
+      // Si no hay permiso de micro, caer en browser STT
+      this.useWhisper.set(false);
+    });
+  }
+
+  private transcribeWithWhisper(blob: Blob): void {
+    this.interimText.set('Transcribiendo...');
+    this.rodriService.stt(blob).subscribe({
+      next: (res) => {
+        this.interimText.set('');
+        const text = res.text?.trim();
+        if (text) {
+          this.sendMessage(text);
+        } else if (this.handsFreeMode()) {
+          setTimeout(() => this.startListening(), 400);
+        }
+      },
+      error: () => {
+        this.interimText.set('');
+        // Fallback: usar transcripción del browser
+        const text = this.finalTranscript.trim();
+        if (text) this.sendMessage(text);
+      }
+    });
+  }
+
+  // ── VAD WEB AUDIO METHODS ──
+  private startVad(stream: MediaStream): void {
+    try {
+      this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const source = this.audioCtx.createMediaStreamSource(stream);
+      const filter = this.audioCtx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 1000; // rango de voz
+      filter.Q.value = 0.5;
+
+      const analyser = this.audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+
+      source.connect(filter);
+      filter.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      let silenceStart = 0;
+      let speechStart = 0;
+      this.isUserSpeaking.set(false);
+
+      this.vadInterval = setInterval(() => {
+        analyser.getByteTimeDomainData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const val = (dataArray[i] - 128) / 128;
+          sum += val * val;
+        }
+        const rms = Math.sqrt(sum / bufferLength);
+
+        // Actualizar volumen para ondas SVG (0 a 1)
+        const vol = Math.min(1, rms * 10);
+        this.vadVolumeLevel.set(vol);
+        this.wavePhase += 0.15; // scroll de ondas
+
+        const speechThreshold = 0.02;
+        const now = Date.now();
+
+        if (rms > speechThreshold) {
+          if (!this.isUserSpeaking()) {
+            if (speechStart === 0) speechStart = now;
+            if (now - speechStart > 150) { // confirmación de voz 150ms
+              this.isUserSpeaking.set(true);
+              silenceStart = 0;
+            }
+          } else {
+            silenceStart = 0;
+          }
+        } else {
+          speechStart = 0;
+          if (this.isUserSpeaking()) {
+            if (silenceStart === 0) silenceStart = now;
+            if (now - silenceStart > 1800) { // 1.8s de silencio -> Detener
+              clearInterval(this.vadInterval);
+              this.stopRecordingIfActive();
+            }
+          }
+        }
+      }, 50);
+    } catch (e) {
+      console.warn('Error al iniciar VAD adaptativo', e);
+    }
+  }
+
+  private stopVad(): void {
+    if (this.vadInterval) {
+      clearInterval(this.vadInterval);
+      this.vadInterval = null;
+    }
+    if (this.audioCtx) {
+      try { this.audioCtx.close(); } catch {}
+      this.audioCtx = null;
+    }
+    this.vadVolumeLevel.set(0);
+    this.isUserSpeaking.set(false);
+  }
+
+  getWavePath(offset: number, scaleMultiplier: number): string {
+    const vol = this.vadVolumeLevel();
+    const amp = Math.max(2, vol * 18) * scaleMultiplier;
+    const freq = 0.15;
+    const width = 100;
+    const height = 40;
+    const midY = height / 2;
+    
+    let path = `M 0 ${midY}`;
+    for (let x = 0; x <= width; x += 2) {
+      const y = midY + Math.sin(x * freq + this.wavePhase + offset) * amp;
+      path += ` L ${x} ${y}`;
+    }
+    return path;
   }
 
   // ─────────────────────────────────────────────────────────────────────
@@ -706,6 +1177,10 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
           this.isSpeaking.set(false);
           URL.revokeObjectURL(url);
           this.elevenLabsAudio = null;
+          // Auto-escuchar después de hablar (Turn Detection)
+          if (this.handsFreeMode() && !this.loading()) {
+            setTimeout(() => this.startListening(), 350);
+          }
         };
         this.elevenLabsAudio.onerror = () => {
           this.isSpeaking.set(false);
@@ -732,7 +1207,13 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
       this.voiceList.find(v => v.lang.startsWith('es'));
     if (esVoice) utterance.voice = esVoice;
     utterance.onstart = () => this.isSpeaking.set(true);
-    utterance.onend = () => this.isSpeaking.set(false);
+    utterance.onend = () => {
+      this.isSpeaking.set(false);
+      // Auto-escuchar después de hablar (Turn Detection)
+      if (this.handsFreeMode() && !this.loading()) {
+        setTimeout(() => this.startListening(), 350);
+      }
+    };
     utterance.onerror = () => this.isSpeaking.set(false);
     this.synth.speak(utterance);
   }
@@ -771,8 +1252,12 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   toggleVoice(): void {
-    this.voiceEnabled.update(v => !v);
-    if (!this.voiceEnabled()) this.stopSpeaking();
+    this.voiceEnabled.update(v => {
+      const next = !v;
+      localStorage.setItem('nexus_voice_enabled', String(next));
+      if (!next) this.stopSpeaking();
+      return next;
+    });
   }
 
   toggleProvider(): void {
@@ -849,11 +1334,11 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   send(): void {
     const texto = this.inputText.trim();
-    if (!texto || this.loading()) return;
+    if ((!texto && !this.pendingImage()) || this.loading()) return;
     this.inputText = '';
     if (this.inputRef?.nativeElement) this.inputRef.nativeElement.style.height = 'auto';
     this.suggestedReplies.set([]);
-    this.sendMessage(texto);
+    this.sendMessage(texto || '¿Qué ves en esta imagen?');
   }
 
   handleKeydown(e: KeyboardEvent): void {
@@ -869,11 +1354,51 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
     el.style.height = Math.min(el.scrollHeight, 128) + 'px';
   }
 
+  // ── CÁMARA / IMAGEN ──
+  onImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) this.compressAndStore(file);
+    input.value = '';
+  }
+
+  private compressAndStore(file: File): void {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX = 1024;
+        let w = image.width, h = image.height;
+        if (w > MAX || h > MAX) {
+          const ratio = Math.min(MAX / w, MAX / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d')!.drawImage(image, 0, 0, w, h);
+        const mime = file.type || 'image/jpeg';
+        const base64 = canvas.toDataURL(mime, 0.8).split(',')[1];
+        const preview = canvas.toDataURL(mime, 0.3);
+        this.pendingImage.set({ base64, mime, preview });
+      };
+      image.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  clearImage(): void {
+    this.pendingImage.set(null);
+  }
+
   clearChat(): void {
     this.allMessages.set([]);
     this.suggestedReplies.set([]);
     this.stopSpeaking();
     this.inputText = '';
+    this.pendingImage.set(null);
+    localStorage.removeItem(this.historyKey);
   }
 
   toolLabel(name: string): string {
@@ -912,7 +1437,9 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
   // ENVIAR MENSAJE — con streaming
   // ─────────────────────────────────────────────────────────────────────
   private async sendMessage(texto: string): Promise<void> {
-    this.allMessages.update(msgs => [...msgs, { role: 'user', texto, timestamp: new Date() }]);
+    const img = this.pendingImage();
+    this.pendingImage.set(null);
+    this.allMessages.update(msgs => [...msgs, { role: 'user', texto, timestamp: new Date(), imagenPreview: img?.preview }]);
     this.loading.set(true);
     this.isTyping.set(true);
     this.shouldScrollToBottom = true;
@@ -970,14 +1497,26 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
             const last = msgs[msgs.length - 1];
             if (!last.error && last.texto) this.speak(last.texto);
             this.suggestedReplies.set(this.generateSuggestions(last.texto));
+            
+            if (chunk.conversacionId) {
+              const isNew = this.currentConversacionId() !== chunk.conversacionId;
+              this.currentConversacionId.set(chunk.conversacionId);
+              if (isNew) {
+                this.cargarConversaciones();
+              }
+            }
+            this.saveEncryptedHistory();
           }
         },
-        this.provider()
+        this.provider(),
+        img?.base64,
+        img?.mime,
+        this.currentConversacionId()
       );
     } catch {
       // Fallback a non-streaming si el streaming falla
       this.isTyping.set(false);
-      this.rodriService.chat(texto, historial, this.provider()).subscribe({
+      this.rodriService.chat(texto, historial, this.provider(), img?.base64, img?.mime, this.currentConversacionId()).subscribe({
         next: res => {
           this.loading.set(false);
           this.allMessages.update(msgs => {
@@ -996,6 +1535,14 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
             this.speak(res.respuesta);
             this.suggestedReplies.set(this.generateSuggestions(res.respuesta));
           }
+          if (res.conversacionId) {
+            const isNew = this.currentConversacionId() !== res.conversacionId;
+            this.currentConversacionId.set(res.conversacionId);
+            if (isNew) {
+              this.cargarConversaciones();
+            }
+          }
+          this.saveEncryptedHistory();
         },
         error: () => {
           this.loading.set(false);
@@ -1012,6 +1559,99 @@ export class ModoDonComponent implements OnInit, OnDestroy, AfterViewChecked {
           this.shouldScrollToBottom = true;
         },
       });
+    }
+  }
+
+  cargarConversaciones(): void {
+    this.rodriService.getConversaciones().subscribe({
+      next: (data) => {
+        this.conversaciones.set(data);
+      },
+      error: (err) => console.error('Error al cargar conversaciones', err)
+    });
+  }
+
+  iniciarNuevaConversacion(): void {
+    this.currentConversacionId.set(null);
+    this.allMessages.set([]);
+    this.suggestedReplies.set([]);
+    this.stopSpeaking();
+    this.inputText = '';
+    this.pendingImage.set(null);
+    this.showConversacionesDrawer.set(false);
+  }
+
+  seleccionarConversacion(id: string): void {
+    this.rodriService.getConversacion(id).subscribe({
+      next: (msgs: any[]) => {
+        const mapped: ChatMessage[] = msgs.map(m => ({
+          role: m.role as 'user' | 'model',
+          texto: m.texto,
+          timestamp: new Date(m.fecha),
+          toolCalls: m.toolCalls || []
+        }));
+        this.allMessages.set(mapped);
+        this.currentConversacionId.set(id);
+        this.showConversacionesDrawer.set(false);
+        this.shouldScrollToBottom = true;
+      },
+      error: (err) => console.error('Error al cargar la conversación', err)
+    });
+  }
+
+  eliminarConversacion(event: Event, id: string): void {
+    event.stopPropagation(); // Evitar seleccionar la conversación al borrarla
+    if (confirm('¿Está seguro de eliminar esta conversación?')) {
+      this.rodriService.deleteConversacion(id).subscribe({
+        next: () => {
+          this.cargarConversaciones();
+          if (this.currentConversacionId() === id) {
+            this.iniciarNuevaConversacion();
+          }
+        },
+        error: (err) => console.error('Error al eliminar conversación', err)
+      });
+    }
+  }
+
+  toggleProactiveAlerts(): void {
+    this.proactiveAlertsEnabled.update(enabled => {
+      const next = !enabled;
+      localStorage.setItem('nexus_proactive_alerts', String(next));
+      return next;
+    });
+  }
+
+  handleProactiveAlert(alerta: { tipo: string; mensaje: string; fecha: string }): void {
+    // Add proactive alert to messages list
+    const alertMsg: ChatMessage = {
+      role: 'model',
+      texto: alerta.mensaje,
+      timestamp: new Date(alerta.fecha),
+      isProactiveAlert: true
+    };
+    this.allMessages.update(msgs => [...msgs, alertMsg]);
+    this.shouldScrollToBottom = true;
+    
+    // Announce verbally if voice is enabled and assistant is active
+    if (this.voiceEnabled()) {
+      this.speak(alerta.mensaje);
+    }
+  }
+
+  formatFecha(dateString: string): string {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('es-MX', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateString;
     }
   }
 }

@@ -48,6 +48,7 @@ export class RealtimeService {
   readonly tareaCampoCompletada$ = new Subject<CampoNotificacionEvent>();
   /** Emitido cuando un operador solicita restablecer su PIN. */
   readonly pinResetRequested$ = new Subject<PinResetRequestedEvent>();
+  readonly nexusAlerta$ = new Subject<{ tipo: string; mensaje: string; fecha: string }>();
 
   /** Emitido cuando el hub responde 401 — el layout debe redirigir a /login. */
   readonly authError$ = new Subject<void>();
@@ -86,6 +87,10 @@ export class RealtimeService {
 
     this.connection.on('pinResetRequested', (event: PinResetRequestedEvent) => {
       this.zone.run(() => this.pinResetRequested$.next(event));
+    });
+
+    this.connection.on('nexusAlerta', (event: { tipo: string; mensaje: string; fecha: string }) => {
+      this.zone.run(() => this.nexusAlerta$.next(event));
     });
 
     this.connection.start().catch((err: unknown) => {

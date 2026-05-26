@@ -77,4 +77,17 @@ public class RealtimeNotifier : IRealtimeNotifier
             fecha = DateTime.UtcNow,
         }, cancellationToken);
     }
+
+    public Task NexusAlertaAsync(
+        string tipo,
+        string mensaje,
+        CancellationToken cancellationToken = default)
+    {
+        return _hub.Clients.Group("admins").SendAsync("nexusAlerta", new
+        {
+            tipo,
+            mensaje,
+            fecha = DateTime.UtcNow,
+        }, cancellationToken);
+    }
 }

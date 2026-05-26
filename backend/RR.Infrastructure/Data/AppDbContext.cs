@@ -55,6 +55,8 @@ public class AppDbContext : DbContext
     public DbSet<PartnerExterno> PartnersExternos => Set<PartnerExterno>();
     public DbSet<Banco> Bancos => Set<Banco>();
     public DbSet<LoteImportacion> LotesImportacion => Set<LoteImportacion>();
+    public DbSet<ConversacionNexus> ConversacionesNexus => Set<ConversacionNexus>();
+    public DbSet<MensajeNexus> MensajesNexus => Set<MensajeNexus>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -526,12 +528,30 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<AuditoriaLog>(e =>
         {
+            e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
+        });
+
+        modelBuilder.Entity<ConversacionNexus>(e =>
+        {
             e.HasKey(x => x.Id);
-            e.Property(x => x.Accion).HasMaxLength(100).IsRequired();
-            e.Property(x => x.Entidad).HasMaxLength(100).IsRequired();
-            e.Property(x => x.EntidadId).HasMaxLength(50);
-            e.Property(x => x.IpAddress).HasMaxLength(50);
+            e.Property(x => x.Titulo).HasMaxLength(250);
+            e.Property(x => x.Resumen).HasColumnType("text");
             e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
+            e.HasIndex(x => new { x.TenantId, x.UserId });
+            e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
+        });
+
+        modelBuilder.Entity<MensajeNexus>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Role).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Texto).HasColumnType("text").IsRequired();
+            e.Property(x => x.ImagenMime).HasMaxLength(100);
+            e.Property(x => x.ToolCallsJson).HasColumnType("jsonb");
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.Conversacion).WithMany(c => c.Mensajes).HasForeignKey(x => x.ConversacionId);
+            e.HasIndex(x => new { x.TenantId, x.ConversacionId });
             e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
         });
 
