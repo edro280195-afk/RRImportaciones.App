@@ -1664,36 +1664,16 @@ export class TramiteDetailComponent implements OnInit {
   ];
 
   documentosBase = [
-    { tipoDocumento: 'FACTURA', nombre: 'Factura', descripcion: 'Obligatoria para iniciar baja.' },
-    {
-      tipoDocumento: 'IDENTIFICACION_INE',
-      nombre: 'Identificación INE',
-      descripcion: 'O alternativa notariada del vendedor.',
-    },
-    {
-      tipoDocumento: 'HOJA_NOTARIADA',
-      nombre: 'Hoja notariada',
-      descripcion: 'Alternativa cuando el vendedor es estadounidense.',
-    },
-    {
-      tipoDocumento: 'IDENTIFICACION_AMERICANA',
-      nombre: 'Identificación americana',
-      descripcion: 'Identificación del vendedor estadounidense.',
-    },
-    {
-      tipoDocumento: 'BAJA',
-      nombre: 'Baja',
-      descripcion: 'Resultado del proceso de baja, aprox. 72 horas.',
-    },
+    { tipoDocumento: 'FACTURA', nombre: 'Factura', descripcion: 'Documento requerido del vehículo.' },
     {
       tipoDocumento: 'TITULO',
       nombre: 'Título',
-      descripcion: 'Se entrega con el vehículo después de la baja.',
+      descripcion: 'Documento requerido del vehículo.',
     },
     {
       tipoDocumento: 'PEDIMENTO_PDF',
-      nombre: 'Pedimento PDF',
-      descripcion: 'Documento devuelto por el externo al tramitador.',
+      nombre: 'Pedimento',
+      descripcion: 'Documento requerido para el expediente.',
     },
   ];
 

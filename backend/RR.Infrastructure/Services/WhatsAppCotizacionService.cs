@@ -39,9 +39,10 @@ public class WhatsAppCotizacionService : IWhatsAppCotizacionService
         var pdfUrl = await SavePublicPdfAsync(cotizacionId, cotizacion.Folio);
         var template = await _plantillas.GetOrCreateDefaultAsync("COTIZACION_WHATSAPP");
         var variables = PlantillaMensajeService.BuildVariables(cotizacion, pdfUrl, request.MensajePersonalizado);
-        var message = PlantillaMensajeService.Render(template.Cuerpo, variables);
-        if (!string.IsNullOrWhiteSpace(request.MensajePersonalizado))
-            message = $"{request.MensajePersonalizado.Trim()}\n\n{message}";
+        var messageTemplate = string.IsNullOrWhiteSpace(request.MensajePersonalizado)
+            ? template.Cuerpo
+            : request.MensajePersonalizado.Trim();
+        var message = PlantillaMensajeService.Render(messageTemplate, variables);
 
         return new WhatsAppLinkResponse
         {

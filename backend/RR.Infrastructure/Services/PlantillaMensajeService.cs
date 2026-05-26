@@ -106,9 +106,20 @@ public class PlantillaMensajeService : IPlantillaMensajeService
     {
         foreach (var template in DefaultTemplates())
         {
-            var exists = await _db.PlantillasMensaje.AnyAsync(x => x.Codigo == template.Codigo);
-            if (!exists)
+            var existing = await _db.PlantillasMensaje.FirstOrDefaultAsync(x => x.Codigo == template.Codigo);
+            if (existing is null)
+            {
                 _db.PlantillasMensaje.Add(template);
+                continue;
+            }
+
+            if (DebeActualizarPlantillaSistema(existing, template))
+            {
+                existing.Asunto = template.Asunto;
+                existing.Cuerpo = template.Cuerpo;
+                existing.VariablesDisponibles = template.VariablesDisponibles;
+                existing.FechaModificacion = DateTime.UtcNow;
+            }
         }
 
         await _db.SaveChangesAsync();
@@ -182,7 +193,7 @@ public class PlantillaMensajeService : IPlantillaMensajeService
                     <p>{mensaje_personalizado}</p>
                     <p>Te compartimos la cotizacion para importar tu <strong>{vehiculo_marca} {vehiculo_modelo}</strong>.</p>
                     <p><strong>Total:</strong> {total}</p>
-                    <p>El PDF adjunto incluye el desglose completo y los terminos de vigencia.</p>
+                    <p>El PDF adjunto incluye el resumen y los terminos de vigencia.</p>
                     <p>Saludos,<br>R&R Importaciones</p>
                     """,
                 VariablesDisponibles = DefaultVariablesJson,
@@ -196,8 +207,6 @@ public class PlantillaMensajeService : IPlantillaMensajeService
 
                     Resumen:
                     - Valor aduana: {valor_aduana_usd}
-                    - Impuestos: {impuestos_total}
-                    - Honorarios: {honorarios}
                     - Total: {total}
 
                     Esta cotizacion tiene validez de 7 dias.
@@ -222,4 +231,18 @@ public class PlantillaMensajeService : IPlantillaMensajeService
 
     private static string CurrentNotificationDate()
         => DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+
+    private static bool DebeActualizarPlantillaSistema(PlantillaMensaje existing, PlantillaMensaje template)
+    {
+        if (existing.Codigo == "COTIZACION_WHATSAPP")
+        {
+            return existing.Cuerpo.Contains("- Impuestos: {impuestos_total}", StringComparison.OrdinalIgnoreCase)
+                || existing.Cuerpo.Contains("- Honorarios: {honorarios}", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (existing.Codigo == "COTIZACION_EMAIL")
+            return existing.Cuerpo.Contains("desglose completo", StringComparison.OrdinalIgnoreCase);
+
+        return false;
+    }
 }

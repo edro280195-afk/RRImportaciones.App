@@ -86,7 +86,7 @@ public class CotizacionPdfService : ICotizacionPdfService
 
             column.Item().Element(x => ComposeCliente(x, c));
             column.Item().Element(x => ComposeVehiculo(x, c));
-            column.Item().Element(x => ComposeDesglose(x, c));
+            column.Item().Element(x => ComposeResumen(x, c));
             column.Item().Element(x => ComposeDisclaimer(x, c));
         });
     }
@@ -123,13 +123,13 @@ public class CotizacionPdfService : ICotizacionPdfService
         });
     }
 
-    private static void ComposeDesglose(IContainer container, Cotizacion c)
+    private static void ComposeResumen(IContainer container, Cotizacion c)
     {
         var tcAplicado = c.TipoCambioAplicado ?? 0m;
 
         container.Column(column =>
         {
-            column.Item().Text("Desglose del calculo").Bold().FontSize(12).FontColor("#0D1017");
+            column.Item().Text("Resumen de la cotizacion").Bold().FontSize(12).FontColor("#0D1017");
             column.Item().PaddingTop(6).Table(table =>
             {
                 table.ColumnsDefinition(cols =>
@@ -139,19 +139,7 @@ public class CotizacionPdfService : ICotizacionPdfService
                 });
 
                 Row(table, "Valor en aduana (USD)", MoneyUsd(c.ValorAduanaUsd ?? 0m));
-                Row(table, "Tipo de cambio aplicado", $"{tcAplicado:N4}");
-                Row(table, "Valor en pesos", Money(c.ValorPesos ?? 0m));
-                Row(table, $"IGI ({(c.IgiPorcentaje ?? 0m) * 100m:N2}%)", Money(c.Igi ?? 0m));
-                Row(table, "DTA", Money(c.Dta ?? 0m));
-                if ((c.Prev ?? 0m) != 0m)
-                    Row(table, "Prev", Money(c.Prev ?? 0m));
-                Row(table, "IVA", Money(c.Iva ?? 0m));
-                if ((c.Prv ?? 0m) != 0m)
-                    Row(table, "Prv", Money(c.Prv ?? 0m));
-                Row(table, "Subtotal impuestos", Money(c.TotalContribuciones ?? 0m), true);
-                Row(table, "Honorarios", Money(c.TotalHonorarios ?? 0m));
-                if ((c.CargoExpress ?? 0m) > 0m)
-                    Row(table, "Cargo express", Money(c.CargoExpress ?? 0m));
+                Row(table, "Tipo de cambio aplicado", $"{tcAplicado:N2} MXN por USD");
             });
 
             column.Item().PaddingTop(8).Background("#0D1017").Padding(10).Row(row =>
@@ -164,11 +152,9 @@ public class CotizacionPdfService : ICotizacionPdfService
 
     private static void ComposeDisclaimer(IContainer container, Cotizacion c)
     {
-        var refTc = c.TipoCambioReferencia ?? 0m;
         var fechaVence = c.FechaExpiracion ?? DateTime.UtcNow.Date.AddDays(7);
         var texto =
-            $"Esta cotizacion es valida unicamente al tipo de cambio de referencia de {refTc:N4} pesos por dolar, vigente al dia {c.FechaCreacion:dd/MM/yyyy}. " +
-            $"El monto final puede variar conforme al tipo de cambio vigente al momento de realizar el pago. Esta cotizacion tiene validez de 7 dias naturales y vence el {fechaVence:dd/MM/yyyy}. " +
+            $"Esta cotizacion tiene validez de 7 dias naturales y vence el {fechaVence:dd/MM/yyyy}. " +
             "Los precios estimados estan basados en el Anexo 2 de la Resolucion de Precios Estimados publicada por la Secretaria de Hacienda y Credito Publico.";
 
         container.Background("#FFF7ED").Border(1).BorderColor("#FDBA74").Padding(8).Text(texto).FontSize(7.2f).LineHeight(1.12f);

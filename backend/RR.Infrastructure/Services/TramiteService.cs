@@ -679,7 +679,7 @@ public class TramiteService : ITramiteService
         "IDENTIFICACION_AMERICANA" => "Identificación americana del vendedor",
         "BAJA" => "Baja",
         "TITULO" => "Título",
-        "PEDIMENTO_PDF" => "Pedimento PDF",
+        "PEDIMENTO_PDF" => "Pedimento",
         _ => tipo.Replace('_', ' '),
     };
 }

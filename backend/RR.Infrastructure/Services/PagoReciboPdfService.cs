@@ -121,7 +121,7 @@ public class PagoReciboPdfService : IPagoReciboPdfService
         {
             column.Item().Row(row =>
             {
-                row.ConstantItem(76).Height(36).Element(x =>
+                row.ConstantItem(80).Height(42).Element(x =>
                 {
                     if (logo is not null)
                         x.AlignLeft().Image(logo).FitHeight();
@@ -348,14 +348,21 @@ public class PagoReciboPdfService : IPagoReciboPdfService
         var cwd = Directory.GetCurrentDirectory();
         var baseDir = AppContext.BaseDirectory;
         var contentRoot = _environment.ContentRootPath;
-        var candidates = new[]
+        var candidates = new List<string>
         {
+            Path.Combine(contentRoot, "wwwroot", "assets", "imagenes", "rr_logo.png"),
             Path.Combine(contentRoot, "..", "frontend", "public", "assets", "imagenes", "rr_logo.png"),
+            Path.Combine(contentRoot, "..", "..", "frontend", "public", "assets", "imagenes", "rr_logo.png"),
+            Path.Combine(contentRoot, "..", "..", "frontend", "dist", "frontend", "browser", "assets", "imagenes", "rr_logo.png"),
             Path.Combine(cwd, "frontend", "public", "assets", "imagenes", "rr_logo.png"),
             Path.Combine(cwd, "..", "frontend", "public", "assets", "imagenes", "rr_logo.png"),
+            Path.Combine(cwd, "..", "..", "frontend", "public", "assets", "imagenes", "rr_logo.png"),
             Path.Combine(baseDir, "..", "..", "..", "..", "..", "frontend", "public", "assets", "imagenes", "rr_logo.png"),
             Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "frontend", "public", "assets", "imagenes", "rr_logo.png"),
         };
+
+        if (!string.IsNullOrWhiteSpace(_environment.WebRootPath))
+            candidates.Insert(0, Path.Combine(_environment.WebRootPath, "assets", "imagenes", "rr_logo.png"));
 
         return candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists);
     }
