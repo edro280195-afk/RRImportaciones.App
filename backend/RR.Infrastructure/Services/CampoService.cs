@@ -403,6 +403,7 @@ public class CampoService : ICampoService
     {
         if (user is null) return null;
         return string.Join(" ", new[] { user.Nombre, user.Apellidos }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+    }
     public async Task<ExtractVinResponse> ExtractVinFromImageAsync(ExtractVinRequest request)
     {
         var apiKey = _configuration["GeminiApiKey"];
