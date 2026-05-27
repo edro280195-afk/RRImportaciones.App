@@ -4,6 +4,7 @@ using RR.Application.DTOs.Campo;
 using RR.Application.Interfaces;
 using RR.Domain.Entities;
 using RR.Infrastructure.Data;
+using System.Net.Http.Json;
 
 namespace RR.Infrastructure.Services;
 
@@ -402,5 +403,60 @@ public class CampoService : ICampoService
     {
         if (user is null) return null;
         return string.Join(" ", new[] { user.Nombre, user.Apellidos }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+    public async Task<ExtractVinResponse> ExtractVinFromImageAsync(ExtractVinRequest request)
+    {
+        var apiKey = _configuration["GeminiApiKey"];
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new InvalidOperationException("Gemini API key no configurada.");
+
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey}";
+        
+        var payload = new
+        {
+            contents = new[]
+            {
+                new
+                {
+                    role = "user",
+                    parts = new object[]
+                    {
+                        new { text = "Extrae el VIN (Vehicle Identification Number) de 17 caracteres alfanuméricos de esta imagen. Responde ÚNICAMENTE con los 17 caracteres del VIN en mayúsculas, sin texto adicional. Si no encuentras ningún VIN válido, responde 'NO_ENCONTRADO'." },
+                        new { inline_data = new { mime_type = request.ImagenMime, data = request.ImagenBase64 } }
+                    }
+                }
+            }
+        };
+
+        using var client = new HttpClient();
+        var response = await client.PostAsJsonAsync(url, payload);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"Error de Gemini: {err}");
+        }
+
+        using var doc = await System.Text.Json.JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        
+        var text = "";
+        if (doc.RootElement.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
+        {
+            var parts = candidates[0].GetProperty("content").GetProperty("parts");
+            if (parts.GetArrayLength() > 0)
+            {
+                text = parts[0].GetProperty("text").GetString()?.Trim() ?? "";
+            }
+        }
+
+        if (text == "NO_ENCONTRADO" || text.Length < 10)
+        {
+            return new ExtractVinResponse { Vin = "" };
+        }
+
+        // Clean up text to match just alphanumeric
+        text = new string(text.Where(char.IsLetterOrDigit).ToArray()).ToUpper();
+        if (text.Length > 17) text = text.Substring(0, 17);
+
+        return new ExtractVinResponse { Vin = text };
     }
 }

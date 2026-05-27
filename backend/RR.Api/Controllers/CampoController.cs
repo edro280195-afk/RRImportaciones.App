@@ -128,5 +128,16 @@ public class CampoController : ControllerBase
         {
             return NotFound(new { message = ex.Message });
         }
+    [HttpPost("extract-vin")]
+    public async Task<IActionResult> ExtractVin([FromBody] ExtractVinRequest request)
+    {
+        try
+        {
+            return Ok(await _campoService.ExtractVinFromImageAsync(request));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

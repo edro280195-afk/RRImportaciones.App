@@ -12,4 +12,5 @@ public interface ICampoService
     Task<TareaCampoDto> TomarAsync(Guid id, TomarTareaCampoRequest request);
     Task<TareaCampoDto> CompletarAsync(Guid id, CompletarTareaCampoRequest request);
     Task<TareaCampoDto> AgregarFotoAsync(Guid id, string fotoUrl);
+    Task<ExtractVinResponse> ExtractVinFromImageAsync(ExtractVinRequest request);
 }

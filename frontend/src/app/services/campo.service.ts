@@ -1,4 +1,4 @@
-﻿import { HttpClient } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -91,5 +91,12 @@ export class CampoService {
       `${this.baseUrl}/tareas/${id}/fotos`,
       form
     );
+  }
+
+  extractVin(imagenBase64: string, imagenMime: string = 'image/jpeg'): Observable<{ vin: string }> {
+    return this.http.post<{ vin: string }>(`${this.baseUrl}/extract-vin`, {
+      imagenBase64,
+      imagenMime,
+    });
   }
 }
