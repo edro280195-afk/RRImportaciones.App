@@ -102,6 +102,13 @@ public class CampoService : ICampoService
         if (!string.IsNullOrWhiteSpace(request.Vin) && vin?.Length != 17)
             throw new InvalidOperationException("El VIN debe tener 17 caracteres");
 
+        Cliente? cliente = null;
+        if (request.ClienteId.HasValue)
+        {
+            cliente = await _db.Clientes.FirstOrDefaultAsync(c => c.Id == request.ClienteId.Value && c.DeletedAt == null)
+                ?? throw new KeyNotFoundException("Cliente no encontrado");
+        }
+
         var modeloId = await ResolveModeloIdAsync(request.MarcaId, request.ModeloId, request.Modelo);
         Guid? vehiculoId = null;
         Vehiculo? vehiculo = null;
@@ -117,6 +124,7 @@ public class CampoService : ICampoService
                     Id = Guid.NewGuid(),
                     Vin = vin,
                     VinCorto = vin.Length >= 6 ? vin[^6..] : null,
+                    ClienteId = request.ClienteId,
                     MarcaId = request.MarcaId,
                     ModeloId = modeloId,
                     Anno = request.Anno,
@@ -129,6 +137,14 @@ public class CampoService : ICampoService
             }
             else
             {
+                if (request.ClienteId.HasValue &&
+                    vehiculo.ClienteId.HasValue &&
+                    vehiculo.ClienteId.Value != request.ClienteId.Value)
+                {
+                    throw new InvalidOperationException("El vehiculo ya pertenece a otro cliente");
+                }
+
+                vehiculo.ClienteId ??= request.ClienteId;
                 vehiculo.MarcaId ??= request.MarcaId;
                 vehiculo.ModeloId ??= modeloId;
                 vehiculo.Anno ??= request.Anno;
@@ -141,6 +157,10 @@ public class CampoService : ICampoService
 
             vehiculoId = vehiculo.Id;
         }
+
+        var clienteNombre = cliente is null
+            ? request.ClienteNombreLibre
+            : FirstNotEmpty(cliente.NombreCompleto, cliente.Nombre, cliente.Apodo);
 
         var descripcion = FirstNotEmpty(
             request.DescripcionVehiculo,
@@ -156,7 +176,7 @@ public class CampoService : ICampoService
             EstadoLogistico = "ABIERTA",
             Ubicacion = request.Ubicacion,
             DescripcionVehiculo = descripcion,
-            ClienteNombreLibre = request.ClienteNombreLibre,
+            ClienteNombreLibre = clienteNombre,
             Incidencia = request.NotasInternas,
             FechaCreacion = DateTime.UtcNow,
             CreadoPor = _currentUser.UserId ?? Guid.Empty,
@@ -431,6 +451,7 @@ public class CampoService : ICampoService
             Id = t.Id,
             TramiteId = t.TramiteId,
             VehiculoId = t.Tramite?.VehiculoId ?? t.VehiculoId,
+            ClienteId = t.Tramite?.ClienteId ?? vehiculo?.ClienteId,
             NumeroConsecutivo = t.Tramite?.NumeroConsecutivo,
             ClienteNombre = t.Tramite?.Cliente != null
                 ? FirstNotEmpty(t.Tramite.Cliente.NombreCompleto, t.Tramite.Cliente.Nombre, t.Tramite.Cliente.Apodo)

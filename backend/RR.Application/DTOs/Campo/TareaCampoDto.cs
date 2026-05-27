@@ -5,6 +5,7 @@ public class TareaCampoDto
     public Guid Id { get; set; }
     public Guid? TramiteId { get; set; }
     public Guid? VehiculoId { get; set; }
+    public Guid? ClienteId { get; set; }
     public string? NumeroConsecutivo { get; set; }
     public string? ClienteNombre { get; set; }
     public string VehiculoResumen { get; set; } = string.Empty;
@@ -40,6 +41,7 @@ public class CrearPreInspeccionRequest
 {
     public string? DescripcionVehiculo { get; set; }
     public string? ClienteNombreLibre { get; set; }
+    public Guid? ClienteId { get; set; }
     public string? Ubicacion { get; set; }
     public string? NotasInternas { get; set; }
     public string? Vin { get; set; }

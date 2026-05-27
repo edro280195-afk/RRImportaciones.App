@@ -4,9 +4,21 @@ import { FormsModule } from '@angular/forms';
 import { CampoService } from '../../services/campo.service';
 import { NotificationService } from '../../services/notification.service';
 import { MarcaDto, MarcaService } from '../../services/marca.service';
+import { ClienteListDto, ClienteService } from '../../services/cliente.service';
 import { CotizacionService } from '../../services/cotizacion.service';
 import { VinScannerService, VinScanSession } from '../../services/vin-scanner.service';
 import { firstValueFrom } from 'rxjs';
+
+type ScannerStatus = 'idle' | 'loading' | 'searching' | 'detecting' | 'ai' | 'found';
+type VinLookupState = 'idle' | 'loading' | 'loaded' | 'empty' | 'error';
+
+interface WindowWithWebkitAudio extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
+interface LockableScreenOrientation extends ScreenOrientation {
+  lock?: (orientation: string) => Promise<void>;
+}
 
 @Component({
   selector: 'app-campo-registro-modal',
@@ -25,6 +37,11 @@ import { firstValueFrom } from 'rxjs';
             <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
               <label>VIN <span class="required">*</span></label>
               <input type="text" [(ngModel)]="vin" (ngModelChange)="onVinChange($event)" name="vin" required placeholder="17 caracteres" maxlength="17" />
+              @if (vinLookupState() !== 'idle') {
+                <small class="vin-lookup" [class.vin-lookup--ok]="vinLookupState() === 'loaded'" [class.vin-lookup--warn]="vinLookupState() === 'empty' || vinLookupState() === 'error'">
+                  {{ vinLookupText() }}
+                </small>
+              }
             </div>
             <button type="button" class="btn-scan" (click)="openScanner()" title="Escanear VIN">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -60,9 +77,67 @@ import { firstValueFrom } from 'rxjs';
 
           <div class="form-group">
             <label>Cliente</label>
-            <input type="text" [(ngModel)]="clienteNombreLibre" name="clienteNombreLibre" placeholder="Nombre o apodo" />
-            @if (!clienteNombreLibre()) {
-              <small class="warning-text">⚠️ Se recomienda ingresar el cliente. ¿Deseas continuar sin asignar?</small>
+            <div class="client-picker">
+              <div class="client-search-row">
+                <input
+                  type="text"
+                  [ngModel]="clienteSearch()"
+                  (ngModelChange)="onClienteSearchChange($event)"
+                  (focus)="openClientePicker()"
+                  name="clienteSearch"
+                  placeholder="Buscar por apodo, nombre o telefono"
+                  autocomplete="off"
+                />
+                @if (clienteId()) {
+                  <button type="button" class="client-clear" (click)="clearCliente()" aria-label="Quitar cliente">
+                    x
+                  </button>
+                }
+              </div>
+
+              @if (selectedCliente(); as cliente) {
+                <button type="button" class="client-selected" (click)="openClientePicker()">
+                  <span class="client-avatar">{{ clienteInitials(cliente) }}</span>
+                  <span class="client-selected__body">
+                    <strong>{{ clienteLabel(cliente) }}</strong>
+                    <small>{{ clienteMeta(cliente) }}</small>
+                  </span>
+                </button>
+              }
+
+              @if (clientePickerOpen()) {
+                <div class="client-results">
+                  @if (clientesLoading()) {
+                    <div class="client-loading">
+                      <span class="mini-spinner"></span>
+                      Buscando clientes...
+                    </div>
+                  } @else if (clientes().length > 0) {
+                    @for (cliente of clientes(); track cliente.id) {
+                      <button
+                        type="button"
+                        class="client-option"
+                        [class.client-option--active]="cliente.id === clienteId()"
+                        (click)="selectCliente(cliente)"
+                      >
+                        <span class="client-avatar">{{ clienteInitials(cliente) }}</span>
+                        <span class="client-option__body">
+                          <strong>{{ clienteLabel(cliente) }}</strong>
+                          <small>{{ clienteMeta(cliente) }}</small>
+                        </span>
+                        @if (cliente.id === clienteId()) {
+                          <span class="client-check">OK</span>
+                        }
+                      </button>
+                    }
+                  } @else {
+                    <div class="client-empty">No encontramos clientes con esa busqueda.</div>
+                  }
+                </div>
+              }
+            </div>
+            @if (!clienteId()) {
+              <small class="warning-text">Se recomienda asignar un cliente del catalogo antes de registrar.</small>
             }
           </div>
           
@@ -83,17 +158,25 @@ import { firstValueFrom } from 'rxjs';
 
     <!-- CAMERA OVERLAY -->
     @if (cameraOpen()) {
-      <div class="camera-shell">
+      <div #cameraShell class="camera-shell" [class.camera-shell--horizontal]="scanOrientation() === 'horizontal'">
         <video #video autoplay playsinline muted class="camera-feed"></video>
         
         <div class="cam-top">
           <button class="cam-pill-btn" (click)="closeCamera()" type="button">Cerrar</button>
+          <button class="cam-pill-btn" (click)="toggleScanOrientation()" type="button">
+            {{ scanOrientation() === 'horizontal' ? 'Vertical' : 'Horizontal' }}
+          </button>
           @if (torchSupported()) {
             <button class="cam-pill-btn" (click)="toggleTorch()" type="button">
               {{ torchOn() ? 'Linterna on' : 'Linterna' }}
             </button>
           }
           <button class="cam-pill-btn" (click)="flipCamera()" type="button">Girar</button>
+        </div>
+
+        <div class="cam-status" [class.cam-status--alert]="scannerStatus() === 'found'" [class.cam-status--ai]="scannerStatus() === 'ai'">
+          <span class="status-dot"></span>
+          {{ scannerStatusText() }}
         </div>
 
         @if (cameraError()) {
@@ -111,15 +194,20 @@ import { firstValueFrom } from 'rxjs';
           <div class="corner corner--br"></div>
           <div class="scan-line"></div>
         </div>
+        <p class="cam-orientation-hint">
+          {{ scanOrientation() === 'horizontal' ? 'Gira el telefono y alinea todo el codigo de barras dentro de la guia.' : 'Modo vertical activo.' }}
+        </p>
 
         @if (showAiSuggest()) {
           <div class="cam-ai-suggest">
             <p>¿Problemas leyendo el código de barras?</p>
             <button class="btn-ai" (click)="useAI()" [disabled]="aiLoading()">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:middle;">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                <path d="M12 3l1.6 4.7L18 9.3l-4.4 1.6L12 15.5l-1.6-4.6L6 9.3l4.4-1.6L12 3Z"/>
+                <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z"/>
+                <path d="M5 14l.6 1.6L7 16.2l-1.4.6L5 18.5l-.6-1.7L3 16.2l1.4-.6L5 14Z"/>
               </svg>
-              {{ aiLoading() ? 'Analizando...' : 'Usar Inteligencia Artificial' }}
+              {{ aiLoading() ? 'Analizando con IA...' : 'Analizar con IA' }}
             </button>
           </div>
         }
@@ -189,6 +277,33 @@ import { firstValueFrom } from 'rxjs';
         font-size: 11px;
         margin-top: 4px;
       }
+      .vin-lookup {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text-2);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .vin-lookup::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: #64748b;
+      }
+      .vin-lookup--ok {
+        color: #047857;
+      }
+      .vin-lookup--ok::before {
+        background: #10b981;
+      }
+      .vin-lookup--warn {
+        color: #b45309;
+      }
+      .vin-lookup--warn::before {
+        background: #f59e0b;
+      }
       input, select, textarea {
         padding: 12px 14px;
         border-radius: 12px;
@@ -203,6 +318,128 @@ import { firstValueFrom } from 'rxjs';
         outline: none;
         border-color: var(--text-1);
         background: #fff;
+      }
+      .client-picker {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .client-search-row {
+        position: relative;
+      }
+      .client-search-row input {
+        width: 100%;
+        padding-right: 44px;
+      }
+      .client-clear {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: #eef2f7;
+        color: var(--text-2);
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .client-selected,
+      .client-option {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        background: #f8fafc;
+        color: var(--text-1);
+        border-radius: 12px;
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-align: left;
+        cursor: pointer;
+      }
+      .client-selected {
+        border-color: rgba(185, 28, 28, 0.25);
+        background: rgba(254, 242, 242, 0.8);
+      }
+      .client-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        background: #111827;
+        color: #f8fafc;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+      .client-selected__body,
+      .client-option__body {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .client-selected__body strong,
+      .client-option__body strong {
+        font-size: 13px;
+        line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .client-selected__body small,
+      .client-option__body small {
+        color: var(--text-2);
+        font-size: 11px;
+        line-height: 1.25;
+      }
+      .client-results {
+        max-height: 246px;
+        overflow-y: auto;
+        border: 1.5px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        padding: 6px;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .client-option {
+        border-color: transparent;
+        background: transparent;
+      }
+      .client-option:hover,
+      .client-option--active {
+        background: #f1f5f9;
+      }
+      .client-check {
+        margin-left: auto;
+        color: #047857;
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .client-loading,
+      .client-empty {
+        color: var(--text-2);
+        font-size: 12px;
+        padding: 14px 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .mini-spinner {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        border: 2px solid #cbd5e1;
+        border-top-color: var(--red);
+        animation: spin 0.8s linear infinite;
       }
       .sheet-actions {
         display: flex;
@@ -277,6 +514,7 @@ import { firstValueFrom } from 'rxjs';
         top: 0; left: 0; right: 0;
         padding: max(20px, env(safe-area-inset-top, 20px)) 20px 20px;
         display: flex;
+        gap: 8px;
         justify-content: space-between;
         background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
       }
@@ -290,6 +528,42 @@ import { firstValueFrom } from 'rxjs';
         backdrop-filter: blur(4px);
         cursor: pointer;
       }
+      .cam-status {
+        position: absolute;
+        top: calc(max(20px, env(safe-area-inset-top, 20px)) + 58px);
+        left: 50%;
+        transform: translateX(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 14px;
+        border-radius: 999px;
+        background: rgba(2, 6, 23, 0.72);
+        color: #f8fafc;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        font-size: 13px;
+        font-weight: 800;
+        backdrop-filter: blur(8px);
+        white-space: nowrap;
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #38bdf8;
+        box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.18);
+      }
+      .cam-status--ai .status-dot {
+        background: #a78bfa;
+        box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.2);
+      }
+      .cam-status--alert {
+        background: rgba(6, 95, 70, 0.86);
+      }
+      .cam-status--alert .status-dot {
+        background: #34d399;
+        box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.2);
+      }
       .cam-guide {
         position: absolute;
         top: 50%; left: 50%;
@@ -298,6 +572,11 @@ import { firstValueFrom } from 'rxjs';
         max-width: 400px;
         height: 120px;
         pointer-events: none;
+      }
+      .camera-shell--horizontal .cam-guide {
+        width: min(88vw, 760px);
+        max-width: none;
+        height: min(24vh, 150px);
       }
       .corner {
         position: absolute; width: 24px; height: 24px;
@@ -317,6 +596,23 @@ import { firstValueFrom } from 'rxjs';
       @keyframes scan {
         0% { transform: translateY(-40px); }
         100% { transform: translateY(40px); }
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      .cam-orientation-hint {
+        position: absolute;
+        left: 20px;
+        right: 20px;
+        bottom: max(150px, calc(env(safe-area-inset-bottom, 0px) + 150px));
+        margin: 0;
+        color: rgba(248, 250, 252, 0.92);
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.35;
+        text-align: center;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+        pointer-events: none;
       }
       .cam-error {
         position: absolute; top: 50%; left: 20px; right: 20px; transform: translateY(-50%);
@@ -361,23 +657,31 @@ export class CampoRegistroModalComponent implements OnDestroy {
 
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvas') canvasRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('cameraShell') cameraShellRef?: ElementRef<HTMLDivElement>;
 
   private campoService = inject(CampoService);
   private marcaService = inject(MarcaService);
+  private clienteService = inject(ClienteService);
   private cotizacionService = inject(CotizacionService);
   private notifications = inject(NotificationService);
   private vinScanner = inject(VinScannerService);
 
   saving = signal(false);
   marcas = signal<MarcaDto[]>([]);
+  clientes = signal<ClienteListDto[]>([]);
+  clientesLoading = signal(false);
 
   vin = signal('');
   marcaId = signal<string | null>(null);
   modelo = signal('');
   anno = signal<number | null>(null);
   ubicacion = signal('');
-  clienteNombreLibre = signal('');
+  clienteId = signal<string | null>(null);
+  clienteSearch = signal('');
+  selectedCliente = signal<ClienteListDto | null>(null);
+  clientePickerOpen = signal(false);
   descripcionVehiculo = signal('');
+  vinLookupState = signal<VinLookupState>('idle');
 
   // Scanner state
   cameraOpen = signal(false);
@@ -385,26 +689,129 @@ export class CampoRegistroModalComponent implements OnDestroy {
   showAiSuggest = signal(false);
   aiLoading = signal(false);
   facingMode = signal<'environment' | 'user'>('environment');
+  scanOrientation = signal<'horizontal' | 'vertical'>('horizontal');
+  scannerStatus = signal<ScannerStatus>('idle');
   torchSupported = signal(false);
   torchOn = signal(false);
 
   private stream: MediaStream | null = null;
   private scanSession: VinScanSession | null = null;
   private aiSuggestTimeout: ReturnType<typeof setTimeout> | null = null;
+  private clienteSearchTimeout: ReturnType<typeof setTimeout> | null = null;
+  private clienteSearchVersion = 0;
+  private vinDecodeVersion = 0;
+  private audioContext: AudioContext | null = null;
+  private enteredScannerFullscreen = false;
 
   constructor() {
     this.marcaService.getAll(true).subscribe(m => this.marcas.set(m));
+    this.loadClientes();
   }
 
   ngOnDestroy(): void {
     this.closeCamera();
+    if (this.clienteSearchTimeout) {
+      clearTimeout(this.clienteSearchTimeout);
+    }
   }
 
   onVinChange(val: string): void {
     this.vin.set(this.vinScanner.normalizeVinInput(val));
     if (this.vin().length === 17) {
       this.decodeVin(this.vin());
+    } else {
+      this.vinLookupState.set('idle');
     }
+  }
+
+  onClienteSearchChange(value: string): void {
+    this.clienteSearch.set(value);
+    this.clientePickerOpen.set(true);
+
+    const selected = this.selectedCliente();
+    if (selected && value.trim() !== this.clienteLabel(selected)) {
+      this.clienteId.set(null);
+      this.selectedCliente.set(null);
+    }
+
+    if (this.clienteSearchTimeout) {
+      clearTimeout(this.clienteSearchTimeout);
+    }
+
+    this.clienteSearchTimeout = setTimeout(() => {
+      this.loadClientes(value);
+    }, 220);
+  }
+
+  openClientePicker(): void {
+    this.clientePickerOpen.set(true);
+    if (this.clientes().length === 0) {
+      this.loadClientes(this.clienteSearch());
+    }
+  }
+
+  selectCliente(cliente: ClienteListDto): void {
+    this.clienteId.set(cliente.id);
+    this.selectedCliente.set(cliente);
+    this.clienteSearch.set(this.clienteLabel(cliente));
+    this.clientePickerOpen.set(false);
+  }
+
+  clearCliente(): void {
+    this.clienteId.set(null);
+    this.selectedCliente.set(null);
+    this.clienteSearch.set('');
+    this.clientePickerOpen.set(true);
+    this.loadClientes();
+  }
+
+  clienteLabel(cliente: ClienteListDto): string {
+    return cliente.apodo || cliente.nombreCompleto || 'Cliente sin nombre';
+  }
+
+  clienteMeta(cliente: ClienteListDto): string {
+    const parts = [
+      cliente.nombreCompleto && cliente.nombreCompleto !== cliente.apodo ? cliente.nombreCompleto : null,
+      cliente.telefono,
+      cliente.procedencia,
+      `${cliente.totalVehiculos} vehiculos`,
+      `${cliente.totalTramites} tramites`,
+    ].filter((part): part is string => Boolean(part));
+
+    return parts.join(' / ');
+  }
+
+  clienteInitials(cliente: ClienteListDto): string {
+    const source = this.clienteLabel(cliente)
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0])
+      .join('');
+
+    return source.toUpperCase() || 'CL';
+  }
+
+  private loadClientes(search = ''): void {
+    const version = ++this.clienteSearchVersion;
+    const trimmed = search.trim();
+    this.clientesLoading.set(true);
+
+    this.clienteService.getList({
+      search: trimmed || undefined,
+      pageSize: 8,
+    }).subscribe({
+      next: res => {
+        if (version !== this.clienteSearchVersion) return;
+        this.clientes.set(res.items);
+        this.clientesLoading.set(false);
+      },
+      error: () => {
+        if (version !== this.clienteSearchVersion) return;
+        this.clientes.set([]);
+        this.clientesLoading.set(false);
+      },
+    });
   }
 
   openScanner(): void {
@@ -412,6 +819,10 @@ export class CampoRegistroModalComponent implements OnDestroy {
     this.cameraError.set('');
     this.showAiSuggest.set(false);
     this.aiLoading.set(false);
+    this.scanOrientation.set('horizontal');
+    this.scannerStatus.set('loading');
+    this.primeAudio();
+    void this.lockLandscapeIfPossible();
     setTimeout(() => this.startCamera(), 50);
   }
 
@@ -423,6 +834,17 @@ export class CampoRegistroModalComponent implements OnDestroy {
   flipCamera(): void {
     this.facingMode.update(m => (m === 'environment' ? 'user' : 'environment'));
     this.startCamera();
+  }
+
+  async toggleScanOrientation(): Promise<void> {
+    const next = this.scanOrientation() === 'horizontal' ? 'vertical' : 'horizontal';
+    this.scanOrientation.set(next);
+
+    if (next === 'horizontal') {
+      await this.lockLandscapeIfPossible();
+    } else {
+      this.releaseOrientationIfNeeded();
+    }
   }
 
   retryCamera(): void {
@@ -440,11 +862,13 @@ export class CampoRegistroModalComponent implements OnDestroy {
   private async startCamera(): Promise<void> {
     this.stopCamera();
     this.cameraError.set('');
+    this.scannerStatus.set('loading');
     this.torchSupported.set(false);
     this.torchOn.set(false);
 
     if (!navigator.mediaDevices?.getUserMedia) {
       this.cameraError.set('Este navegador no soporta la cámara.');
+      this.scannerStatus.set('idle');
       return;
     }
 
@@ -460,17 +884,27 @@ export class CampoRegistroModalComponent implements OnDestroy {
       if (video) {
         video.srcObject = this.stream;
         await video.play().catch(() => undefined);
+        this.scannerStatus.set('searching');
 
         this.scanSession = await this.vinScanner.startVinScan({
           video,
+          onVisionStart: () => this.scannerStatus.set('ai'),
+          onVisionEnd: () => {
+            if (this.cameraOpen() && !this.aiLoading()) {
+              this.scannerStatus.set('detecting');
+            }
+          },
           onDetected: scannedVin => {
+            this.scannerStatus.set('found');
             this.notifications.success('VIN detectado: ' + scannedVin);
             this.vin.set(scannedVin);
             this.decodeVin(scannedVin);
+            this.playBeep();
             this.vibrate([40, 40, 40]);
             this.closeCamera();
           },
         });
+        this.scannerStatus.set('detecting');
 
         this.aiSuggestTimeout = setTimeout(() => {
           this.showAiSuggest.set(true);
@@ -478,6 +912,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
       }
     } catch {
       this.cameraError.set('No se pudo acceder a la cámara. Verifica los permisos del navegador.');
+      this.scannerStatus.set('idle');
     }
   }
 
@@ -492,6 +927,8 @@ export class CampoRegistroModalComponent implements OnDestroy {
     this.stream = null;
     this.torchSupported.set(false);
     this.torchOn.set(false);
+    this.scannerStatus.set('idle');
+    this.releaseOrientationIfNeeded();
   }
 
   async useAI(): Promise<void> {
@@ -502,6 +939,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
     if (!video.videoWidth || !video.videoHeight) return;
 
     this.aiLoading.set(true);
+    this.scannerStatus.set('ai');
     
     try {
       canvas.width = video.videoWidth;
@@ -523,6 +961,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
         this.notifications.success('VIN extraído con IA: ' + detectedVin);
         this.vin.set(detectedVin);
         this.decodeVin(detectedVin);
+        this.playBeep();
         this.vibrate([40, 40, 40]);
         this.closeCamera();
       } else {
@@ -532,31 +971,52 @@ export class CampoRegistroModalComponent implements OnDestroy {
       this.notifications.fromHttpError(err, 'Error procesando la imagen con IA');
     } finally {
       this.aiLoading.set(false);
+      if (this.cameraOpen()) {
+        this.scannerStatus.set('detecting');
+      }
     }
   }
 
   private decodeVin(vinVal: string): void {
     if (vinVal.length !== 17) return;
+
+    const version = ++this.vinDecodeVersion;
+    this.vinLookupState.set('loading');
     
     this.cotizacionService.decodeVin(vinVal).subscribe({
       next: (decoded) => {
+        if (version !== this.vinDecodeVersion) return;
+        let loadedData = false;
+
         if (decoded.make) {
           const match = this.marcas().find(m => 
             m.nombre.toLowerCase() === decoded.make!.toLowerCase() || 
             m.aliases?.some((a: string) => a.toLowerCase() === decoded.make!.toLowerCase())
           );
-          if (match) this.marcaId.set(match.id);
+          if (match) {
+            this.marcaId.set(match.id);
+            loadedData = true;
+          }
         }
-        if (decoded.model) this.modelo.set(decoded.model);
-        if (decoded.modelYear) this.anno.set(decoded.modelYear);
+        if (decoded.model) {
+          this.modelo.set(decoded.model);
+          loadedData = true;
+        }
+        if (decoded.modelYear) {
+          this.anno.set(decoded.modelYear);
+          loadedData = true;
+        }
+        this.vinLookupState.set(loadedData ? 'loaded' : 'empty');
       },
       error: () => {
+        if (version !== this.vinDecodeVersion) return;
+        this.vinLookupState.set('error');
         // Ignorar errores del decodificador, a veces los VIN no están en la base de datos
       }
     });
   }
 
-  submit() {
+  async submit(): Promise<void> {
     if (!this.vin()) {
       this.notifications.warning('El VIN es obligatorio');
       return;
@@ -565,10 +1025,18 @@ export class CampoRegistroModalComponent implements OnDestroy {
       this.notifications.warning('El VIN debe tener 17 caracteres');
       return;
     }
-    if (!this.clienteNombreLibre() && !confirm('No has asignado un cliente. ¿Deseas continuar?')) {
-      return;
+    if (!this.clienteId()) {
+      const confirmed = await this.notifications.confirm({
+        title: 'Registrar sin cliente',
+        message: 'No has asignado un cliente del catalogo. El vehiculo se guardara, pero quedara pendiente de asociar a un cliente.',
+        confirmText: 'Registrar sin cliente',
+        cancelText: 'Volver',
+      });
+
+      if (!confirmed) return;
     }
 
+    const selectedCliente = this.selectedCliente();
     this.saving.set(true);
     this.campoService.crearPreInspeccion({
       vin: this.vin(),
@@ -576,7 +1044,8 @@ export class CampoRegistroModalComponent implements OnDestroy {
       modelo: this.modelo() || undefined,
       anno: this.anno() || undefined,
       ubicacion: this.ubicacion() || undefined,
-      clienteNombreLibre: this.clienteNombreLibre() || undefined,
+      clienteId: this.clienteId(),
+      clienteNombreLibre: selectedCliente ? this.clienteLabel(selectedCliente) : undefined,
       descripcionVehiculo: this.descripcionVehiculo() || 'Registro en yarda',
     }).subscribe({
       next: () => {
@@ -590,6 +1059,118 @@ export class CampoRegistroModalComponent implements OnDestroy {
         this.saving.set(false);
       }
     });
+  }
+
+  scannerStatusText(): string {
+    switch (this.scannerStatus()) {
+      case 'loading':
+        return 'Cargando camara...';
+      case 'searching':
+        return 'Buscando codigo de barras...';
+      case 'detecting':
+        return 'Detectando VIN...';
+      case 'ai':
+        return 'IA analizando imagen...';
+      case 'found':
+        return 'VIN detectado';
+      default:
+        return 'Listo para escanear';
+    }
+  }
+
+  vinLookupText(): string {
+    switch (this.vinLookupState()) {
+      case 'loading':
+        return 'Consultando datos del VIN...';
+      case 'loaded':
+        return 'Datos del vehiculo cargados';
+      case 'empty':
+        return 'VIN leido, sin datos automaticos disponibles';
+      case 'error':
+        return 'VIN leido, no se pudo consultar la informacion';
+      default:
+        return '';
+    }
+  }
+
+  private playBeep(): void {
+    const AudioContextClass =
+      window.AudioContext ?? (window as WindowWithWebkitAudio).webkitAudioContext;
+
+    if (!AudioContextClass) return;
+
+    try {
+      const context = this.audioContext ?? new AudioContextClass();
+      this.audioContext = context;
+
+      void context.resume().then(() => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const now = context.currentTime;
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.24, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(now);
+        oscillator.stop(now + 0.18);
+      });
+    } catch {
+      // El audio puede quedar bloqueado por permisos del navegador.
+    }
+  }
+
+  private primeAudio(): void {
+    const AudioContextClass =
+      window.AudioContext ?? (window as WindowWithWebkitAudio).webkitAudioContext;
+
+    if (!AudioContextClass || this.audioContext) return;
+
+    try {
+      this.audioContext = new AudioContextClass();
+      void this.audioContext.resume().catch(() => undefined);
+    } catch {
+      this.audioContext = null;
+    }
+  }
+
+  private async lockLandscapeIfPossible(): Promise<void> {
+    const shell = this.cameraShellRef?.nativeElement ?? document.documentElement;
+
+    try {
+      if (shell.requestFullscreen && !document.fullscreenElement) {
+        await shell.requestFullscreen();
+        this.enteredScannerFullscreen = true;
+      }
+    } catch {
+      // Algunos navegadores moviles no permiten fullscreen desde este contexto.
+    }
+
+    try {
+      const orientation = screen.orientation as LockableScreenOrientation | undefined;
+      await orientation?.lock?.('landscape');
+    } catch {
+      // El bloqueo de orientacion depende del navegador y del modo fullscreen.
+    }
+  }
+
+  private releaseOrientationIfNeeded(): void {
+    try {
+      const orientation = screen.orientation as LockableScreenOrientation | undefined;
+      orientation?.unlock?.();
+    } catch {
+      // No todos los navegadores implementan unlock.
+    }
+
+    if (this.enteredScannerFullscreen && document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
+
+    this.enteredScannerFullscreen = false;
   }
 
   private vibrate(pattern: number[]): void {

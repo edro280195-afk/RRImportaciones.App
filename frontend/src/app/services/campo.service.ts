@@ -6,6 +6,7 @@ export interface TareaCampoDto {
   id: string;
   tramiteId: string | null;
   vehiculoId: string | null;
+  clienteId: string | null;
   numeroConsecutivo: string | null;
   clienteNombre: string | null;
   vehiculoResumen: string;
@@ -57,6 +58,7 @@ export class CampoService {
   crearPreInspeccion(request: {
     descripcionVehiculo: string;
     clienteNombreLibre?: string | null;
+    clienteId?: string | null;
     ubicacion?: string | null;
     notasInternas?: string | null;
     vin?: string | null;
