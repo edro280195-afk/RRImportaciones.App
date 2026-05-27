@@ -15,8 +15,7 @@ import { environment } from '../../../environments/environment';
 import { CampoService, TareaCampoDto } from '../../services/campo.service';
 import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
-import { BrowserMultiFormatReader } from '@zxing/browser';
-import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { VinScannerService, VinScanSession } from '../../services/vin-scanner.service';
 
 type CaptureState = 'loading' | 'ready' | 'sending' | 'error';
 type CameraMode = 'photo' | 'vin';
@@ -445,6 +444,11 @@ const MIN_PHOTOS = 3;
               </div>
             } @else {
               <div class="cam-counter">Escaneando VIN...</div>
+            }
+            @if (cameraMode() === 'vin' && torchSupported()) {
+              <button class="cam-pill-btn" (click)="toggleTorch()" type="button">
+                {{ torchOn() ? 'Linterna on' : 'Linterna' }}
+              </button>
             }
             <button class="cam-pill-btn" (click)="flipCamera()" type="button">⟳ Girar</button>
           </div>
@@ -1602,6 +1606,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   private campoService = inject(CampoService);
   private notifications = inject(NotificationService);
   private realtime = inject(RealtimeService);
+  private vinScanner = inject(VinScannerService);
   private sub?: Subscription;
 
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
@@ -1615,18 +1620,19 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   readonly cameraOpen = signal(false);
   readonly cameraReady = signal(false);
   readonly cameraMode = signal<CameraMode>('photo');
-  private zxingReader: BrowserMultiFormatReader | null = null;
-  private scanControls: any = null;
   readonly cameraError = signal('');
   readonly flash = signal(false);
   readonly facingMode = signal<'environment' | 'user'>('environment');
   readonly showIncidencia = signal(false);
+  readonly torchSupported = signal(false);
+  readonly torchOn = signal(false);
 
   ubicacion = '';
   vinConfirmado = '';
   incidencia = '';
 
   private stream: MediaStream | null = null;
+  private vinScanSession: VinScanSession | null = null;
   private taskId = '';
 
   readonly uploadedCount = computed(() => this.photos().filter(p => p.uploaded).length);
@@ -1716,6 +1722,14 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   flipCamera(): void {
     this.facingMode.update(m => (m === 'environment' ? 'user' : 'environment'));
     void this.startCamera();
+  }
+
+  async toggleTorch(): Promise<void> {
+    const enabled = !this.torchOn();
+    const applied = await this.vinScanner.setTorch(this.stream, enabled);
+    if (applied) {
+      this.torchOn.set(enabled);
+    }
   }
 
   async capturePhoto(): Promise<void> {
@@ -1839,6 +1853,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     this.stopCamera();
     this.cameraError.set('');
     this.cameraReady.set(false);
+    this.torchSupported.set(false);
+    this.torchOn.set(false);
 
     if (!navigator.mediaDevices?.getUserMedia) {
       this.cameraError.set('Este navegador no soporta la cámara.');
@@ -1846,46 +1862,39 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     }
 
     try {
-      const videoConstraints: MediaTrackConstraints = {
-        facingMode: { ideal: this.facingMode() },
-      };
-      if (this.cameraMode() === 'vin') {
-        videoConstraints.width = { ideal: 640 };
-        videoConstraints.height = { ideal: 480 };
-      } else {
-        videoConstraints.width = { ideal: 1600 };
-        videoConstraints.height = { ideal: 1200 };
-      }
+      const videoConstraints: MediaTrackConstraints =
+        this.cameraMode() === 'vin'
+          ? this.vinScanner.buildVideoConstraints(this.facingMode())
+          : {
+              facingMode: { ideal: this.facingMode() },
+              width: { ideal: 1600 },
+              height: { ideal: 1200 },
+            };
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: videoConstraints,
         audio: false,
       });
+      if (this.cameraMode() === 'vin') {
+        await this.vinScanner.prepareStream(this.stream);
+        this.torchSupported.set(this.vinScanner.hasTorch(this.stream));
+      }
       const video = this.videoRef?.nativeElement;
       if (video) {
         video.srcObject = this.stream;
         await video.play().catch(() => undefined);
       }
       this.cameraReady.set(true);
-      
+
       if (this.cameraMode() === 'vin' && video) {
-        const hints = new Map();
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_39, BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE]);
-        this.zxingReader = new BrowserMultiFormatReader(hints);
-        
-        this.zxingReader.decodeFromVideoElement(video, (result: any, error: any, controls?: any) => {
-          if (controls) this.scanControls = controls;
-          if (result) {
-            const text = result.getText();
-            const matches = text.match(/[A-HJ-NPR-Z0-9]{17}/gi);
-            if (matches && matches.length > 0) {
-              const vin = matches[0];
-              this.vinConfirmado = this.normalizeVin(vin);
-              this.persistDraft();
-              this.notifications.success('VIN escaneado: ' + vin);
-              this.vibrate([40, 40, 40]);
-              this.closeCamera();
-            }
-          }
+        this.vinScanSession = await this.vinScanner.startVinScan({
+          video,
+          onDetected: vin => {
+            this.vinConfirmado = this.normalizeVin(vin);
+            this.persistDraft();
+            this.notifications.success('VIN escaneado: ' + vin);
+            this.vibrate([40, 40, 40]);
+            this.closeCamera();
+          },
         });
       }
     } catch {
@@ -1894,19 +1903,17 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   }
 
   private stopCamera(): void {
-    this.scanControls?.stop();
-    this.scanControls = null;
+    this.vinScanSession?.stop();
+    this.vinScanSession = null;
     this.stream?.getTracks().forEach(t => t.stop());
     this.stream = null;
     this.cameraReady.set(false);
-    this.zxingReader = null;
+    this.torchSupported.set(false);
+    this.torchOn.set(false);
   }
 
   private normalizeVin(value: string): string {
-    return value
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .toUpperCase()
-      .slice(-6);
+    return this.vinScanner.toShortVin(value);
   }
 
   private loadDraft(id: string): void {

@@ -1,4 +1,4 @@
-import { CurrencyPipe, DecimalPipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -14,8 +14,7 @@ import { TramitadorDto, TramitadorService } from '../../services/tramitador.serv
 import { CotizacionService, CotizacionInput } from '../../services/cotizacion.service';
 import { NotificationService } from '../../services/notification.service';
 import { lastValueFrom } from 'rxjs';
-import { BrowserMultiFormatReader } from '@zxing/browser';
-import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { VinScannerService, VinScanSession } from '../../services/vin-scanner.service';
 import { ViewChild, ElementRef } from '@angular/core';
 
 interface LoteVehiculoRow {
@@ -36,7 +35,7 @@ interface LoteVehiculoRow {
 @Component({
   selector: 'app-lote-form',
   standalone: true,
-  imports: [CurrencyPipe, DecimalPipe, FormsModule],
+  imports: [CurrencyPipe, FormsModule],
   template: `
     <div style="font-family: var(--font-body);">
       <button
@@ -368,9 +367,16 @@ interface LoteVehiculoRow {
       <div class="fixed inset-0 z-50 flex flex-col bg-black/90">
         <div class="flex items-center justify-between p-4">
           <span class="text-sm font-medium text-white">Escáner de VIN</span>
-          <button type="button" (click)="closeScanner()" class="rounded-full bg-white/20 p-2 text-white hover:bg-white/30">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-6 w-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+          <div class="flex items-center gap-2">
+            @if (torchSupported()) {
+              <button type="button" (click)="toggleTorch()" class="rounded-full bg-white/20 px-3 py-2 text-xs font-semibold text-white hover:bg-white/30">
+                {{ torchOn() ? 'Linterna on' : 'Linterna' }}
+              </button>
+            }
+            <button type="button" (click)="closeScanner()" class="rounded-full bg-white/20 p-2 text-white hover:bg-white/30">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="h-6 w-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
         </div>
         <div class="relative flex-1">
           <video #scannerVideo autoplay playsinline muted class="h-full w-full object-cover"></video>
@@ -442,6 +448,7 @@ export class LoteFormComponent implements OnInit, OnDestroy {
   private tramitadorService = inject(TramitadorService);
   private cotizacionService = inject(CotizacionService);
   private notifications = inject(NotificationService);
+  private vinScanner = inject(VinScannerService);
   router = inject(Router);
 
   clientes = signal<ClienteListDto[]>([]);
@@ -475,9 +482,10 @@ export class LoteFormComponent implements OnInit, OnDestroy {
   bulkProgress = signal<{ total: number; current: number } | null>(null);
 
   scannerOpen = signal(false);
+  torchSupported = signal(false);
+  torchOn = signal(false);
   @ViewChild('scannerVideo') scannerVideo?: ElementRef<HTMLVideoElement>;
-  private zxingReader: BrowserMultiFormatReader | null = null;
-  private scanControls: any = null;
+  private scanSession: VinScanSession | null = null;
   private stream: MediaStream | null = null;
 
   private calcTimer: any = null;
@@ -618,7 +626,7 @@ export class LoteFormComponent implements OnInit, OnDestroy {
   }
 
   onVinInput(): void {
-    const val = this.currentVin().toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
+    const val = this.vinScanner.normalizeVinInput(this.currentVin());
     this.currentVin.set(val);
     this.vinDecoded.set(false);
     this.calcResult.set(null);
@@ -797,8 +805,18 @@ export class LoteFormComponent implements OnInit, OnDestroy {
     this.scannerOpen.set(false);
   }
 
+  async toggleTorch(): Promise<void> {
+    const enabled = !this.torchOn();
+    const applied = await this.vinScanner.setTorch(this.stream, enabled);
+    if (applied) {
+      this.torchOn.set(enabled);
+    }
+  }
+
   private async startScanner(): Promise<void> {
     this.stopScanner();
+    this.torchSupported.set(false);
+    this.torchOn.set(false);
 
     if (!navigator.mediaDevices?.getUserMedia || !this.scannerVideo) {
       this.notifications.error('Este navegador no soporta acceso a la cámara.');
@@ -808,34 +826,23 @@ export class LoteFormComponent implements OnInit, OnDestroy {
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-        },
+        video: this.vinScanner.buildVideoConstraints('environment'),
       });
+      await this.vinScanner.prepareStream(this.stream);
+      this.torchSupported.set(this.vinScanner.hasTorch(this.stream));
       const video = this.scannerVideo.nativeElement;
       video.srcObject = this.stream;
       await video.play().catch(() => undefined);
 
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_39, BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE]);
-      this.zxingReader = new BrowserMultiFormatReader(hints);
-      
-      this.zxingReader.decodeFromVideoElement(video, (result: any, error: any, controls?: any) => {
-        if (controls) this.scanControls = controls;
-        if (result) {
-          const text = result.getText();
-          const matches = text.match(/[A-HJ-NPR-Z0-9]{17}/gi);
-          if (matches && matches.length > 0) {
-            const vin = matches[0].toUpperCase();
-            this.currentVin.set(vin);
-            this.notifications.success('VIN escaneado: ' + vin);
-            navigator.vibrate?.([40, 40, 40]);
-            this.closeScanner();
-            this.onVinInput();
-          }
-        }
+      this.scanSession = await this.vinScanner.startVinScan({
+        video,
+        onDetected: vin => {
+          this.currentVin.set(vin);
+          this.notifications.success('VIN escaneado: ' + vin);
+          navigator.vibrate?.([40, 40, 40]);
+          this.closeScanner();
+          this.onVinInput();
+        },
       });
     } catch {
       this.notifications.error('No se pudo acceder a la cámara.');
@@ -844,8 +851,8 @@ export class LoteFormComponent implements OnInit, OnDestroy {
   }
 
   private stopScanner(): void {
-    this.scanControls?.stop();
-    this.scanControls = null;
+    this.scanSession?.stop();
+    this.scanSession = null;
     if (this.scannerVideo?.nativeElement) {
       this.scannerVideo.nativeElement.srcObject = null;
     }
@@ -853,7 +860,8 @@ export class LoteFormComponent implements OnInit, OnDestroy {
       this.stream.getTracks().forEach(t => t.stop());
       this.stream = null;
     }
-    this.zxingReader = null;
+    this.torchSupported.set(false);
+    this.torchOn.set(false);
   }
 
   private mapRow(row: LoteVehiculoRow): LoteVehiculoItemRequest {

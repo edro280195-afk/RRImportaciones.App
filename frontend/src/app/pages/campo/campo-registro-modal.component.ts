@@ -5,8 +5,7 @@ import { CampoService } from '../../services/campo.service';
 import { NotificationService } from '../../services/notification.service';
 import { MarcaService } from '../../services/marca.service';
 import { CotizacionService } from '../../services/cotizacion.service';
-import { BrowserMultiFormatReader } from '@zxing/browser';
-import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { VinScannerService, VinScanSession } from '../../services/vin-scanner.service';
 import { firstValueFrom } from 'rxjs';
 
 @Component({
@@ -89,6 +88,11 @@ import { firstValueFrom } from 'rxjs';
         
         <div class="cam-top">
           <button class="cam-pill-btn" (click)="closeCamera()" type="button">Cerrar</button>
+          @if (torchSupported()) {
+            <button class="cam-pill-btn" (click)="toggleTorch()" type="button">
+              {{ torchOn() ? 'Linterna on' : 'Linterna' }}
+            </button>
+          }
           <button class="cam-pill-btn" (click)="flipCamera()" type="button">Girar</button>
         </div>
 
@@ -362,6 +366,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
   private marcaService = inject(MarcaService);
   private cotizacionService = inject(CotizacionService);
   private notifications = inject(NotificationService);
+  private vinScanner = inject(VinScannerService);
 
   saving = signal(false);
   marcas = signal<any[]>([]);
@@ -380,11 +385,12 @@ export class CampoRegistroModalComponent implements OnDestroy {
   showAiSuggest = signal(false);
   aiLoading = signal(false);
   facingMode = signal<'environment' | 'user'>('environment');
+  torchSupported = signal(false);
+  torchOn = signal(false);
 
   private stream: MediaStream | null = null;
-  private zxingReader: BrowserMultiFormatReader | null = null;
-  private scanControls: any = null;
-  private aiSuggestTimeout: any = null;
+  private scanSession: VinScanSession | null = null;
+  private aiSuggestTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.marcaService.getAll(true).subscribe(m => this.marcas.set(m));
@@ -395,7 +401,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
   }
 
   onVinChange(val: string): void {
-    this.vin.set(val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17));
+    this.vin.set(this.vinScanner.normalizeVinInput(val));
     if (this.vin().length === 17) {
       this.decodeVin(this.vin());
     }
@@ -423,9 +429,19 @@ export class CampoRegistroModalComponent implements OnDestroy {
     this.startCamera();
   }
 
+  async toggleTorch(): Promise<void> {
+    const enabled = !this.torchOn();
+    const applied = await this.vinScanner.setTorch(this.stream, enabled);
+    if (applied) {
+      this.torchOn.set(enabled);
+    }
+  }
+
   private async startCamera(): Promise<void> {
     this.stopCamera();
     this.cameraError.set('');
+    this.torchSupported.set(false);
+    this.torchOn.set(false);
 
     if (!navigator.mediaDevices?.getUserMedia) {
       this.cameraError.set('Este navegador no soporta la cámara.');
@@ -434,37 +450,26 @@ export class CampoRegistroModalComponent implements OnDestroy {
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: this.facingMode() },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
+        video: this.vinScanner.buildVideoConstraints(this.facingMode()),
         audio: false,
       });
+      await this.vinScanner.prepareStream(this.stream);
+      this.torchSupported.set(this.vinScanner.hasTorch(this.stream));
 
       const video = this.videoRef?.nativeElement;
       if (video) {
         video.srcObject = this.stream;
         await video.play().catch(() => undefined);
 
-        const hints = new Map();
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_39, BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE]);
-        this.zxingReader = new BrowserMultiFormatReader(hints);
-        
-        this.zxingReader.decodeFromVideoElement(video, (result: any, error: any, controls?: any) => {
-          if (controls) this.scanControls = controls;
-          if (result) {
-            const text = result.getText();
-            const matches = text.match(/[A-HJ-NPR-Z0-9]{17}/gi);
-            if (matches && matches.length > 0) {
-              const scannedVin = matches[0].toUpperCase();
-              this.notifications.success('VIN detectado: ' + scannedVin);
-              this.vin.set(scannedVin);
-              this.decodeVin(scannedVin);
-              this.vibrate([40, 40, 40]);
-              this.closeCamera();
-            }
-          }
+        this.scanSession = await this.vinScanner.startVinScan({
+          video,
+          onDetected: scannedVin => {
+            this.notifications.success('VIN detectado: ' + scannedVin);
+            this.vin.set(scannedVin);
+            this.decodeVin(scannedVin);
+            this.vibrate([40, 40, 40]);
+            this.closeCamera();
+          },
         });
 
         this.aiSuggestTimeout = setTimeout(() => {
@@ -477,12 +482,16 @@ export class CampoRegistroModalComponent implements OnDestroy {
   }
 
   private stopCamera(): void {
-    if (this.aiSuggestTimeout) clearTimeout(this.aiSuggestTimeout);
-    this.scanControls?.stop();
-    this.scanControls = null;
+    if (this.aiSuggestTimeout) {
+      clearTimeout(this.aiSuggestTimeout);
+      this.aiSuggestTimeout = null;
+    }
+    this.scanSession?.stop();
+    this.scanSession = null;
     this.stream?.getTracks().forEach(t => t.stop());
     this.stream = null;
-    this.zxingReader = null;
+    this.torchSupported.set(false);
+    this.torchOn.set(false);
   }
 
   async useAI(): Promise<void> {
@@ -505,11 +514,15 @@ export class CampoRegistroModalComponent implements OnDestroy {
       const base64 = parts[1];
 
       const res = await firstValueFrom(this.campoService.extractVin(base64, mime));
-      
-      if (res.vin && res.vin.length >= 10) {
-        this.notifications.success('VIN extraído con IA: ' + res.vin);
-        this.vin.set(res.vin);
-        this.decodeVin(res.vin);
+
+      const detectedVin = res.vin
+        ? this.vinScanner.extractVin(res.vin) ?? this.vinScanner.normalizeVinInput(res.vin)
+        : '';
+
+      if (detectedVin && detectedVin.length >= 10) {
+        this.notifications.success('VIN extraído con IA: ' + detectedVin);
+        this.vin.set(detectedVin);
+        this.decodeVin(detectedVin);
         this.vibrate([40, 40, 40]);
         this.closeCamera();
       } else {
