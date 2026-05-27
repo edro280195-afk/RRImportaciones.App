@@ -69,3 +69,21 @@ public class VincularPreInspeccionRequest
 {
     public Guid TramiteId { get; set; }
 }
+
+public class SolicitarFotosAdicionalesRequest
+{
+    public string Mensaje { get; set; } = string.Empty;
+}
+
+public class DescartarTareaCampoRequest
+{
+    public string? Motivo { get; set; }
+}
+
+public class BandejaCampoAdminFilters
+{
+    public DateTime? Desde { get; set; }
+    public DateTime? Hasta { get; set; }
+    public Guid? OperadorUsuarioId { get; set; }
+    public string? Ubicacion { get; set; }
+}

@@ -1897,7 +1897,11 @@ export class CotizacionNuevaComponent {
       .getTipoCambio()
       .subscribe({ next: tc => this.tipoCambio.set(tc), error: () => this.tipoCambio.set(null) });
 
-    const vehiculoId = this.route.snapshot.queryParamMap.get('vehiculoId');
+    const qp = this.route.snapshot.queryParamMap;
+    const vehiculoId = qp.get('vehiculoId');
+    const vinParam = qp.get('vin');
+    const clienteIdParam = qp.get('clienteId');
+
     if (vehiculoId) {
       this.vehiculoService.getById(vehiculoId).subscribe({
         next: v => {
@@ -1906,6 +1910,22 @@ export class CotizacionNuevaComponent {
             this.decodeVin();
           }
           if (v.clienteApodo) this.clienteText = v.clienteApodo;
+        },
+      });
+    } else if (vinParam && vinParam.length === 17) {
+      // Pre-rellenado desde bandeja de campo: arranca el flujo con el VIN del yardero.
+      this.form.vin = vinParam.toUpperCase();
+      this.decodeVin();
+    }
+
+    if (clienteIdParam) {
+      this.clienteId = clienteIdParam;
+      this.clienteService.getById(clienteIdParam).subscribe({
+        next: c => {
+          this.clienteText = c.nombreCompleto || c.apodo || '';
+        },
+        error: () => {
+          /* si falla, el usuario puede buscar manualmente */
         },
       });
     }

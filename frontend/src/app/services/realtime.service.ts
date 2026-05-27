@@ -36,6 +36,34 @@ export interface PinResetRequestedEvent {
   fecha: string;
 }
 
+export interface PreInspeccionCreadaEvent {
+  tareaCampoId: string;
+  vehiculoId: string | null;
+  vehiculoResumen: string;
+  vin: string | null;
+  ubicacion: string | null;
+  clienteSugerido: string | null;
+  operadorNombre: string;
+  totalFotos: number;
+  fecha: string;
+}
+
+export interface TareaAsignadaEvent {
+  tareaCampoId: string;
+  tramiteId: string | null;
+  vehiculoResumen: string;
+  mensaje: string;
+  fecha: string;
+}
+
+export interface FotosSolicitadasEvent {
+  tareaCampoId: string;
+  tramiteId: string | null;
+  vehiculoResumen: string;
+  mensaje: string;
+  fecha: string;
+}
+
 import { environment } from '../../environments/environment';
 @Injectable({ providedIn: 'root' })
 export class RealtimeService {
@@ -49,6 +77,12 @@ export class RealtimeService {
   /** Emitido cuando un operador solicita restablecer su PIN. */
   readonly pinResetRequested$ = new Subject<PinResetRequestedEvent>();
   readonly nexusAlerta$ = new Subject<{ tipo: string; mensaje: string; fecha: string }>();
+  /** Emitido en clientes admin cuando un yardero crea una pre-inspección en yarda. */
+  readonly preInspeccionCreada$ = new Subject<PreInspeccionCreadaEvent>();
+  /** Emitido en el cliente del operador cuando se le asigna una tarea de campo. */
+  readonly tareaAsignada$ = new Subject<TareaAsignadaEvent>();
+  /** Emitido en el cliente del operador cuando admin solicita fotos adicionales. */
+  readonly fotosSolicitadas$ = new Subject<FotosSolicitadasEvent>();
 
   /** Emitido cuando el hub responde 401 — el layout debe redirigir a /login. */
   readonly authError$ = new Subject<void>();
@@ -91,6 +125,18 @@ export class RealtimeService {
 
     this.connection.on('nexusAlerta', (event: { tipo: string; mensaje: string; fecha: string }) => {
       this.zone.run(() => this.nexusAlerta$.next(event));
+    });
+
+    this.connection.on('preInspeccionCreada', (event: PreInspeccionCreadaEvent) => {
+      this.zone.run(() => this.preInspeccionCreada$.next(event));
+    });
+
+    this.connection.on('tareaAsignada', (event: TareaAsignadaEvent) => {
+      this.zone.run(() => this.tareaAsignada$.next(event));
+    });
+
+    this.connection.on('fotosSolicitadas', (event: FotosSolicitadasEvent) => {
+      this.zone.run(() => this.fotosSolicitadas$.next(event));
     });
 
     this.connection.start().catch((err: unknown) => {

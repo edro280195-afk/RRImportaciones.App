@@ -369,6 +369,12 @@ export class SidebarComponent implements OnInit {
           { label: 'Lotes', icon: icons.inventario, route: '/lotes', permiso: 'TRAMITES_VER' },
           { label: 'Campo', icon: icons.personal, route: '/campo', permiso: 'CAMPO_USAR' },
           {
+            label: 'Bandeja campo',
+            icon: icons.personal,
+            route: '/campo/bandeja-admin',
+            permiso: 'TRAMITES_VER',
+          },
+          {
             label: 'Pedimentos',
             icon: icons.pedimentos,
             route: '/pedimentos',

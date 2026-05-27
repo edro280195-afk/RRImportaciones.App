@@ -7,6 +7,9 @@ import {
   RealtimeService,
   CampoNotificacionEvent,
   PinResetRequestedEvent,
+  PreInspeccionCreadaEvent,
+  TareaAsignadaEvent,
+  FotosSolicitadasEvent,
 } from '../../services/realtime.service';
 import { AuthService } from '../../services/auth.service';
 import { Subscription } from 'rxjs';
@@ -93,6 +96,80 @@ import { Subscription } from 'rxjs';
           </div>
 
           <button class="campo-toast__close" (click)="campoNotif.set(null)" aria-label="Cerrar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ── Notificación: pre-inspección creada (para admins) ── -->
+    @if (preInspNotif()) {
+      @let p = preInspNotif()!;
+      <div class="campo-toast pre-insp-toast" role="alert" aria-live="assertive">
+        <div class="campo-toast__bar bar--pre-insp"></div>
+        <div class="campo-toast__body">
+          <div class="campo-toast__icon icon--pre-insp">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+          </div>
+          <div class="campo-toast__content">
+            <p class="campo-toast__title">🚗 Pre-inspección nueva en yarda</p>
+            <p class="campo-toast__vehicle">{{ p.vehiculoResumen }}</p>
+            <div class="campo-toast__meta">
+              @if (p.vin) {
+                <span>VIN: {{ p.vin }}</span>
+                <span class="dot">·</span>
+              }
+              <span>{{ p.operadorNombre }}</span>
+              @if (p.ubicacion) {
+                <span class="dot">·</span>
+                <span>{{ p.ubicacion }}</span>
+              }
+              @if (p.totalFotos > 0) {
+                <span class="dot">·</span>
+                <span>{{ p.totalFotos }} foto{{ p.totalFotos !== 1 ? 's' : '' }}</span>
+              }
+            </div>
+            @if (p.clienteSugerido) {
+              <p class="campo-toast__incidencia">Cliente sugerido: {{ p.clienteSugerido }}</p>
+            }
+            <button class="campo-toast__link" (click)="irABandejaCampo()">
+              Ver en bandeja &rarr;
+            </button>
+          </div>
+          <button class="campo-toast__close" (click)="preInspNotif.set(null)" aria-label="Cerrar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ── Notificación: tarea asignada / fotos solicitadas (para yardero) ── -->
+    @if (yarderoNotif()) {
+      @let y = yarderoNotif()!;
+      <div class="campo-toast yardero-toast" role="alert" aria-live="assertive">
+        <div class="campo-toast__bar bar--yardero"></div>
+        <div class="campo-toast__body">
+          <div class="campo-toast__icon icon--yardero">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+            </svg>
+          </div>
+          <div class="campo-toast__content">
+            <p class="campo-toast__title">{{ y.titulo }}</p>
+            <p class="campo-toast__vehicle">{{ y.vehiculoResumen }}</p>
+            <p class="campo-toast__incidencia">{{ y.mensaje }}</p>
+            <button class="campo-toast__link" (click)="irACampo(y.tareaCampoId)">
+              Ver tarea &rarr;
+            </button>
+          </div>
+          <button class="campo-toast__close" (click)="yarderoNotif.set(null)" aria-label="Cerrar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -271,6 +348,27 @@ import { Subscription } from 'rxjs';
         background: #fee2e2;
         color: #ef4444;
       }
+      .pre-insp-toast {
+        border-color: #93c5fd;
+        bottom: 24px;
+      }
+      .bar--pre-insp {
+        background: #2563eb;
+      }
+      .icon--pre-insp {
+        background: #dbeafe;
+        color: #2563eb;
+      }
+      .yardero-toast {
+        border-color: #fbbf24;
+      }
+      .bar--yardero {
+        background: #f59e0b;
+      }
+      .icon--yardero {
+        background: #fef3c7;
+        color: #b45309;
+      }
       @keyframes slideUp {
         from {
           opacity: 0;
@@ -298,14 +396,26 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
   private notifSub?: Subscription;
   private pinResetSub?: Subscription;
   private authSub?: Subscription;
+  private preInspSub?: Subscription;
+  private tareaAsignadaSub?: Subscription;
+  private fotosSolicitadasSub?: Subscription;
   private autoDismissTimer?: ReturnType<typeof setTimeout>;
   private pinResetDismissTimer?: ReturnType<typeof setTimeout>;
+  private preInspDismissTimer?: ReturnType<typeof setTimeout>;
+  private yarderoDismissTimer?: ReturnType<typeof setTimeout>;
 
   sidebarCollapsed = signal(false);
   mobileMenuOpen = signal(false);
   isMobile = signal(window.innerWidth < 768);
   campoNotif = signal<CampoNotificacionEvent | null>(null);
   pinResetNotif = signal<PinResetRequestedEvent | null>(null);
+  preInspNotif = signal<PreInspeccionCreadaEvent | null>(null);
+  yarderoNotif = signal<{
+    titulo: string;
+    vehiculoResumen: string;
+    mensaje: string;
+    tareaCampoId: string;
+  } | null>(null);
 
   ngOnInit(): void {
     const stored = localStorage.getItem('sidebar-collapsed');
@@ -321,6 +431,28 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
       this.showPinResetNotif(event);
     });
 
+    this.preInspSub = this.realtime.preInspeccionCreada$.subscribe(event => {
+      this.showPreInspNotif(event);
+    });
+
+    this.tareaAsignadaSub = this.realtime.tareaAsignada$.subscribe(event => {
+      this.showYarderoNotif({
+        titulo: '📋 Tarea asignada',
+        vehiculoResumen: event.vehiculoResumen,
+        mensaje: event.mensaje,
+        tareaCampoId: event.tareaCampoId,
+      });
+    });
+
+    this.fotosSolicitadasSub = this.realtime.fotosSolicitadas$.subscribe(event => {
+      this.showYarderoNotif({
+        titulo: '📸 Admin pide más fotos',
+        vehiculoResumen: event.vehiculoResumen,
+        mensaje: event.mensaje,
+        tareaCampoId: event.tareaCampoId,
+      });
+    });
+
     // Si el token expiró, SignalR detectará un 401 y redirigiremos a login
     this.authSub = this.realtime.authError$.subscribe(() => {
       this.auth.clearSession();
@@ -332,8 +464,13 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
     this.notifSub?.unsubscribe();
     this.pinResetSub?.unsubscribe();
     this.authSub?.unsubscribe();
+    this.preInspSub?.unsubscribe();
+    this.tareaAsignadaSub?.unsubscribe();
+    this.fotosSolicitadasSub?.unsubscribe();
     clearTimeout(this.autoDismissTimer);
     clearTimeout(this.pinResetDismissTimer);
+    clearTimeout(this.preInspDismissTimer);
+    clearTimeout(this.yarderoDismissTimer);
   }
 
   private showNotif(event: CampoNotificacionEvent): void {
@@ -363,6 +500,35 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
   irAUsuarios(): void {
     this.pinResetNotif.set(null);
     this.router.navigate(['/usuarios']);
+  }
+
+  private showPreInspNotif(event: PreInspeccionCreadaEvent): void {
+    clearTimeout(this.preInspDismissTimer);
+    this.preInspNotif.set(event);
+    this.preInspDismissTimer = setTimeout(() => this.preInspNotif.set(null), 10_000);
+    navigator.vibrate?.([100, 50, 100]);
+  }
+
+  private showYarderoNotif(notif: {
+    titulo: string;
+    vehiculoResumen: string;
+    mensaje: string;
+    tareaCampoId: string;
+  }): void {
+    clearTimeout(this.yarderoDismissTimer);
+    this.yarderoNotif.set(notif);
+    this.yarderoDismissTimer = setTimeout(() => this.yarderoNotif.set(null), 12_000);
+    navigator.vibrate?.([200, 100, 200]);
+  }
+
+  irABandejaCampo(): void {
+    this.preInspNotif.set(null);
+    this.router.navigate(['/campo/bandeja-admin']);
+  }
+
+  irACampo(tareaCampoId: string): void {
+    this.yarderoNotif.set(null);
+    this.router.navigate(['/campo']);
   }
 
   @HostListener('window:resize')

@@ -151,6 +151,14 @@ export const routes: Routes = [
         component: InventarioComponent,
         canActivate: [permissionGuard('TRAMITES_VER')],
       },
+      {
+        path: 'campo/bandeja-admin',
+        canActivate: [permissionGuard('TRAMITES_VER')],
+        loadComponent: () =>
+          import('./pages/campo/bandeja-campo-admin.component').then(
+            m => m.BandejaCampoAdminComponent
+          ),
+      },
 
       // Cotizaciones
       {

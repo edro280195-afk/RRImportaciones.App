@@ -30,4 +30,34 @@ public interface IRealtimeNotifier
         string tipo,
         string mensaje,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Notifica a los admins que un yardero acaba de crear una pre-inspección en yarda.</summary>
+    Task PreInspeccionCreadaAsync(
+        Guid tareaCampoId,
+        Guid? vehiculoId,
+        string vehiculoResumen,
+        string? vin,
+        string? ubicacion,
+        string? clienteSugerido,
+        string operadorNombre,
+        int totalFotos,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Notifica a un operador específico (yardero) que se le asignó una tarea de campo.</summary>
+    Task TareaAsignadaAOperadorAsync(
+        Guid operadorUserId,
+        Guid tareaCampoId,
+        Guid? tramiteId,
+        string vehiculoResumen,
+        string mensaje,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Notifica a un operador específico que el admin pide fotos adicionales para una tarea.</summary>
+    Task FotosAdicionalesSolicitadasAsync(
+        Guid operadorUserId,
+        Guid tareaCampoId,
+        Guid? tramiteId,
+        string vehiculoResumen,
+        string mensaje,
+        CancellationToken cancellationToken = default);
 }

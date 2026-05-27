@@ -90,4 +90,65 @@ public class RealtimeNotifier : IRealtimeNotifier
             fecha = DateTime.UtcNow,
         }, cancellationToken);
     }
+
+    public Task PreInspeccionCreadaAsync(
+        Guid tareaCampoId,
+        Guid? vehiculoId,
+        string vehiculoResumen,
+        string? vin,
+        string? ubicacion,
+        string? clienteSugerido,
+        string operadorNombre,
+        int totalFotos,
+        CancellationToken cancellationToken = default)
+    {
+        return _hub.Clients.Group("admins").SendAsync("preInspeccionCreada", new
+        {
+            tareaCampoId,
+            vehiculoId,
+            vehiculoResumen,
+            vin,
+            ubicacion,
+            clienteSugerido,
+            operadorNombre,
+            totalFotos,
+            fecha = DateTime.UtcNow,
+        }, cancellationToken);
+    }
+
+    public Task TareaAsignadaAOperadorAsync(
+        Guid operadorUserId,
+        Guid tareaCampoId,
+        Guid? tramiteId,
+        string vehiculoResumen,
+        string mensaje,
+        CancellationToken cancellationToken = default)
+    {
+        return _hub.Clients.Group($"user-{operadorUserId}").SendAsync("tareaAsignada", new
+        {
+            tareaCampoId,
+            tramiteId,
+            vehiculoResumen,
+            mensaje,
+            fecha = DateTime.UtcNow,
+        }, cancellationToken);
+    }
+
+    public Task FotosAdicionalesSolicitadasAsync(
+        Guid operadorUserId,
+        Guid tareaCampoId,
+        Guid? tramiteId,
+        string vehiculoResumen,
+        string mensaje,
+        CancellationToken cancellationToken = default)
+    {
+        return _hub.Clients.Group($"user-{operadorUserId}").SendAsync("fotosSolicitadas", new
+        {
+            tareaCampoId,
+            tramiteId,
+            vehiculoResumen,
+            mensaje,
+            fecha = DateTime.UtcNow,
+        }, cancellationToken);
+    }
 }

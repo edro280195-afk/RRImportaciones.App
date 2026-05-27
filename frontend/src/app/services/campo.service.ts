@@ -107,4 +107,26 @@ export class CampoService {
       imagenMime,
     });
   }
+
+  getBandejaAdmin(filtros?: {
+    desde?: string | null;
+    hasta?: string | null;
+    operadorUsuarioId?: string | null;
+    ubicacion?: string | null;
+  }): Observable<TareaCampoDto[]> {
+    const params: Record<string, string> = {};
+    if (filtros?.desde) params['desde'] = filtros.desde;
+    if (filtros?.hasta) params['hasta'] = filtros.hasta;
+    if (filtros?.operadorUsuarioId) params['operadorUsuarioId'] = filtros.operadorUsuarioId;
+    if (filtros?.ubicacion) params['ubicacion'] = filtros.ubicacion;
+    return this.http.get<TareaCampoDto[]>(`${this.baseUrl}/bandeja-admin`, { params });
+  }
+
+  solicitarFotos(id: string, mensaje: string): Observable<TareaCampoDto> {
+    return this.http.post<TareaCampoDto>(`${this.baseUrl}/tareas/${id}/solicitar-fotos`, { mensaje });
+  }
+
+  descartar(id: string, motivo: string): Observable<TareaCampoDto> {
+    return this.http.post<TareaCampoDto>(`${this.baseUrl}/tareas/${id}/descartar`, { motivo });
+  }
 }

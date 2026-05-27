@@ -16,6 +16,14 @@ public class RealtimeHub : Hub
         var permisos = Context.User?.FindAll("permiso").Select(c => c.Value) ?? Enumerable.Empty<string>();
         var group = permisos.Contains("CAMPO_USAR") ? "campo" : "admins";
         await Groups.AddToGroupAsync(Context.ConnectionId, group);
+
+        var userIdClaim = Context.User?.FindFirst("sub")?.Value
+            ?? Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (Guid.TryParse(userIdClaim, out var userId))
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{userId}");
+        }
+
         await base.OnConnectedAsync();
     }
 }

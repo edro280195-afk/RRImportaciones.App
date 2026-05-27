@@ -141,4 +141,51 @@ public class CampoController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    [HttpGet("bandeja-admin")]
+    public async Task<IActionResult> GetBandejaAdmin(
+        [FromQuery] DateTime? desde,
+        [FromQuery] DateTime? hasta,
+        [FromQuery] Guid? operadorUsuarioId,
+        [FromQuery] string? ubicacion)
+    {
+        var filtros = new BandejaCampoAdminFilters
+        {
+            Desde = desde,
+            Hasta = hasta,
+            OperadorUsuarioId = operadorUsuarioId,
+            Ubicacion = ubicacion,
+        };
+        return Ok(await _campoService.GetBandejaAdminAsync(filtros));
+    }
+
+    [HttpPost("tareas/{id:guid}/solicitar-fotos")]
+    public async Task<IActionResult> SolicitarFotos(Guid id, [FromBody] SolicitarFotosAdicionalesRequest request)
+    {
+        try
+        {
+            return Ok(await _campoService.SolicitarFotosAdicionalesAsync(id, request));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("tareas/{id:guid}/descartar")]
+    public async Task<IActionResult> Descartar(Guid id, [FromBody] DescartarTareaCampoRequest request)
+    {
+        try
+        {
+            return Ok(await _campoService.DescartarAsync(id, request));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
 }

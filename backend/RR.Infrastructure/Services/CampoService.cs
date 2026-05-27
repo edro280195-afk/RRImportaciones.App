@@ -186,7 +186,82 @@ public class CampoService : ICampoService
         await _db.SaveChangesAsync();
         await _realtime.CampoActualizadoAsync(tarea.Id, null, "CREADA");
 
+        // Notificación específica a admins con resumen del operador para mostrar toast/bell.
+        var operadorUserId = _currentUser.UserId;
+        string operadorNombre = "Operador de campo";
+        if (operadorUserId.HasValue && operadorUserId.Value != Guid.Empty)
+        {
+            var operadorUser = await _db.Usuarios.FirstOrDefaultAsync(u => u.Id == operadorUserId.Value);
+            operadorNombre = BuildUsuarioNombre(operadorUser) ?? operadorNombre;
+        }
+
+        var resumenPreInsp = vehiculo != null ? BuildVehiculoResumen(vehiculo) : (descripcion ?? "Pre-inspección");
+
+        _ = _realtime.PreInspeccionCreadaAsync(
+            tarea.Id,
+            vehiculoId,
+            resumenPreInsp,
+            vin,
+            request.Ubicacion,
+            clienteNombre,
+            operadorNombre,
+            (tarea.FotosUrls ?? Array.Empty<string>()).Length);
+
         return (await GetById(tarea.Id))!;
+    }
+
+    public async Task<TareaCampoDto> SolicitarFotosAdicionalesAsync(Guid id, SolicitarFotosAdicionalesRequest request)
+    {
+        var tarea = await _db.TareasCampo
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Marca)
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Modelo)
+            .Include(t => t.Tramite).ThenInclude(t => t!.Vehiculo).ThenInclude(v => v!.Marca)
+            .Include(t => t.Tramite).ThenInclude(t => t!.Vehiculo).ThenInclude(v => v!.Modelo)
+            .FirstOrDefaultAsync(t => t.Id == id)
+            ?? throw new KeyNotFoundException("Tarea de campo no encontrada");
+
+        var mensaje = string.IsNullOrWhiteSpace(request.Mensaje) ? "Se solicitan fotos adicionales." : request.Mensaje.Trim();
+
+        var operadorUserId = tarea.TomadaPorUsuarioId ?? tarea.CreadoPor;
+        if (operadorUserId == Guid.Empty)
+            throw new InvalidOperationException("La tarea no tiene un operador asignado al que notificar");
+
+        // Reabrir la tarea si ya estaba completada o incidencia, para que el yardero pueda agregar más fotos.
+        if (tarea.EstadoLogistico is "COMPLETADA" or "INCIDENCIA")
+        {
+            tarea.EstadoLogistico = "TOMADA";
+            tarea.FechaCompletada = null;
+        }
+
+        var vehiculoResumen = tarea.Tramite?.Vehiculo != null
+            ? BuildVehiculoResumen(tarea.Tramite.Vehiculo)
+            : (tarea.Vehiculo != null ? BuildVehiculoResumen(tarea.Vehiculo) : (tarea.DescripcionVehiculo ?? "Unidad sin descripción"));
+
+        if (tarea.TramiteId.HasValue)
+        {
+            _db.Eventos.Add(new Evento
+            {
+                Id = Guid.NewGuid(),
+                TramiteId = tarea.TramiteId.Value,
+                Tipo = "CAMPO",
+                Contenido = $"Admin solicita fotos adicionales: {mensaje}",
+                FechaEvento = DateTime.UtcNow,
+                CreadoPor = _currentUser.UserId ?? Guid.Empty,
+            });
+        }
+
+        await _db.SaveChangesAsync();
+
+        _ = _realtime.FotosAdicionalesSolicitadasAsync(
+            operadorUserId,
+            tarea.Id,
+            tarea.TramiteId,
+            vehiculoResumen,
+            mensaje);
+
+        await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "FOTOS_SOLICITADAS");
+
+        return (await GetById(id))!;
     }
 
     public async Task<TareaCampoDto> VincularTramiteAsync(Guid id, VincularPreInspeccionRequest request)
@@ -410,6 +485,74 @@ public class CampoService : ICampoService
         await _db.SaveChangesAsync();
         await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "FOTO_SUBIDA");
         return (await GetById(id))!;
+    }
+
+    public async Task<TareaCampoDto> DescartarAsync(Guid id, DescartarTareaCampoRequest request)
+    {
+        var tarea = await _db.TareasCampo.FindAsync(id)
+            ?? throw new KeyNotFoundException("Tarea de campo no encontrada");
+
+        if (tarea.EstadoLogistico == "CANCELADA")
+            return (await GetById(id))!;
+
+        var motivo = string.IsNullOrWhiteSpace(request.Motivo) ? "Descartada por admin." : request.Motivo.Trim();
+
+        tarea.EstadoLogistico = "CANCELADA";
+        tarea.Incidencia = string.IsNullOrWhiteSpace(tarea.Incidencia) ? motivo : tarea.Incidencia + " | " + motivo;
+
+        if (tarea.TramiteId.HasValue)
+        {
+            _db.Eventos.Add(new Evento
+            {
+                Id = Guid.NewGuid(),
+                TramiteId = tarea.TramiteId.Value,
+                Tipo = "CAMPO",
+                Contenido = $"Tarea de campo descartada: {motivo}",
+                FechaEvento = DateTime.UtcNow,
+                CreadoPor = _currentUser.UserId ?? Guid.Empty,
+            });
+        }
+
+        await _db.SaveChangesAsync();
+        await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "CANCELADA");
+        return (await GetById(id))!;
+    }
+
+    public async Task<List<TareaCampoDto>> GetBandejaAdminAsync(BandejaCampoAdminFilters? filtros)
+    {
+        var query = _db.TareasCampo
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Cliente)
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Marca)
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Modelo)
+            .Include(t => t.PersonalCampo)
+            .Include(t => t.UsuarioCampo)
+            .Where(t => t.Tipo == "PRE_INSPECCION"
+                     && t.TramiteId == null
+                     && t.EstadoLogistico != "CANCELADA")
+            .AsQueryable();
+
+        if (filtros != null)
+        {
+            if (filtros.Desde.HasValue)
+                query = query.Where(t => t.FechaCreacion >= filtros.Desde.Value);
+            if (filtros.Hasta.HasValue)
+                query = query.Where(t => t.FechaCreacion <= filtros.Hasta.Value);
+            if (filtros.OperadorUsuarioId.HasValue)
+                query = query.Where(t => t.TomadaPorUsuarioId == filtros.OperadorUsuarioId.Value
+                                       || t.CreadoPor == filtros.OperadorUsuarioId.Value);
+            if (!string.IsNullOrWhiteSpace(filtros.Ubicacion))
+            {
+                var loc = filtros.Ubicacion.Trim();
+                query = query.Where(t => t.Ubicacion != null && EF.Functions.Like(t.Ubicacion, $"%{loc}%"));
+            }
+        }
+
+        var tareas = await query
+            .OrderByDescending(t => t.FechaCreacion)
+            .Take(200)
+            .ToListAsync();
+
+        return tareas.Select(Map).ToList();
     }
 
     private Task MoveEstadoIfAllowed(Tramite tramite, string nuevoEstado, string contenido)
