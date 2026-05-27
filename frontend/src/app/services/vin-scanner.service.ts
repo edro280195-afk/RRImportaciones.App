@@ -1,6 +1,9 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import type { ZBarScanner, ZBarSymbol } from '@undecaf/zbar-wasm';
+import { firstValueFrom } from 'rxjs';
+import { CampoService } from './campo.service';
 
 type FacingMode = 'environment' | 'user';
 
@@ -19,6 +22,13 @@ interface BarcodeDetectorConstructor {
 
 interface BarcodeDetectorWindow extends Window {
   BarcodeDetector?: BarcodeDetectorConstructor;
+}
+
+interface ZBarModule {
+  getDefaultScanner: () => Promise<ZBarScanner>;
+  scanImageData: (image: ImageData, scanner?: ZBarScanner) => Promise<ZBarSymbol[]>;
+  ZBarSymbolType: typeof import('@undecaf/zbar-wasm').ZBarSymbolType;
+  ZBarConfigType: typeof import('@undecaf/zbar-wasm').ZBarConfigType;
 }
 
 interface MediaTrackCapabilitiesExtended extends MediaTrackCapabilities {
@@ -46,7 +56,23 @@ export interface VinScanSession {
 
 interface StartVinScanOptions {
   video: HTMLVideoElement;
+  enableVisionFallback?: boolean;
   onDetected: (vin: string, rawText: string) => void;
+  onVisionStart?: () => void;
+  onVisionEnd?: () => void;
+}
+
+interface CapturedFrame {
+  base64: string;
+  mime: string;
+}
+
+interface ScanRegion {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  contrast?: boolean;
 }
 
 const VIN_REGEX = /[A-HJ-NPR-Z0-9]{17}/gi;
@@ -61,6 +87,9 @@ const ZXING_FORMATS = [
 
 @Injectable({ providedIn: 'root' })
 export class VinScannerService {
+  private campoService = inject(CampoService);
+  private zbarDetectorPromise: Promise<BarcodeDetectorInstance | null> | null = null;
+
   buildVideoConstraints(facingMode: FacingMode = 'environment'): MediaTrackConstraints {
     return {
       facingMode: { ideal: facingMode },
@@ -151,12 +180,18 @@ export class VinScannerService {
   async startVinScan(options: StartVinScanOptions): Promise<VinScanSession> {
     const reader = this.createReader();
     const detector = await this.createNativeDetector();
+    const zbarDetectorPromise = this.getZbarDetector();
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     let stopped = false;
     let timeoutId = 0;
     let attempt = 0;
+    let zbarReady = false;
+    let zbarDetector: BarcodeDetectorInstance | null = null;
+    let visionBusy = false;
+    let lastVisionAt = 0;
+    const startedAt = Date.now();
 
     const stop = () => {
       stopped = true;
@@ -174,11 +209,34 @@ export class VinScannerService {
       return true;
     };
 
+    const tryVision = async () => {
+      if (stopped || visionBusy || options.enableVisionFallback === false) return;
+
+      const now = Date.now();
+      if (now - startedAt < 1800 || now - lastVisionAt < 2800) return;
+
+      visionBusy = true;
+      lastVisionAt = now;
+      options.onVisionStart?.();
+
+      try {
+        const vin = await this.extractVinWithVision(options.video);
+        if (stopped || !vin) return;
+        emitIfVin(vin);
+      } catch {
+        // La vision es respaldo; el scanner de barras sigue intentando.
+      } finally {
+        visionBusy = false;
+        options.onVisionEnd?.();
+      }
+    };
+
     const scan = async () => {
       if (stopped) return;
 
       try {
-        if (context && this.drawScanRegion(options.video, canvas, context, attempt++)) {
+        const currentAttempt = attempt++;
+        if (context && this.drawScanRegion(options.video, canvas, context, currentAttempt)) {
           if (detector) {
             try {
               const detections = await detector.detect(canvas);
@@ -191,6 +249,24 @@ export class VinScannerService {
             }
           }
 
+          if (currentAttempt % 3 === 0) {
+            try {
+              if (!zbarReady) {
+                zbarDetector = await zbarDetectorPromise;
+                zbarReady = true;
+              }
+              if (zbarDetector) {
+                const detections = await zbarDetector.detect(canvas);
+                if (stopped) return;
+                for (const detection of detections) {
+                  if (emitIfVin(detection.rawValue)) return;
+                }
+              }
+            } catch {
+              // ZBar WASM es un respaldo local; ZXing todavia puede leer este cuadro.
+            }
+          }
+
           if (stopped) return;
           const result = reader.decodeFromCanvas(canvas);
           if (emitIfVin(result.getText())) return;
@@ -199,11 +275,58 @@ export class VinScannerService {
         // Un fallo por cuadro es normal mientras el usuario esta enfocando.
       }
 
+      void tryVision();
       timeoutId = window.setTimeout(scan, 90);
     };
 
     timeoutId = window.setTimeout(scan, 80);
     return { stop };
+  }
+
+  async extractVinWithVision(video: HTMLVideoElement): Promise<string | null> {
+    const frame = this.captureVinFrame(video);
+    if (!frame) return null;
+
+    const response = await firstValueFrom(this.campoService.extractVin(frame.base64, frame.mime));
+    if (!response.vin) return null;
+
+    return this.extractVin(response.vin) ?? this.normalizeVinInput(response.vin);
+  }
+
+  captureVinFrame(video: HTMLVideoElement): CapturedFrame | null {
+    const sourceWidth = video.videoWidth;
+    const sourceHeight = video.videoHeight;
+    if (!sourceWidth || !sourceHeight) return null;
+
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return null;
+
+    const cropX = Math.round(sourceWidth * 0.02);
+    const cropY = Math.round(sourceHeight * 0.12);
+    const cropWidth = Math.round(sourceWidth * 0.96);
+    const cropHeight = Math.round(sourceHeight * 0.72);
+    const targetWidth = Math.min(1800, Math.max(1200, cropWidth));
+    const targetHeight = Math.round((cropHeight / cropWidth) * targetWidth);
+
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    context.drawImage(
+      video,
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      targetWidth,
+      targetHeight
+    );
+    this.boostContrast(canvas, context);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    const [, base64 = ''] = dataUrl.split(',');
+    return { base64, mime: 'image/jpeg' };
   }
 
   private createReader(): BrowserMultiFormatReader {
@@ -233,6 +356,50 @@ export class VinScannerService {
     }
   }
 
+  private getZbarDetector(): Promise<BarcodeDetectorInstance | null> {
+    this.zbarDetectorPromise ??= this.createZbarDetector();
+    return this.zbarDetectorPromise;
+  }
+
+  private async createZbarDetector(): Promise<BarcodeDetectorInstance | null> {
+    try {
+      const module = (await import('@undecaf/zbar-wasm')) as ZBarModule;
+      const scanner = await module.getDefaultScanner();
+      scanner.setConfig(
+        module.ZBarSymbolType.ZBAR_NONE,
+        module.ZBarConfigType.ZBAR_CFG_ENABLE,
+        0
+      );
+
+      const enabledSymbologies = [
+        module.ZBarSymbolType.ZBAR_CODE39,
+        module.ZBarSymbolType.ZBAR_CODE93,
+        module.ZBarSymbolType.ZBAR_CODE128,
+        module.ZBarSymbolType.ZBAR_PDF417,
+        module.ZBarSymbolType.ZBAR_QRCODE,
+      ];
+
+      for (const symbology of enabledSymbologies) {
+        scanner.setConfig(symbology, module.ZBarConfigType.ZBAR_CFG_ENABLE, 1);
+      }
+
+      return {
+        detect: async source => {
+          if (!(source instanceof HTMLCanvasElement)) return [];
+
+          const sourceContext = source.getContext('2d', { willReadFrequently: true });
+          if (!sourceContext) return [];
+
+          const image = sourceContext.getImageData(0, 0, source.width, source.height);
+          const symbols = await module.scanImageData(image, scanner);
+          return symbols.map(symbol => ({ rawValue: symbol.decode() }));
+        },
+      };
+    } catch {
+      return null;
+    }
+  }
+
   private drawScanRegion(
     video: HTMLVideoElement,
     canvas: HTMLCanvasElement,
@@ -243,12 +410,19 @@ export class VinScannerService {
     const sourceHeight = video.videoHeight;
     if (!sourceWidth || !sourceHeight) return false;
 
-    const region = attempt % 5 === 4 ? { y: 0.18, h: 0.64 } : { y: 0.32, h: 0.36 };
-    const cropX = Math.round(sourceWidth * 0.04);
-    const cropWidth = Math.round(sourceWidth * 0.92);
+    const regions: ScanRegion[] = [
+      { x: 0.03, y: 0.42, w: 0.94, h: 0.34 },
+      { x: 0.03, y: 0.24, w: 0.94, h: 0.30 },
+      { x: 0.02, y: 0.18, w: 0.96, h: 0.68 },
+      { x: 0.03, y: 0.42, w: 0.94, h: 0.34, contrast: true },
+      { x: 0.01, y: 0.08, w: 0.98, h: 0.84 },
+    ];
+    const region = regions[attempt % regions.length];
+    const cropX = Math.round(sourceWidth * region.x);
+    const cropWidth = Math.round(sourceWidth * region.w);
     const cropY = Math.round(sourceHeight * region.y);
     const cropHeight = Math.round(sourceHeight * region.h);
-    const targetWidth = Math.min(1600, Math.max(1000, cropWidth));
+    const targetWidth = Math.min(1800, Math.max(1100, cropWidth));
     const targetHeight = Math.round((cropHeight / cropWidth) * targetWidth);
 
     if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
@@ -268,7 +442,28 @@ export class VinScannerService {
       targetHeight
     );
 
+    if (region.contrast) {
+      this.boostContrast(canvas, context);
+    }
+
     return true;
+  }
+
+  private boostContrast(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D): void {
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    const data = image.data;
+    const contrast = 1.45;
+    const brightness = 8;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      const adjusted = Math.max(0, Math.min(255, (gray - 128) * contrast + 128 + brightness));
+      data[i] = adjusted;
+      data[i + 1] = adjusted;
+      data[i + 2] = adjusted;
+    }
+
+    context.putImageData(image, 0, 0);
   }
 
   private recommendedZoom(capabilities: MediaTrackCapabilitiesExtended): number | null {

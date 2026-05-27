@@ -5,11 +5,14 @@ using RR.Application.Interfaces;
 using RR.Domain.Entities;
 using RR.Infrastructure.Data;
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 
 namespace RR.Infrastructure.Services;
 
 public class CampoService : ICampoService
 {
+    private static readonly Regex VinRegex = new(@"[A-HJ-NPR-Z0-9]{17}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private readonly AppDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IRealtimeNotifier _realtime;
@@ -421,7 +424,7 @@ public class CampoService : ICampoService
                     role = "user",
                     parts = new object[]
                     {
-                        new { text = "Extrae el VIN (Vehicle Identification Number) de 17 caracteres alfanuméricos de esta imagen. Responde ÚNICAMENTE con los 17 caracteres del VIN en mayúsculas, sin texto adicional. Si no encuentras ningún VIN válido, responde 'NO_ENCONTRADO'." },
+                        new { text = "Extrae el VIN vehicular de 17 caracteres de esta etiqueta. Puede estar como texto impreso encima del codigo de barras o dentro del codigo de barras. Ignora fecha, pesos, fabricante y cualquier otro numero. Responde UNICAMENTE con el VIN en mayusculas, sin espacios ni texto adicional. Un VIN no usa las letras I, O ni Q. Si no encuentras un VIN completo, responde NO_ENCONTRADO." },
                         new { inline_data = new { mime_type = request.ImagenMime, data = request.ImagenBase64 } }
                     }
                 }
@@ -454,10 +457,56 @@ public class CampoService : ICampoService
             return new ExtractVinResponse { Vin = "" };
         }
 
-        // Clean up text to match just alphanumeric
-        text = new string(text.Where(char.IsLetterOrDigit).ToArray()).ToUpper();
-        if (text.Length > 17) text = text.Substring(0, 17);
+        return new ExtractVinResponse { Vin = ExtractBestVin(text) ?? "" };
+    }
 
-        return new ExtractVinResponse { Vin = text };
+    private static string? ExtractBestVin(string value)
+    {
+        var candidates = new List<string>();
+
+        foreach (Match match in VinRegex.Matches(value.ToUpperInvariant()))
+        {
+            candidates.Add(match.Value.ToUpperInvariant());
+        }
+
+        var compact = Regex.Replace(value.ToUpperInvariant().Replace("VIN", " "), @"[^A-Z0-9]", "");
+        if (compact.StartsWith("VIN", StringComparison.Ordinal))
+        {
+            compact = compact[3..];
+        }
+
+        for (var i = 0; i <= compact.Length - 17; i++)
+        {
+            var candidate = compact.Substring(i, 17);
+            if (!candidate.Any(c => c is 'I' or 'O' or 'Q'))
+            {
+                candidates.Add(candidate);
+            }
+        }
+
+        var unique = candidates.Distinct().ToList();
+        return unique.FirstOrDefault(HasValidVinCheckDigit) ?? unique.FirstOrDefault();
+    }
+
+    private static bool HasValidVinCheckDigit(string vin)
+    {
+        var transliteration = new Dictionary<char, int>
+        {
+            ['A'] = 1, ['B'] = 2, ['C'] = 3, ['D'] = 4, ['E'] = 5, ['F'] = 6, ['G'] = 7, ['H'] = 8,
+            ['J'] = 1, ['K'] = 2, ['L'] = 3, ['M'] = 4, ['N'] = 5, ['P'] = 7, ['R'] = 9,
+            ['S'] = 2, ['T'] = 3, ['U'] = 4, ['V'] = 5, ['W'] = 6, ['X'] = 7, ['Y'] = 8, ['Z'] = 9
+        };
+        var weights = new[] { 8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2 };
+
+        var sum = 0;
+        for (var i = 0; i < vin.Length; i++)
+        {
+            var ch = vin[i];
+            var transliterated = char.IsDigit(ch) ? ch - '0' : transliteration.GetValueOrDefault(ch, 0);
+            sum += transliterated * weights[i];
+        }
+
+        var expected = sum % 11 == 10 ? 'X' : (char)('0' + (sum % 11));
+        return vin[8] == expected;
     }
 }

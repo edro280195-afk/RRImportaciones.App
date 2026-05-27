@@ -24,6 +24,10 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "zbar.wasm",
+                "input": "node_modules/@undecaf/zbar-wasm/dist"
               }
             ],
             "styles": [
