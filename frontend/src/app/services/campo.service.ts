@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 export interface TareaCampoDto {
   id: string;
   tramiteId: string | null;
+  vehiculoId: string | null;
   numeroConsecutivo: string | null;
   clienteNombre: string | null;
   vehiculoResumen: string;
@@ -58,6 +59,11 @@ export class CampoService {
     clienteNombreLibre?: string | null;
     ubicacion?: string | null;
     notasInternas?: string | null;
+    vin?: string | null;
+    marcaId?: string | null;
+    modeloId?: string | null;
+    modelo?: string | null;
+    anno?: number | null;
   }): Observable<TareaCampoDto> {
     return this.http.post<TareaCampoDto>(`${this.baseUrl}/pre-inspecciones`, request);
   }

@@ -37,8 +37,11 @@ public class CampoService : ICampoService
     {
         var query = _db.TareasCampo
             .Include(t => t.Tramite!).ThenInclude(t => t.Cliente)
-            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Marca)
-            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Modelo)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v!.Marca)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v!.Modelo)
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Cliente)
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Marca)
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Modelo)
             .Include(t => t.PersonalCampo)
             .Include(t => t.UsuarioCampo)
             .AsQueryable();
@@ -53,7 +56,7 @@ public class CampoService : ICampoService
             .ToListAsync();
 
         return tareas
-            .GroupBy(t => new { t.TramiteId, t.Tipo })
+            .GroupBy(t => new { TareaKey = t.TramiteId ?? t.Id, t.Tipo })
             .Select(g => g
                 .OrderBy(t => t.EstadoLogistico == "COMPLETADA" || t.EstadoLogistico == "CANCELADA" ? 1 : 0)
                 .ThenByDescending(t => t.FechaCreacion)
@@ -95,25 +98,54 @@ public class CampoService : ICampoService
 
     public async Task<TareaCampoDto> CrearPreInspeccionAsync(CrearPreInspeccionRequest request)
     {
-        Guid? vehiculoId = null;
+        var vin = NormalizeVin(request.Vin);
+        if (!string.IsNullOrWhiteSpace(request.Vin) && vin?.Length != 17)
+            throw new InvalidOperationException("El VIN debe tener 17 caracteres");
 
-        if (!string.IsNullOrWhiteSpace(request.Vin))
+        var modeloId = await ResolveModeloIdAsync(request.MarcaId, request.ModeloId, request.Modelo);
+        Guid? vehiculoId = null;
+        Vehiculo? vehiculo = null;
+
+        if (!string.IsNullOrWhiteSpace(vin))
         {
-            var vehiculo = new Vehiculo
+            vehiculo = await _db.Vehiculos.FirstOrDefaultAsync(v => v.Vin == vin);
+
+            if (vehiculo is null)
             {
-                Id = Guid.NewGuid(),
-                Vin = request.Vin.ToUpperInvariant(),
-                VinCorto = request.Vin.Length >= 6 ? request.Vin.Substring(request.Vin.Length - 6) : null,
-                MarcaId = request.MarcaId,
-                ModeloId = request.ModeloId,
-                Anno = request.Anno,
-                Estado = "PENDIENTE_DE_TRAMITE",
-                UbicacionActual = request.Ubicacion,
-                FechaRegistro = DateTime.UtcNow
-            };
-            _db.Vehiculos.Add(vehiculo);
+                vehiculo = new Vehiculo
+                {
+                    Id = Guid.NewGuid(),
+                    Vin = vin,
+                    VinCorto = vin.Length >= 6 ? vin[^6..] : null,
+                    MarcaId = request.MarcaId,
+                    ModeloId = modeloId,
+                    Anno = request.Anno,
+                    Estado = "PENDIENTE_DE_TRAMITE",
+                    UbicacionActual = request.Ubicacion,
+                    FechaIngresoPatio = DateTime.UtcNow,
+                    FechaRegistro = DateTime.UtcNow
+                };
+                _db.Vehiculos.Add(vehiculo);
+            }
+            else
+            {
+                vehiculo.MarcaId ??= request.MarcaId;
+                vehiculo.ModeloId ??= modeloId;
+                vehiculo.Anno ??= request.Anno;
+                vehiculo.UbicacionActual = FirstNotEmpty(request.Ubicacion, vehiculo.UbicacionActual);
+                vehiculo.FechaIngresoPatio ??= DateTime.UtcNow;
+
+                if (string.IsNullOrWhiteSpace(vehiculo.Estado))
+                    vehiculo.Estado = "PENDIENTE_DE_TRAMITE";
+            }
+
             vehiculoId = vehiculo.Id;
         }
+
+        var descripcion = FirstNotEmpty(
+            request.DescripcionVehiculo,
+            vehiculo is null ? null : BuildVehiculoResumen(vehiculo),
+            "Registro en yarda");
 
         var tarea = new TareaCampo
         {
@@ -123,7 +155,7 @@ public class CampoService : ICampoService
             Tipo = "PRE_INSPECCION",
             EstadoLogistico = "ABIERTA",
             Ubicacion = request.Ubicacion,
-            DescripcionVehiculo = request.DescripcionVehiculo,
+            DescripcionVehiculo = descripcion,
             ClienteNombreLibre = request.ClienteNombreLibre,
             Incidencia = request.NotasInternas,
             FechaCreacion = DateTime.UtcNow,
@@ -139,7 +171,9 @@ public class CampoService : ICampoService
 
     public async Task<TareaCampoDto> VincularTramiteAsync(Guid id, VincularPreInspeccionRequest request)
     {
-        var tarea = await _db.TareasCampo.FindAsync(id)
+        var tarea = await _db.TareasCampo
+            .Include(t => t.Vehiculo)
+            .FirstOrDefaultAsync(t => t.Id == id)
             ?? throw new KeyNotFoundException("Tarea de campo no encontrada");
 
         if (tarea.Tipo != "PRE_INSPECCION")
@@ -148,10 +182,37 @@ public class CampoService : ICampoService
         var tramite = await _db.Tramites.FindAsync(request.TramiteId)
             ?? throw new KeyNotFoundException("Trámite no encontrado");
 
+        if (tarea.VehiculoId.HasValue)
+        {
+            if (tramite.VehiculoId.HasValue && tramite.VehiculoId.Value != tarea.VehiculoId.Value)
+                throw new InvalidOperationException("El tramite ya tiene otro vehiculo asignado");
+
+            tramite.VehiculoId = tarea.VehiculoId;
+
+            if (tarea.Vehiculo != null)
+            {
+                if (tarea.Vehiculo.ClienteId.HasValue &&
+                    tramite.ClienteId.HasValue &&
+                    tarea.Vehiculo.ClienteId.Value != tramite.ClienteId.Value)
+                {
+                    throw new InvalidOperationException("El vehiculo ya pertenece a otro cliente");
+                }
+
+                if (!tarea.Vehiculo.ClienteId.HasValue && tramite.ClienteId.HasValue)
+                    tarea.Vehiculo.ClienteId = tramite.ClienteId;
+
+                tarea.Vehiculo.Estado = "EN_TRAMITE";
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(tramite.DescripcionMercancia))
+            tramite.DescripcionMercancia = tarea.DescripcionVehiculo;
+
         tarea.TramiteId = request.TramiteId;
         tarea.Tipo = "FOTOS_YARDA";
         await MoveEstadoIfAllowed(tramite, "FOTOS_SOLICITADAS", "Pre-inspección de campo vinculada al trámite.");
         await _db.SaveChangesAsync();
+        await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "VINCULADA");
         await _realtime.TramiteActualizadoAsync(request.TramiteId, "CAMPO_CREADO");
 
         return (await GetById(id))!;
@@ -287,8 +348,11 @@ public class CampoService : ICampoService
     {
         var tarea = await _db.TareasCampo
             .Include(t => t.Tramite!).ThenInclude(t => t.Cliente)
-            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Marca)
-            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Modelo)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v!.Marca)
+            .Include(t => t.Tramite!).ThenInclude(t => t.Vehiculo).ThenInclude(v => v!.Modelo)
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Cliente)
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Marca)
+            .Include(t => t.Vehiculo).ThenInclude(v => v!.Modelo)
             .Include(t => t.PersonalCampo)
             .Include(t => t.UsuarioCampo)
             .Where(t => t.Id == id)
@@ -360,17 +424,22 @@ public class CampoService : ICampoService
 
     private static TareaCampoDto Map(TareaCampo t)
     {
+        var vehiculo = t.Tramite?.Vehiculo ?? t.Vehiculo;
+
         return new TareaCampoDto
         {
             Id = t.Id,
             TramiteId = t.TramiteId,
+            VehiculoId = t.Tramite?.VehiculoId ?? t.VehiculoId,
             NumeroConsecutivo = t.Tramite?.NumeroConsecutivo,
-            ClienteNombre = t.Tramite?.Cliente != null ? FirstNotEmpty(t.Tramite.Cliente.NombreCompleto, t.Tramite.Cliente.Nombre, t.Tramite.Cliente.Apodo) : null,
-            VehiculoResumen = t.Tramite != null ? BuildVehiculoResumen(t.Tramite) : (t.DescripcionVehiculo ?? "Pre-inspección"),
+            ClienteNombre = t.Tramite?.Cliente != null
+                ? FirstNotEmpty(t.Tramite.Cliente.NombreCompleto, t.Tramite.Cliente.Nombre, t.Tramite.Cliente.Apodo)
+                : (t.Vehiculo?.Cliente != null ? FirstNotEmpty(t.Vehiculo.Cliente.NombreCompleto, t.Vehiculo.Cliente.Nombre, t.Vehiculo.Cliente.Apodo) : null),
+            VehiculoResumen = t.Tramite != null ? BuildVehiculoResumen(t.Tramite) : BuildPreInspeccionResumen(t),
             DescripcionVehiculo = t.DescripcionVehiculo,
             ClienteNombreLibre = t.ClienteNombreLibre,
-            Vin = t.Tramite?.Vehiculo?.Vin,
-            VinCorto = t.Tramite?.Vehiculo?.VinCorto,
+            Vin = vehiculo?.Vin,
+            VinCorto = vehiculo?.VinCorto,
             Tipo = t.Tipo,
             Estatus = t.EstadoLogistico,
             PersonalCampoId = t.TomadaPorUsuarioId ?? t.PersonalCampoId,
@@ -390,14 +459,76 @@ public class CampoService : ICampoService
     private static string BuildVehiculoResumen(Tramite tramite)
     {
         if (tramite.Vehiculo == null)
-            return tramite.DescripcionMercancia ?? "Unidad sin descripción";
+            return tramite.DescripcionMercancia ?? "Unidad sin descripcion";
 
-        return string.Join(" ", new[]
+        return BuildVehiculoResumen(tramite.Vehiculo);
+    }
+
+    private static string BuildPreInspeccionResumen(TareaCampo tarea)
+    {
+        if (tarea.Vehiculo != null)
+            return BuildVehiculoResumen(tarea.Vehiculo);
+
+        return tarea.DescripcionVehiculo ?? "Pre-inspeccion";
+    }
+
+    private static string BuildVehiculoResumen(Vehiculo vehiculo)
+    {
+        var resumen = string.Join(" ", new[]
         {
-            tramite.Vehiculo.Marca?.Nombre,
-            tramite.Vehiculo.Modelo?.Nombre,
-            tramite.Vehiculo.Anno?.ToString(),
+            vehiculo.Marca?.Nombre,
+            vehiculo.Modelo?.Nombre,
+            vehiculo.Anno?.ToString(),
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        if (!string.IsNullOrWhiteSpace(resumen))
+            return resumen;
+
+        return FirstNotEmpty(vehiculo.VinCorto, vehiculo.Vin, "Unidad sin descripcion");
+    }
+
+    private async Task<Guid?> ResolveModeloIdAsync(Guid? marcaId, Guid? modeloId, string? modeloNombre)
+    {
+        if (modeloId.HasValue)
+            return modeloId.Value;
+
+        if (!marcaId.HasValue || string.IsNullOrWhiteSpace(modeloNombre))
+            return null;
+
+        var nombre = modeloNombre.Trim();
+        var nombreUpper = nombre.ToUpper();
+        var modelo = await _db.Modelos.FirstOrDefaultAsync(m =>
+            m.MarcaId == marcaId.Value &&
+            m.Nombre.ToUpper() == nombreUpper);
+
+        if (modelo != null)
+            return modelo.Id;
+
+        modelo = new Modelo
+        {
+            Id = Guid.NewGuid(),
+            MarcaId = marcaId.Value,
+            Nombre = nombre
+        };
+
+        _db.Modelos.Add(modelo);
+        return modelo.Id;
+    }
+
+    private static string? NormalizeVin(string? vin)
+    {
+        if (string.IsNullOrWhiteSpace(vin))
+            return null;
+
+        var clean = Regex.Replace(vin.Trim().Trim('*').ToUpperInvariant(), @"[^A-HJ-NPR-Z0-9]", "");
+        var match = VinRegex.Match(clean);
+        if (match.Success)
+            return match.Value.ToUpperInvariant();
+
+        if (clean.Length > 17)
+            clean = clean[^17..];
+
+        return string.IsNullOrWhiteSpace(clean) ? null : clean;
     }
 
     private static string FirstNotEmpty(params string?[] values) => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? string.Empty;

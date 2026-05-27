@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { BrowserMultiFormatReader } from '@zxing/browser';
+import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import type { ZBarScanner, ZBarSymbol } from '@undecaf/zbar-wasm';
 import { firstValueFrom } from 'rxjs';
@@ -76,11 +76,23 @@ interface ScanRegion {
 }
 
 const VIN_REGEX = /[A-HJ-NPR-Z0-9]{17}/gi;
-const NATIVE_FORMATS = ['code_39', 'code_93', 'code_128', 'pdf417', 'qr_code'];
+const NATIVE_FORMATS = [
+  'code_39',
+  'code_93',
+  'code_128',
+  'ean_13',
+  'ean_8',
+  'data_matrix',
+  'pdf417',
+  'qr_code',
+];
 const ZXING_FORMATS = [
   BarcodeFormat.CODE_39,
   BarcodeFormat.CODE_93,
   BarcodeFormat.CODE_128,
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.DATA_MATRIX,
   BarcodeFormat.PDF_417,
   BarcodeFormat.QR_CODE,
 ];
@@ -93,8 +105,8 @@ export class VinScannerService {
   buildVideoConstraints(facingMode: FacingMode = 'environment'): MediaTrackConstraints {
     return {
       facingMode: { ideal: facingMode },
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
+      width: { ideal: 1280, max: 1920 },
+      height: { ideal: 720, max: 1080 },
       frameRate: { ideal: 30, max: 30 },
     };
   }
@@ -143,11 +155,6 @@ export class VinScannerService {
       advanced.push({ whiteBalanceMode: 'continuous' });
     }
 
-    const zoom = this.recommendedZoom(capabilities);
-    if (zoom !== null) {
-      advanced.push({ zoom });
-    }
-
     if (advanced.length === 0) return;
 
     try {
@@ -179,13 +186,17 @@ export class VinScannerService {
 
   async startVinScan(options: StartVinScanOptions): Promise<VinScanSession> {
     const reader = this.createReader();
+    const cropReader = this.createReader();
     const detector = await this.createNativeDetector();
     const zbarDetectorPromise = this.getZbarDetector();
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
     let stopped = false;
-    let timeoutId = 0;
+    let nativeTimeoutId = 0;
+    let enhancedTimeoutId = 0;
+    let visionTimeoutId = 0;
+    let zxingControls: IScannerControls | null = null;
     let attempt = 0;
     let zbarReady = false;
     let zbarDetector: BarcodeDetectorInstance | null = null;
@@ -195,7 +206,10 @@ export class VinScannerService {
 
     const stop = () => {
       stopped = true;
-      window.clearTimeout(timeoutId);
+      zxingControls?.stop();
+      window.clearTimeout(nativeTimeoutId);
+      window.clearTimeout(enhancedTimeoutId);
+      window.clearTimeout(visionTimeoutId);
       canvas.width = 0;
       canvas.height = 0;
     };
@@ -231,7 +245,25 @@ export class VinScannerService {
       }
     };
 
-    const scan = async () => {
+    const scanNativeVideo = async () => {
+      if (stopped) return;
+
+      try {
+        if (detector) {
+          const detections = await detector.detect(options.video);
+          if (stopped) return;
+          for (const detection of detections) {
+            if (emitIfVin(detection.rawValue)) return;
+          }
+        }
+      } catch {
+        // El detector nativo puede fallar mientras enfoca; ZXing sigue leyendo.
+      }
+
+      nativeTimeoutId = window.setTimeout(scanNativeVideo, 220);
+    };
+
+    const scanEnhancedFrames = async () => {
       if (stopped) return;
 
       try {
@@ -268,18 +300,38 @@ export class VinScannerService {
           }
 
           if (stopped) return;
-          const result = reader.decodeFromCanvas(canvas);
+          const result = cropReader.decodeFromCanvas(canvas);
           if (emitIfVin(result.getText())) return;
         }
       } catch {
         // Un fallo por cuadro es normal mientras el usuario esta enfocando.
       }
 
-      void tryVision();
-      timeoutId = window.setTimeout(scan, 90);
+      enhancedTimeoutId = window.setTimeout(scanEnhancedFrames, 260);
     };
 
-    timeoutId = window.setTimeout(scan, 80);
+    const scanVision = () => {
+      if (stopped) return;
+      void tryVision();
+      visionTimeoutId = window.setTimeout(scanVision, 700);
+    };
+
+    void reader
+      .decodeFromVideoElement(options.video, (result, _error, controls) => {
+        zxingControls = controls;
+        if (stopped || !result) return;
+        emitIfVin(result.getText());
+      })
+      .then(controls => {
+        zxingControls = controls;
+        if (stopped) controls.stop();
+      })
+      .catch(() => undefined);
+
+    nativeTimeoutId = window.setTimeout(scanNativeVideo, 120);
+    enhancedTimeoutId = window.setTimeout(scanEnhancedFrames, 240);
+    visionTimeoutId = window.setTimeout(scanVision, 700);
+
     return { stop };
   }
 
@@ -375,6 +427,8 @@ export class VinScannerService {
         module.ZBarSymbolType.ZBAR_CODE39,
         module.ZBarSymbolType.ZBAR_CODE93,
         module.ZBarSymbolType.ZBAR_CODE128,
+        module.ZBarSymbolType.ZBAR_EAN13,
+        module.ZBarSymbolType.ZBAR_EAN8,
         module.ZBarSymbolType.ZBAR_PDF417,
         module.ZBarSymbolType.ZBAR_QRCODE,
       ];
@@ -464,13 +518,6 @@ export class VinScannerService {
     }
 
     context.putImageData(image, 0, 0);
-  }
-
-  private recommendedZoom(capabilities: MediaTrackCapabilitiesExtended): number | null {
-    const min = capabilities.zoom?.min;
-    const max = capabilities.zoom?.max;
-    if (typeof min !== 'number' || typeof max !== 'number' || max <= 1) return null;
-    return Math.min(max, Math.max(min, 1.8));
   }
 
   private collectCandidates(value: string): string[] {

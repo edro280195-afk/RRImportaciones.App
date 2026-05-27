@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CampoService } from '../../services/campo.service';
 import { NotificationService } from '../../services/notification.service';
-import { MarcaService } from '../../services/marca.service';
+import { MarcaDto, MarcaService } from '../../services/marca.service';
 import { CotizacionService } from '../../services/cotizacion.service';
 import { VinScannerService, VinScanSession } from '../../services/vin-scanner.service';
 import { firstValueFrom } from 'rxjs';
@@ -73,7 +73,7 @@ import { firstValueFrom } from 'rxjs';
 
           <div class="sheet-actions">
             <button type="button" class="sheet-cancel" (click)="close.emit()" [disabled]="saving()">Cancelar</button>
-            <button type="submit" class="sheet-confirm" [disabled]="saving() || !vin()">
+            <button type="submit" class="sheet-confirm" [disabled]="saving() || vin().length !== 17">
               {{ saving() ? 'Guardando...' : 'Registrar' }}
             </button>
           </div>
@@ -369,7 +369,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
   private vinScanner = inject(VinScannerService);
 
   saving = signal(false);
-  marcas = signal<any[]>([]);
+  marcas = signal<MarcaDto[]>([]);
 
   vin = signal('');
   marcaId = signal<string | null>(null);
@@ -519,7 +519,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
         ? this.vinScanner.extractVin(res.vin) ?? this.vinScanner.normalizeVinInput(res.vin)
         : '';
 
-      if (detectedVin && detectedVin.length >= 10) {
+      if (detectedVin && detectedVin.length === 17) {
         this.notifications.success('VIN extraído con IA: ' + detectedVin);
         this.vin.set(detectedVin);
         this.decodeVin(detectedVin);
@@ -561,6 +561,10 @@ export class CampoRegistroModalComponent implements OnDestroy {
       this.notifications.warning('El VIN es obligatorio');
       return;
     }
+    if (this.vin().length !== 17) {
+      this.notifications.warning('El VIN debe tener 17 caracteres');
+      return;
+    }
     if (!this.clienteNombreLibre() && !confirm('No has asignado un cliente. ¿Deseas continuar?')) {
       return;
     }
@@ -574,7 +578,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
       ubicacion: this.ubicacion() || undefined,
       clienteNombreLibre: this.clienteNombreLibre() || undefined,
       descripcionVehiculo: this.descripcionVehiculo() || 'Registro en yarda',
-    } as any).subscribe({
+    }).subscribe({
       next: () => {
         this.notifications.success('Vehículo registrado');
         this.saving.set(false);
