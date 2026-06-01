@@ -49,7 +49,7 @@ static async Task<int> ImportTramitesAsync(string[] args)
         return 1;
     }
 
-    var connectionString = GetConnectionString();
+    var connectionString = GetConnectionString(args);
     var tenantContext = new TenantContext();
     tenantContext.SetTenant(tenantId);
     var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).Options;
@@ -96,7 +96,7 @@ static async Task<int> ImportTabuladoresAsync(string[] args)
     }
 
     var tenantContext = new TenantContext();
-    var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(GetConnectionString()).Options;
+    var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(GetConnectionString(args)).Options;
     await using var db = new AppDbContext(options, tenantContext);
 
     using var workbook = new XLWorkbook(file);
@@ -147,7 +147,7 @@ static async Task<int> ImportAnexo2Async(string[] args)
     }
 
     var tenantContext = new TenantContext();
-    var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(GetConnectionString()).Options;
+    var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(GetConnectionString(args)).Options;
     await using var db = new AppDbContext(options, tenantContext);
 
     var oldPrices = await db.PreciosEstimados.Include(x => x.PreciosPorAntiguedad).ToListAsync();
@@ -872,8 +872,12 @@ static string? ReadArg(string[] args, string name)
     return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
 }
 
-static string GetConnectionString()
+static string GetConnectionString(string[] args)
 {
+    var connStr = ReadArg(args, "--connection-string");
+    if (!string.IsNullOrWhiteSpace(connStr))
+        return connStr.Trim();
+
     var candidates = new[]
     {
         Path.Combine(AppContext.BaseDirectory, "appsettings.json"),
@@ -900,9 +904,9 @@ static string GetConnectionString()
 static void PrintUsage()
 {
     Console.WriteLine("Uso:");
-    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-tramites --file \"ruta.xlsx\" --tenant \"tenant-guid\" [--dry-run]");
-    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-tabuladores --file \"ruta/al/TABULADOR_2026.xlsx\"");
-    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-anexo2 --file \"ruta/al/anexo2_catalogo.pdf\"");
+    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-tramites --file \"ruta.xlsx\" --tenant \"tenant-guid\" [--dry-run] [--connection-string \"...\"]");
+    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-tabuladores --file \"ruta/al/TABULADOR_2026.xlsx\" [--connection-string \"...\"]");
+    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-anexo2 --file \"ruta/al/anexo2_catalogo.pdf\" [--connection-string \"...\"]");
 }
 
 file sealed record PdfLine(double Y, IReadOnlyList<Word> Words);

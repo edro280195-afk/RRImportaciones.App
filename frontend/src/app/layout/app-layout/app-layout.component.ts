@@ -12,6 +12,7 @@ import {
   FotosSolicitadasEvent,
 } from '../../services/realtime.service';
 import { AuthService } from '../../services/auth.service';
+import { PushNotificationService } from '../../services/push-notification.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -393,6 +394,7 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
   private realtime = inject(RealtimeService);
   private router = inject(Router);
   private auth = inject(AuthService);
+  private push = inject(PushNotificationService);
   private notifSub?: Subscription;
   private pinResetSub?: Subscription;
   private authSub?: Subscription;
@@ -458,6 +460,9 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
       this.auth.clearSession();
       void this.router.navigateByUrl('/login?session=expired', { replaceUrl: true });
     });
+
+    // Suscribir a push notifications (admin). Best-effort; si el navegador no soporta o el usuario rechaza, sigue funcionando todo lo demás.
+    void this.push.subscribe('admin');
   }
 
   ngOnDestroy(): void {

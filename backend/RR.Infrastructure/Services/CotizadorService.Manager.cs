@@ -145,7 +145,9 @@ public partial class CotizadorService
             TipoVehiculo = entity.Categoria,
             ValorAduanaUsdOverride = entity.FuentePrecio == "OVERRIDE" ? entity.ValorAduanaUsd : null,
             PrecioEstimadoIdOverride = entity.PrecioEstimadoSeleccionadoId,
-            TcMargen = (entity.TipoCambioAplicado ?? 0m) - (entity.TipoCambioReferencia ?? 0m),
+            TcMargen = (entity.TipoCambioAplicado.HasValue && entity.TipoCambioReferencia.HasValue)
+                ? entity.TipoCambioAplicado.Value - entity.TipoCambioReferencia.Value
+                : 0.30m,
             TipoTramite = (entity.CargoExpress ?? 0m) > 0m ? "EXPRESS" : "NORMAL",
             HonorariosOverride = entity.TotalHonorarios,
             CategoriaAmparoOverride = entity.CategoriaAmparoSeleccionada,
@@ -350,6 +352,10 @@ public partial class CotizadorService
     public async Task MarcarEnviadaAsync(Guid id, MarcarEnviadaRequest request)
     {
         var c = await GetEntityAsync(id);
+        if (!string.Equals(c.EstadoLogistico, "BORRADOR", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(c.EstadoLogistico, "ENVIADA", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"No se puede marcar como enviada una cotizacion en estado {c.EstadoLogistico}. Solo se permite desde BORRADOR o ENVIADA.");
+
         c.EstadoLogistico = "ENVIADA";
         c.FechaEnvio = DateTime.UtcNow;
         c.EnviadoPor = request.EnviadoPor;
@@ -361,6 +367,9 @@ public partial class CotizadorService
     public async Task AceptarAsync(Guid id)
     {
         var c = await GetEntityAsync(id);
+        if (!string.Equals(c.EstadoLogistico, "ENVIADA", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"No se puede aceptar una cotizacion en estado {c.EstadoLogistico}. Primero debe ser enviada al cliente.");
+
         c.EstadoLogistico = "ACEPTADA";
         c.FechaModificacion = DateTime.UtcNow;
         await _db.SaveChangesAsync();
@@ -369,6 +378,9 @@ public partial class CotizadorService
     public async Task RechazarAsync(Guid id, string motivo)
     {
         var c = await GetEntityAsync(id);
+        if (!string.Equals(c.EstadoLogistico, "ENVIADA", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"No se puede rechazar una cotizacion en estado {c.EstadoLogistico}. Primero debe ser enviada al cliente.");
+
         c.EstadoLogistico = "RECHAZADA";
         c.MotivoRechazo = motivo;
         c.FechaModificacion = DateTime.UtcNow;

@@ -1,0 +1,75 @@
+========================================
+CONFIGURACIÓN DE VARIABLES DE AMBIENTE
+R&R Importaciones - Render Deployment
+========================================
+
+Copia estas variables en el panel de Render:
+Environment Variables → Add Environment Variable
+
+========== SECCIÓN: VAPID (Web Push Notifications) ==========
+
+VapidDetails__Subject=mailto:sinaloar5@gmail.com
+
+VapidDetails__PublicKey=BOqMbFw0OZ59ij7zpQTEni2eYI5W0j6990f7ibKQ8UEK6Vw1KlS8EUv8UvPWCOwGWZ9VFc4NJk5jvI_j6Wn8BKI
+
+VapidDetails__PrivateKey=E4xE02HhkRKDwyJU1Mpp19pRRD-S2VSuWdeOqdqWCPk
+
+
+========== SECCIÓN: URL Base ==========
+
+AppBaseUrl=https://rrimportaciones.onrender.com
+
+
+========== SECCIÓN: WhatsApp (Twilio - Sandbox) ==========
+
+WhatsApp__Provider=Twilio
+
+WhatsApp__Twilio__AccountSid=YOUR_TWILIO_ACCOUNT_SID
+
+WhatsApp__Twilio__AuthToken=YOUR_TWILIO_AUTH_TOKEN
+
+WhatsApp__Twilio__FromNumber=+14155552671
+
+WhatsApp__AdminsGroupNumbers=+34123456789,+34987654321
+
+
+========== SECCIÓN: Base de Datos (si aplica) ==========
+
+DefaultConnection=Server=YOUR_DB_SERVER;Database=RRImportaciones;User Id=YOUR_USER;Password=YOUR_PASSWORD;
+
+(O si usas PostgreSQL:)
+DefaultConnection=Host=YOUR_DB_HOST;Database=RRImportaciones;Username=YOUR_USER;Password=YOUR_PASSWORD;
+
+
+========== SECCIÓN: Otros ==========
+
+ASPNETCORE_ENVIRONMENT=Production
+
+ASPNETCORE_URLS=http://+:10000
+
+
+========== NOTAS ==========
+
+1. VAPID - Valores ya generados y listos para copiar
+   - Las claves VAPID son globales para la app
+   - El Subject debe ser un email válido (usado para contactarte si hay problemas)
+
+2. WhatsApp - Requiere cambios:
+   - AccountSid: obtener de https://www.twilio.com/console
+   - AuthToken: obtener de https://www.twilio.com/console
+   - FromNumber: es el número Twilio assignado (por defecto sandbox: +14155552671)
+   - AdminsGroupNumbers: reemplazar con teléfonos reales separados por coma
+
+3. URL Base - Verificar:
+   - Si tu Render app tiene custom domain, cambiar a ese domain
+   - Sino, Render asigna automático: YOUR_APP_NAME.onrender.com
+
+4. Base de Datos:
+   - Reemplazar valores YOUR_* según tu servidor
+   - Si es Railway, Vercel Postgres, etc., copiar connection string tal cual
+
+5. puerto HTTP:
+   - Render requiere escuchar en puerto 10000 por defecto
+   - Cambiar solo si Render lo especifica diferente
+
+========================================

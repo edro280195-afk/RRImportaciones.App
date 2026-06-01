@@ -58,6 +58,8 @@ public class AppDbContext : DbContext
     public DbSet<ConversacionNexus> ConversacionesNexus => Set<ConversacionNexus>();
     public DbSet<MensajeNexus> MensajesNexus => Set<MensajeNexus>();
     public DbSet<TareaEntrega> TareasEntrega => Set<TareaEntrega>();
+    public DbSet<WhatsAppMessage> WhatsAppMessages => Set<WhatsAppMessage>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -391,6 +393,37 @@ public class AppDbContext : DbContext
             e.Property(x => x.Aliases).HasColumnType("text[]");
             e.Property(x => x.Tipo).HasMaxLength(30).HasDefaultValue("OTRO");
             e.Property(x => x.Notas).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<PushSubscription>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Endpoint).HasMaxLength(2048).IsRequired();
+            e.Property(x => x.P256dh).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Auth).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Role).HasMaxLength(20).HasDefaultValue("admin");
+            e.Property(x => x.UserAgent).HasMaxLength(500);
+            e.HasIndex(x => x.Endpoint).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Role });
+            e.HasIndex(x => new { x.TenantId, x.UserId });
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
+        });
+
+        modelBuilder.Entity<WhatsAppMessage>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.To).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Template).HasMaxLength(60).IsRequired();
+            e.Property(x => x.Body).HasMaxLength(2000).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("PENDING");
+            e.Property(x => x.ExternalId).HasMaxLength(100);
+            e.Property(x => x.Error).HasMaxLength(1000);
+            e.HasIndex(x => new { x.TenantId, x.Status });
+            e.HasIndex(x => x.CreatedAt);
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
+            e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
         });
 
         modelBuilder.Entity<Banco>(e =>

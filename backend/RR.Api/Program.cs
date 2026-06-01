@@ -115,6 +115,9 @@ builder.Services.AddScoped<IReporteService, ReporteService>();
 builder.Services.AddScoped<IPedimentoService, PedimentoService>();
 builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
 builder.Services.AddScoped<ICatalogoPreciosService, CatalogoPreciosService>();
+builder.Services.AddHttpClient("twilio");
+builder.Services.AddScoped<IWhatsAppService, RR.Infrastructure.Services.WhatsApp.TwilioWhatsAppService>();
+builder.Services.AddScoped<IPushNotificationService, RR.Infrastructure.Services.Push.WebPushNotificationService>();
 builder.Services.AddSingleton<IPortalAccessService, PortalAccessService>();
 
 // Rodri tools — consultas generales
@@ -197,6 +200,7 @@ var backendRoot = Directory.GetParent(app.Environment.ContentRootPath)?.FullName
 var storageRoot = Path.Combine(backendRoot, "storage");
 Directory.CreateDirectory(Path.Combine(storageRoot, "comprobantes"));
 Directory.CreateDirectory(Path.Combine(storageRoot, "public", "cotizaciones"));
+Directory.CreateDirectory(Path.Combine(storageRoot, "public", "lotes"));
 Directory.CreateDirectory(Path.Combine(storageRoot, "public", "pagos", "recibos"));
 Directory.CreateDirectory(Path.Combine(storageRoot, "campo"));
 app.UseStaticFiles(new StaticFileOptions

@@ -77,3 +77,50 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// ── Web Push: notificaciones aún con la PWA cerrada ──────────────────────
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { title: 'R&R Importaciones', body: event.data ? event.data.text() : '' };
+  }
+
+  const title = data.title || 'R&R Importaciones';
+  const options = {
+    body: data.body || '',
+    icon: '/icons/campo-192.png',
+    badge: '/icons/campo-192.png',
+    tag: data.tag || 'rr-notification',
+    data: { url: data.url || '/' },
+    vibrate: [120, 60, 120],
+    renotify: true,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Si ya hay una pestaña abierta de la app, enfócala y navega
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          if ('navigate' in client) {
+            try { client.navigate(targetUrl); } catch (e) { /* ignore */ }
+          }
+          return;
+        }
+      }
+      // Si no hay ninguna, abre una nueva
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

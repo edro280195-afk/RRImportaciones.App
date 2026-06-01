@@ -18,19 +18,25 @@ public class CampoService : ICampoService
     private readonly IRealtimeNotifier _realtime;
     private readonly IEmailService _email;
     private readonly IConfiguration _configuration;
+    private readonly IWhatsAppService _whatsapp;
+    private readonly IPushNotificationService _push;
 
     public CampoService(
         AppDbContext db,
         ICurrentUserService currentUser,
         IRealtimeNotifier realtime,
         IEmailService email,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IWhatsAppService whatsapp,
+        IPushNotificationService push)
     {
         _db = db;
         _currentUser = currentUser;
         _realtime = realtime;
         _email = email;
         _configuration = configuration;
+        _whatsapp = whatsapp;
+        _push = push;
     }
 
     public async Task<List<TareaCampoDto>> GetTareasAsync(string? EstadoLogistico)
@@ -207,6 +213,21 @@ public class CampoService : ICampoService
             operadorNombre,
             (tarea.FotosUrls ?? Array.Empty<string>()).Length);
 
+        // WhatsApp a admins (best-effort, no bloquea ni revierte si falla)
+        _ = _whatsapp.EnviarPreInspeccionAdminsAsync(
+            tarea.Id,
+            resumenPreInsp,
+            vin,
+            operadorNombre,
+            clienteNombre);
+
+        // Push notification a admins (best-effort)
+        _ = _push.SendToAdminsAsync(
+            "Pre-inspección nueva en yarda",
+            $"{operadorNombre} capturó {resumenPreInsp}" + (vin != null ? $" — VIN {vin}" : ""),
+            "/campo/bandeja-admin",
+            "pre-inspeccion-" + tarea.Id);
+
         return (await GetById(tarea.Id))!;
     }
 
@@ -260,6 +281,14 @@ public class CampoService : ICampoService
             mensaje);
 
         await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "FOTOS_SOLICITADAS");
+
+        // Push al yardero (puede llegar aún con la PWA cerrada)
+        _ = _push.SendToUserAsync(
+            operadorUserId,
+            "Admin pide más fotos",
+            $"{vehiculoResumen} — {mensaje}",
+            "/campo",
+            "solicitud-fotos-" + tarea.Id);
 
         return (await GetById(id))!;
     }

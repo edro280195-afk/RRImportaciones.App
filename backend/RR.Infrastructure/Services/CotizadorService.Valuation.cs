@@ -131,8 +131,17 @@ public partial class CotizadorService
         if (brandFallback is not null)
             return BuildPriceLookup(brandFallback, antiguedad, "MARCA", 20, "No hubo match de modelo; se usó referencia de la misma marca.");
 
-        var generic = preciosPrimaria.FirstOrDefault(x => x.EsGenerico)
-            ?? precios.FirstOrDefault(x => x.EsGenerico);
+        var incisoBuscado = InferirIncisoDesdeCategoria(categoria);
+        var generic = preciosPrimaria
+                .Where(x => x.EsGenerico)
+                .Where(x => incisoBuscado is null || string.Equals(x.Inciso, incisoBuscado, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(x.Inciso))
+                .OrderBy(x => string.IsNullOrWhiteSpace(x.Inciso) ? 1 : 0)
+                .FirstOrDefault()
+            ?? precios
+                .Where(x => x.EsGenerico)
+                .Where(x => incisoBuscado is null || string.Equals(x.Inciso, incisoBuscado, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(x.Inciso))
+                .OrderBy(x => string.IsNullOrWhiteSpace(x.Inciso) ? 1 : 0)
+                .FirstOrDefault();
 
         return generic is null
             ? null

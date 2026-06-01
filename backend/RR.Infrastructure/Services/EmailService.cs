@@ -42,6 +42,12 @@ public class EmailService : IEmailService
             .FirstOrDefaultAsync(x => x.Id == cotizacionId)
             ?? throw new KeyNotFoundException("Cotizacion no encontrada");
 
+        if (string.Equals(cotizacion.EstadoLogistico, "ACEPTADA", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(cotizacion.EstadoLogistico, "RECHAZADA", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(cotizacion.EstadoLogistico, "CONVERTIDA", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(cotizacion.EstadoLogistico, "EXPIRADA", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"No se puede enviar por email una cotizacion en estado {cotizacion.EstadoLogistico}.");
+
         var settings = LoadSettings();
         var template = await _plantillas.GetOrCreateDefaultAsync("COTIZACION_EMAIL");
         var variables = PlantillaMensajeService.BuildVariables(cotizacion, mensajePersonalizado: mensajePersonalizado);

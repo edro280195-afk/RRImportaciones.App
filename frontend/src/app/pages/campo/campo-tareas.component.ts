@@ -5,6 +5,7 @@ import { CampoService, TareaCampoDto } from '../../services/campo.service';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
+import { PushNotificationService } from '../../services/push-notification.service';
 import { CampoRegistroModalComponent } from './campo-registro-modal.component';
 
 @Component({
@@ -931,6 +932,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   private notifications = inject(NotificationService);
   private router = inject(Router);
   private realtime = inject(RealtimeService);
+  private push = inject(PushNotificationService);
   private sub?: Subscription;
 
   tareas = signal<TareaCampoDto[]>([]);
@@ -968,6 +970,9 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
     this.load();
     this.realtime.start();
     this.sub = this.realtime.campoActualizado$.subscribe(() => this.load());
+
+    // Suscribir a push notifications con rol "campo" (yardero recibe alertas aún con la PWA cerrada)
+    void this.push.subscribe('campo');
   }
 
   ngOnDestroy(): void {
