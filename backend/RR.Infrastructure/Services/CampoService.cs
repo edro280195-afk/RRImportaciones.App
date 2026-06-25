@@ -190,7 +190,8 @@ public class CampoService : ICampoService
 
         _db.TareasCampo.Add(tarea);
         await _db.SaveChangesAsync();
-        await _realtime.CampoActualizadoAsync(tarea.Id, null, "CREADA");
+        await RunBestEffortAsync(() => _realtime.CampoActualizadoAsync(tarea.Id, null, "CREADA"));
+        var dto = (await GetById(tarea.Id))!;
 
         // Notificación específica a admins con resumen del operador para mostrar toast/bell.
         var operadorUserId = _currentUser.UserId;
@@ -203,7 +204,7 @@ public class CampoService : ICampoService
 
         var resumenPreInsp = vehiculo != null ? BuildVehiculoResumen(vehiculo) : (descripcion ?? "Pre-inspección");
 
-        _ = _realtime.PreInspeccionCreadaAsync(
+        await RunBestEffortAsync(() => _realtime.PreInspeccionCreadaAsync(
             tarea.Id,
             vehiculoId,
             resumenPreInsp,
@@ -211,24 +212,24 @@ public class CampoService : ICampoService
             request.Ubicacion,
             clienteNombre,
             operadorNombre,
-            (tarea.FotosUrls ?? Array.Empty<string>()).Length);
+            (tarea.FotosUrls ?? Array.Empty<string>()).Length));
 
         // WhatsApp a admins (best-effort, no bloquea ni revierte si falla)
-        _ = _whatsapp.EnviarPreInspeccionAdminsAsync(
+        await RunBestEffortAsync(() => _whatsapp.EnviarPreInspeccionAdminsAsync(
             tarea.Id,
             resumenPreInsp,
             vin,
             operadorNombre,
-            clienteNombre);
+            clienteNombre));
 
         // Push notification a admins (best-effort)
-        _ = _push.SendToAdminsAsync(
+        await RunBestEffortAsync(() => _push.SendToAdminsAsync(
             "Pre-inspección nueva en yarda",
             $"{operadorNombre} capturó {resumenPreInsp}" + (vin != null ? $" — VIN {vin}" : ""),
             "/campo/bandeja-admin",
-            "pre-inspeccion-" + tarea.Id);
+            "pre-inspeccion-" + tarea.Id));
 
-        return (await GetById(tarea.Id))!;
+        return dto;
     }
 
     public async Task<TareaCampoDto> SolicitarFotosAdicionalesAsync(Guid id, SolicitarFotosAdicionalesRequest request)
@@ -283,12 +284,12 @@ public class CampoService : ICampoService
         await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "FOTOS_SOLICITADAS");
 
         // Push al yardero (puede llegar aún con la PWA cerrada)
-        _ = _push.SendToUserAsync(
+        await RunBestEffortAsync(() => _push.SendToUserAsync(
             operadorUserId,
             "Admin pide más fotos",
             $"{vehiculoResumen} — {mensaje}",
             "/campo",
-            "solicitud-fotos-" + tarea.Id);
+            "solicitud-fotos-" + tarea.Id));
 
         return (await GetById(id))!;
     }
@@ -516,6 +517,53 @@ public class CampoService : ICampoService
         return (await GetById(id))!;
     }
 
+    public async Task<TareaCampoDto> EliminarFotoAsync(Guid id, EliminarFotoCampoRequest request)
+    {
+        var fotoUrl = request.FotoUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(fotoUrl))
+            throw new InvalidOperationException("La foto es obligatoria");
+
+        var tarea = await _db.TareasCampo
+            .Include(t => t.Tramite)
+            .FirstOrDefaultAsync(t => t.Id == id)
+            ?? throw new KeyNotFoundException("Tarea de campo no encontrada");
+
+        var fotos = (tarea.FotosUrls ?? Array.Empty<string>()).ToList();
+        if (!fotos.Remove(fotoUrl))
+            throw new KeyNotFoundException("Foto no encontrada en la tarea");
+
+        tarea.FotosUrls = fotos.ToArray();
+
+        var vehiculoId = tarea.VehiculoId ?? tarea.Tramite?.VehiculoId;
+        if (vehiculoId.HasValue)
+        {
+            var vehiculo = await _db.Vehiculos.FindAsync(vehiculoId.Value);
+            if (vehiculo != null)
+            {
+                var vehiculoFotos = (vehiculo.FotosUrls ?? Array.Empty<string>()).ToList();
+                if (vehiculoFotos.Remove(fotoUrl))
+                    vehiculo.FotosUrls = vehiculoFotos.ToArray();
+            }
+        }
+
+        if (tarea.TramiteId.HasValue)
+        {
+            _db.Eventos.Add(new Evento
+            {
+                Id = Guid.NewGuid(),
+                TramiteId = tarea.TramiteId.Value,
+                Tipo = "CAMPO",
+                Contenido = "Foto de campo eliminada por administrador.",
+                FechaEvento = DateTime.UtcNow,
+                CreadoPor = _currentUser.UserId ?? Guid.Empty,
+            });
+        }
+
+        await _db.SaveChangesAsync();
+        await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "FOTO_ELIMINADA");
+        return (await GetById(id))!;
+    }
+
     public async Task<TareaCampoDto> DescartarAsync(Guid id, DescartarTareaCampoRequest request)
     {
         var tarea = await _db.TareasCampo.FindAsync(id)
@@ -731,6 +779,19 @@ public class CampoService : ICampoService
         if (user is null) return null;
         return string.Join(" ", new[] { user.Nombre, user.Apellidos }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
     }
+
+    private static async Task RunBestEffortAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch
+        {
+            // Las notificaciones no deben revertir una captura ya guardada.
+        }
+    }
+
     public async Task<ExtractVinResponse> ExtractVinFromImageAsync(ExtractVinRequest request)
     {
         var apiKey = _configuration["GeminiApiKey"];

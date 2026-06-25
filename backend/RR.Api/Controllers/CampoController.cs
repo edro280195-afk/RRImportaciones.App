@@ -52,7 +52,18 @@ public class CampoController : ControllerBase
     [HttpPost("pre-inspecciones")]
     public async Task<IActionResult> CrearPreInspeccion([FromBody] CrearPreInspeccionRequest request)
     {
-        return Ok(await _campoService.CrearPreInspeccionAsync(request));
+        try
+        {
+            return Ok(await _campoService.CrearPreInspeccionAsync(request));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("tareas/{id:guid}/vincular")]
@@ -129,6 +140,25 @@ public class CampoController : ControllerBase
             return NotFound(new { message = ex.Message });
         }
     }
+
+    [HttpDelete("tareas/{id:guid}/fotos")]
+    [Authorize(Roles = "ADMIN")]
+    public async Task<IActionResult> DeleteFoto(Guid id, [FromBody] EliminarFotoCampoRequest request)
+    {
+        try
+        {
+            return Ok(await _campoService.EliminarFotoAsync(id, request));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("extract-vin")]
     public async Task<IActionResult> ExtractVin([FromBody] ExtractVinRequest request)
     {

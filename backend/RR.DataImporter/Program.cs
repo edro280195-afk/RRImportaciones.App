@@ -140,6 +140,7 @@ static async Task<int> ImportTabuladoresAsync(string[] args)
 static async Task<int> ImportAnexo2Async(string[] args)
 {
     var file = ReadArg(args, "--file");
+    var genericsOnly = args.Contains("--generics-only", StringComparer.OrdinalIgnoreCase);
     if (string.IsNullOrWhiteSpace(file) || !File.Exists(file))
     {
         Console.WriteLine("Falta archivo válido: --file \"ruta/al/anexo2_catalogo.pdf\"");
@@ -150,10 +151,18 @@ static async Task<int> ImportAnexo2Async(string[] args)
     var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(GetConnectionString(args)).Options;
     await using var db = new AppDbContext(options, tenantContext);
 
-    var oldPrices = await db.PreciosEstimados.Include(x => x.PreciosPorAntiguedad).ToListAsync();
-    db.PreciosPorAntiguedad.RemoveRange(oldPrices.SelectMany(x => x.PreciosPorAntiguedad));
-    db.PreciosEstimados.RemoveRange(oldPrices);
-    await db.SaveChangesAsync();
+    if (!genericsOnly)
+    {
+        var oldPrices = await db.PreciosEstimados.Include(x => x.PreciosPorAntiguedad).ToListAsync();
+        db.PreciosPorAntiguedad.RemoveRange(oldPrices.SelectMany(x => x.PreciosPorAntiguedad));
+        db.PreciosEstimados.RemoveRange(oldPrices);
+        await db.SaveChangesAsync();
+        Console.WriteLine("Modo completo: datos existentes eliminados.");
+    }
+    else
+    {
+        Console.WriteLine("Modo solo-genéricos: no se borrarán datos existentes.");
+    }
 
     var knownBrands = await LoadKnownBrandsAsync(db);
     var marcaCache = await LoadMarcaCacheAsync(db);
@@ -214,6 +223,10 @@ static async Task<int> ImportAnexo2Async(string[] args)
             }
 
             var isGeneric = IsGenericPriceLine(line);
+
+            if (genericsOnly && !isGeneric)
+                continue;
+
             var modelText = isGeneric
                 ? GenericModelText(currentInciso)
                 : ExtractPdfModelText(line);
@@ -906,7 +919,7 @@ static void PrintUsage()
     Console.WriteLine("Uso:");
     Console.WriteLine("  dotnet run --project RR.DataImporter -- import-tramites --file \"ruta.xlsx\" --tenant \"tenant-guid\" [--dry-run] [--connection-string \"...\"]");
     Console.WriteLine("  dotnet run --project RR.DataImporter -- import-tabuladores --file \"ruta/al/TABULADOR_2026.xlsx\" [--connection-string \"...\"]");
-    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-anexo2 --file \"ruta/al/anexo2_catalogo.pdf\" [--connection-string \"...\"]");
+    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-anexo2 --file \"ruta/al/anexo2_catalogo.pdf\" [--generics-only] [--connection-string \"...\"]");
 }
 
 file sealed record PdfLine(double Y, IReadOnlyList<Word> Words);

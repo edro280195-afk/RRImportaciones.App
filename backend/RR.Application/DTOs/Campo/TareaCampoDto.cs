@@ -80,6 +80,11 @@ public class DescartarTareaCampoRequest
     public string? Motivo { get; set; }
 }
 
+public class EliminarFotoCampoRequest
+{
+    public string FotoUrl { get; set; } = string.Empty;
+}
+
 public class BandejaCampoAdminFilters
 {
     public DateTime? Desde { get; set; }

@@ -112,9 +112,18 @@ import {
             @if (c.estado !== 'ACEPTADA' && c.estado !== 'CONVERTIDA' && c.estado !== 'RECHAZADA') {
               <button
                 (click)="aceptar()"
-                class="rounded-xl bg-[#DCFCE7] px-4 py-2 text-[13px] font-semibold text-[#166534]"
+                [disabled]="accepting() || sending() || converting()"
+                class="inline-flex items-center gap-1.5 rounded-xl bg-[#DCFCE7] px-4 py-2 text-[13px] font-semibold text-[#166534] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Aceptar
+                @if (accepting()) {
+                  <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Aceptando...
+                } @else {
+                  Aceptar
+                }
               </button>
             }
             @if (c.estado !== 'RECHAZADA' && c.estado !== 'CONVERTIDA') {
@@ -764,6 +773,7 @@ export class CotizacionDetailComponent {
   whatsappMessage = signal<string | null>(null);
   whatsappError = signal<string | null>(null);
   sending = signal(false);
+  accepting = signal(false);
   clienteDetail = signal<ClienteDetailDto | null>(null);
   convertOpen = signal(false);
   converting = signal(false);
@@ -949,7 +959,6 @@ export class CotizacionDetailComponent {
 
   openConvertir(): void {
     this.actionError.set(null);
-    this.actionMessage.set(null);
     this.convertOpen.set(true);
   }
 
@@ -980,7 +989,22 @@ export class CotizacionDetailComponent {
   aceptar(): void {
     const c = this.cotizacion();
     if (!c?.id) return;
-    this.service.aceptar(c.id).subscribe(() => this.reload());
+    this.actionError.set(null);
+    this.actionMessage.set(null);
+    this.accepting.set(true);
+    this.service.aceptar(c.id).subscribe({
+      next: () => {
+        this.accepting.set(false);
+        this.actionMessage.set('Cotizacion aceptada. Completa los datos para iniciar el tramite.');
+        this.reload(updated => {
+          if (!updated.tramiteId) this.openConvertir();
+        });
+      },
+      error: err => {
+        this.accepting.set(false);
+        this.actionError.set(err?.error?.message || 'No se pudo aceptar la cotizacion.');
+      },
+    });
   }
 
   rechazar(): void {
@@ -1000,11 +1024,12 @@ export class CotizacionDetailComponent {
     return map[estado] || map['BORRADOR'];
   }
 
-  private reload(): void {
+  private reload(afterLoad?: (cotizacion: CotizacionOutput) => void): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) return;
     this.service.getById(id).subscribe(c => {
       this.cotizacion.set(c);
+      afterLoad?.(c);
       if (c.clienteId) {
         this.clienteService.getById(c.clienteId).subscribe(cliente => {
           this.clienteDetail.set(cliente);

@@ -12,6 +12,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { AuthService } from '../../services/auth.service';
 import { CampoService, TareaCampoDto } from '../../services/campo.service';
 import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
@@ -26,6 +27,15 @@ interface LocalPhoto {
   uploading: boolean;
   uploaded: boolean;
   err: boolean;
+}
+
+interface GalleryPhoto {
+  id: string;
+  url: string;
+  source: 'server' | 'local';
+  originalUrl?: string;
+  uploading?: boolean;
+  uploaded?: boolean;
 }
 
 interface CampoDraft {
@@ -229,14 +239,19 @@ const MIN_PHOTOS = 3;
           <div class="photo-strip">
             <!-- Already-uploaded thumbnails -->
             @for (url of t?.fotosUrls || []; track url) {
-              <div class="thumb thumb--server">
+              <button
+                type="button"
+                class="thumb thumb--server"
+                (click)="openGalleryByServerUrl(url)"
+                aria-label="Ver foto guardada"
+              >
                 <img [src]="fileUrl(url)" alt="Foto guardada" />
                 <span class="thumb-badge thumb-badge--ok">
                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2 6l2.5 2.5L10 3.5" />
                   </svg>
                 </span>
-              </div>
+              </button>
             }
             <!-- Local photos -->
             @for (photo of photos(); track photo.id) {
@@ -245,12 +260,16 @@ const MIN_PHOTOS = 3;
                 [class.thumb--uploading]="photo.uploading"
                 [class.thumb--ok]="photo.uploaded"
                 [class.thumb--err]="photo.err"
+                role="button"
+                tabindex="0"
+                (click)="openGalleryByLocalId(photo.id)"
+                (keydown.enter)="openGalleryByLocalId(photo.id)"
               >
                 <img [src]="photo.dataUrl" alt="Foto capturada" />
                 @if (!photo.uploading && !photo.uploaded) {
                   <button
                     class="thumb-remove"
-                    (click)="removePhoto(photo.id)"
+                    (click)="$event.stopPropagation(); removePhoto(photo.id)"
                     [disabled]="state() === 'sending'"
                     aria-label="Eliminar"
                   >
@@ -505,6 +524,65 @@ const MIN_PHOTOS = 3;
             </div>
           }
         </div>
+      }
+
+      @if (galleryOpen()) {
+        @let photos = galleryPhotos();
+        @let photo = galleryCurrentPhoto();
+        @if (photo) {
+          <div
+            class="photo-lightbox"
+            (click)="closeGallery()"
+            (touchstart)="onLightboxTouchStart($event)"
+            (touchend)="onLightboxTouchEnd($event)"
+          >
+            <div class="lightbox-top" (click)="$event.stopPropagation()">
+              <div>
+                <strong>{{ tarea()?.vehiculoResumen || 'Fotos de campo' }}</strong>
+                <span>{{ galleryIndex() + 1 }} de {{ photos.length }}</span>
+              </div>
+              <button type="button" class="lightbox-close" (click)="closeGallery()" aria-label="Cerrar">
+                ×
+              </button>
+            </div>
+
+            <button
+              type="button"
+              class="lightbox-nav lightbox-nav--prev"
+              (click)="$event.stopPropagation(); prevPhoto()"
+              [disabled]="photos.length <= 1"
+              aria-label="Foto anterior"
+            >
+              ‹
+            </button>
+            <img
+              class="lightbox-img"
+              [src]="photo.url"
+              alt="Foto de campo"
+              (click)="$event.stopPropagation()"
+            />
+            <button
+              type="button"
+              class="lightbox-nav lightbox-nav--next"
+              (click)="$event.stopPropagation(); nextPhoto()"
+              [disabled]="photos.length <= 1"
+              aria-label="Foto siguiente"
+            >
+              ›
+            </button>
+
+            @if ((photo.source === 'local' && !photo.uploading && !photo.uploaded) || (photo.source === 'server' && canDeleteServerPhotos())) {
+              <button
+                type="button"
+                class="lightbox-delete"
+                (click)="$event.stopPropagation(); deleteGalleryPhoto(photo)"
+                [disabled]="state() === 'sending' || deletingPhoto()"
+              >
+                {{ deletingPhoto() ? 'Eliminando...' : 'Eliminar foto' }}
+              </button>
+            }
+          </div>
+        }
       }
     </main>
   `,
@@ -974,6 +1052,8 @@ const MIN_PHOTOS = 3;
         overflow: hidden;
         border: 2px solid var(--border);
         background: #e5e7eb;
+        padding: 0;
+        cursor: zoom-in;
       }
       .thumb img {
         width: 100%;
@@ -1054,6 +1134,106 @@ const MIN_PHOTOS = 3;
       }
 
       /* ── Data fields card ───────────────────────────────────────────── */
+      .photo-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 10020;
+        display: grid;
+        place-items: center;
+        background: rgba(0, 0, 0, 0.92);
+        padding: 72px 56px 86px;
+      }
+      .lightbox-top {
+        position: absolute;
+        top: max(14px, env(safe-area-inset-top, 14px));
+        left: 14px;
+        right: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #fff;
+        gap: 12px;
+      }
+      .lightbox-top strong {
+        display: block;
+        max-width: calc(100vw - 92px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+      .lightbox-top span {
+        display: block;
+        margin-top: 2px;
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 12px;
+      }
+      .lightbox-close,
+      .lightbox-nav {
+        border: 0;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.14);
+        cursor: pointer;
+      }
+      .lightbox-close {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        font-size: 28px;
+        line-height: 1;
+      }
+      .lightbox-img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: var(--radius-sm);
+      }
+      .lightbox-nav {
+        position: absolute;
+        top: 50%;
+        width: 42px;
+        height: 62px;
+        border-radius: 14px;
+        transform: translateY(-50%);
+        font-size: 40px;
+        line-height: 1;
+      }
+      .lightbox-nav:disabled {
+        opacity: 0.24;
+        cursor: default;
+      }
+      .lightbox-nav--prev {
+        left: 10px;
+      }
+      .lightbox-nav--next {
+        right: 10px;
+      }
+      .lightbox-delete {
+        position: absolute;
+        left: 50%;
+        bottom: max(22px, env(safe-area-inset-bottom, 22px));
+        transform: translateX(-50%);
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 12px;
+        background: var(--red);
+        color: #fff;
+        padding: 11px 16px;
+        font-size: 13px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      @media (max-width: 600px) {
+        .photo-lightbox {
+          padding: 70px 10px 86px;
+        }
+        .lightbox-nav {
+          width: 38px;
+          height: 56px;
+          background: rgba(0, 0, 0, 0.34);
+        }
+      }
+
       .fields-card {
         background: var(--surface);
         border: 1.5px solid var(--border);
@@ -1607,6 +1787,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   private notifications = inject(NotificationService);
   private realtime = inject(RealtimeService);
   private vinScanner = inject(VinScannerService);
+  private authService = inject(AuthService);
   private sub?: Subscription;
 
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
@@ -1626,6 +1807,9 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   readonly showIncidencia = signal(false);
   readonly torchSupported = signal(false);
   readonly torchOn = signal(false);
+  readonly galleryOpen = signal(false);
+  readonly galleryIndex = signal(0);
+  readonly deletingPhoto = signal(false);
 
   ubicacion = '';
   vinConfirmado = '';
@@ -1634,11 +1818,30 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   private stream: MediaStream | null = null;
   private vinScanSession: VinScanSession | null = null;
   private taskId = '';
+  private touchStartX = 0;
 
   readonly uploadedCount = computed(() => this.photos().filter(p => p.uploaded).length);
   readonly totalPhotoCount = computed(
     () => this.photos().length + (this.tarea()?.fotosUrls?.length ?? 0)
   );
+  readonly galleryPhotos = computed<GalleryPhoto[]>(() => [
+    ...(this.tarea()?.fotosUrls ?? []).map(url => ({
+      id: `server:${url}`,
+      url: this.fileUrl(url),
+      source: 'server' as const,
+      originalUrl: url,
+    })),
+    ...this.photos().map(photo => ({
+      id: `local:${photo.id}`,
+      url: photo.dataUrl,
+      source: 'local' as const,
+      originalUrl: photo.id,
+      uploading: photo.uploading,
+      uploaded: photo.uploaded,
+    })),
+  ]);
+  readonly galleryCurrentPhoto = computed(() => this.galleryPhotos()[this.galleryIndex()]);
+  readonly canDeleteServerPhotos = computed(() => this.authService.isAdmin());
   readonly canSend = computed(() => this.totalPhotoCount() > 0 && this.state() !== 'sending');
   readonly sendProgressPct = computed(() => {
     const total = this.photos().length;
@@ -1663,6 +1866,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.closeCamera();
+    this.closeGallery();
     this.sub?.unsubscribe();
   }
 
@@ -1758,7 +1962,91 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     if (this.state() === 'sending') return;
     this.photos.update(items => items.filter(p => p.id !== id));
     this.persistLocalPhotos();
+    this.realignGalleryIndex();
     this.vibrate([8]);
+  }
+
+  openGalleryByServerUrl(url: string): void {
+    const index = this.galleryPhotos().findIndex(photo => photo.source === 'server' && photo.originalUrl === url);
+    this.openGallery(index);
+  }
+
+  openGalleryByLocalId(id: string): void {
+    const index = this.galleryPhotos().findIndex(photo => photo.source === 'local' && photo.originalUrl === id);
+    this.openGallery(index);
+  }
+
+  openGallery(index: number): void {
+    const photos = this.galleryPhotos();
+    if (photos.length === 0 || index < 0) return;
+    this.galleryIndex.set(Math.min(index, photos.length - 1));
+    this.galleryOpen.set(true);
+  }
+
+  closeGallery(): void {
+    this.galleryOpen.set(false);
+    this.galleryIndex.set(0);
+  }
+
+  nextPhoto(): void {
+    const photos = this.galleryPhotos();
+    if (photos.length <= 1) return;
+    this.galleryIndex.update(index => (index + 1) % photos.length);
+  }
+
+  prevPhoto(): void {
+    const photos = this.galleryPhotos();
+    if (photos.length <= 1) return;
+    this.galleryIndex.update(index => (index - 1 + photos.length) % photos.length);
+  }
+
+  deleteGalleryPhoto(photo: GalleryPhoto): void {
+    if (this.state() === 'sending') return;
+
+    if (photo.source === 'local') {
+      if (photo.originalUrl) this.removePhoto(photo.originalUrl);
+      if (this.galleryPhotos().length === 0) this.closeGallery();
+      return;
+    }
+
+    const task = this.tarea();
+    if (!task || !photo.originalUrl || !this.canDeleteServerPhotos()) return;
+    if (!window.confirm('Eliminar esta foto guardada?')) return;
+
+    this.deletingPhoto.set(true);
+    this.campoService.deleteFoto(task.id, photo.originalUrl).subscribe({
+      next: updated => {
+        this.deletingPhoto.set(false);
+        this.tarea.set(updated);
+        this.notifications.success('Foto eliminada.');
+        this.realignGalleryIndex();
+        if (this.galleryPhotos().length === 0) this.closeGallery();
+      },
+      error: err => {
+        this.deletingPhoto.set(false);
+        this.notifications.fromHttpError(err, 'No se pudo eliminar la foto');
+      },
+    });
+  }
+
+  onLightboxTouchStart(event: TouchEvent): void {
+    this.touchStartX = event.changedTouches[0]?.clientX ?? 0;
+  }
+
+  onLightboxTouchEnd(event: TouchEvent): void {
+    const endX = event.changedTouches[0]?.clientX ?? this.touchStartX;
+    const diff = endX - this.touchStartX;
+    if (Math.abs(diff) < 42) return;
+    diff < 0 ? this.nextPhoto() : this.prevPhoto();
+  }
+
+  private realignGalleryIndex(): void {
+    const total = this.galleryPhotos().length;
+    if (total === 0) {
+      this.closeGallery();
+      return;
+    }
+    this.galleryIndex.set(Math.min(this.galleryIndex(), total - 1));
   }
 
   async sendReport(): Promise<void> {
@@ -1830,6 +2118,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
 
   goBack(): void {
     this.closeCamera();
+    this.closeGallery();
     void this.router.navigate(['/campo']);
   }
 

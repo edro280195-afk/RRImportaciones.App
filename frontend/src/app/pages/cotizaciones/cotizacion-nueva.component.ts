@@ -199,6 +199,52 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
               </div>
             </div>
 
+            <div class="value-source">
+              <div class="value-source__head">
+                <div>
+                  <strong>Valor del vehiculo</strong>
+                  <span>Elige si se toma del Anexo 2 o se captura manualmente.</span>
+                </div>
+              </div>
+              <div class="value-toggle" role="group" aria-label="Origen del valor aduana">
+                <button
+                  type="button"
+                  class="value-option"
+                  [class.value-option--active]="!manualMode()"
+                  (click)="setManualMode(false)"
+                >
+                  <span>Anexo 2</span>
+                  <small>Buscar en catalogo SAT y elegir la entrada correcta.</small>
+                </button>
+                <button
+                  type="button"
+                  class="value-option"
+                  [class.value-option--active]="manualMode()"
+                  (click)="setManualMode(true)"
+                >
+                  <span>Valor manual</span>
+                  <small>Usar un monto USD capturado por el operador.</small>
+                </button>
+              </div>
+
+              @if (manualMode()) {
+                <div class="manual-value-panel">
+                  <label class="field">
+                    <span>Valor aduana manual (USD)</span>
+                    <input
+                      [ngModel]="form.valorAduanaUsdOverride"
+                      (ngModelChange)="onManualValorChange($event)"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="Ej. 12500"
+                    />
+                    <small class="hint">Este valor reemplaza el precio estimado del Anexo 2 para este calculo.</small>
+                  </label>
+                </div>
+              }
+            </div>
+
             <button
               type="button"
               class="ghost-btn ghost-btn--inline"
@@ -209,7 +255,7 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
 
             @if (advancedOpen) {
               <div class="grid-2 advanced">
-                <div class="field">
+                <div class="field manual-legacy">
                   <label>Override valor aduana (USD)</label>
                   <input
                     [(ngModel)]="form.valorAduanaUsdOverride"
@@ -384,13 +430,14 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
                   <div class="cand-card__body">
                     @if (c.esGenerico) {
                       <p class="cand-modelo">
-                        Precio estimado de fracción {{ c.fraccion }}
+                        {{ c.modeloCatalogo || 'PRECIOS ESTIMADOS APLICABLES A VEHICULOS EN CUYO ANO-MODELO NO SE ESTABLECE DICHO PRECIO' }}
+                      </p>
+                      <p class="cand-sub-small">
+                        Fraccion {{ c.fraccion }}
                         @if (c.inciso) {
                           · inciso {{ c.inciso }}
                         }
-                      </p>
-                      <p class="cand-sub-small">
-                        Aplica cuando el modelo no está listado en el catálogo SAT
+                        · aplica cuando el modelo no esta listado en el catalogo SAT
                       </p>
                     } @else {
                       <p class="cand-modelo">{{ c.marcaTextoCatalogo }} {{ c.modeloCatalogo }}</p>
@@ -1062,6 +1109,82 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         margin-top: 14px;
         padding-top: 14px;
         border-top: 1px dashed #eceff3;
+      }
+      .manual-legacy {
+        display: none;
+      }
+      .value-source {
+        margin-top: 16px;
+        border: 1px solid #d8dee8;
+        border-radius: 12px;
+        background: #f8fafc;
+        padding: 14px;
+      }
+      .value-source__head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .value-source__head strong {
+        display: block;
+        color: #0d1017;
+        font-size: 13.5px;
+      }
+      .value-source__head span {
+        display: block;
+        margin-top: 2px;
+        color: #6b717f;
+        font-size: 12px;
+      }
+      .value-toggle {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .value-option {
+        min-height: 82px;
+        border: 1px solid #d8dee8;
+        border-radius: 10px;
+        background: #fff;
+        padding: 12px;
+        text-align: left;
+        cursor: pointer;
+        transition:
+          border-color 0.14s,
+          box-shadow 0.14s,
+          background 0.14s;
+      }
+      .value-option span {
+        display: block;
+        margin-bottom: 4px;
+        color: #1e2330;
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .value-option small {
+        display: block;
+        color: #6b717f;
+        font-size: 11.5px;
+        line-height: 1.35;
+      }
+      .value-option--active {
+        border-color: #c61d26;
+        background: #fff7f7;
+        box-shadow: 0 0 0 3px rgba(198, 29, 38, 0.08);
+      }
+      .value-option--active span {
+        color: #991b1b;
+      }
+      .manual-value-panel {
+        margin-top: 12px;
+        border-top: 1px dashed #d8dee8;
+        padding-top: 12px;
+      }
+      @media (max-width: 640px) {
+        .value-toggle {
+          grid-template-columns: 1fr;
+        }
       }
 
       /* ─── Calculate button ─────────────────────── */
@@ -1862,6 +1985,7 @@ export class CotizacionNuevaComponent {
   };
 
   tcMargen = signal(0.3);
+  manualMode = signal(false);
 
   tcAplicadoPreview = computed(() => {
     const tc = this.tipoCambio()?.tipoCambio;
@@ -1941,6 +2065,31 @@ export class CotizacionNuevaComponent {
       (this.form.vin || '').length === 17 ||
       !!(this.form.modelo && this.form.anno && (this.form.marcaId || this.form.marca))
     );
+  }
+
+  setManualMode(enabled: boolean): void {
+    this.manualMode.set(enabled);
+    this.resultado.set(null);
+    this.candidatos.set(null);
+    this.form.precioEstimadoIdOverride = null;
+
+    if (!enabled) {
+      this.form.valorAduanaUsdOverride = null;
+      return;
+    }
+
+    setTimeout(() => {
+      document.querySelector<HTMLElement>('.manual-value-panel')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+      document.querySelector<HTMLInputElement>('.manual-value-panel input')?.focus();
+    }, 80);
+  }
+
+  onManualValorChange(value: string | number | null): void {
+    const parsed = Number(value);
+    this.form.valorAduanaUsdOverride = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 
   sourceLabel(source: string): string {
@@ -2024,9 +2173,11 @@ export class CotizacionNuevaComponent {
     this.resultado.set(null);
     this.candidatos.set(null);
 
-    // Si el usuario ya capturó un override de valor aduana, saltar candidatos y calcular directo.
-    // Sin este atajo el flujo entra en bucle: candidatos ignora el override → reabre el picker.
-    if (this.form.valorAduanaUsdOverride && this.form.valorAduanaUsdOverride > 0) {
+    if (this.manualMode()) {
+      if (!this.form.valorAduanaUsdOverride || this.form.valorAduanaUsdOverride <= 0) {
+        this.calcError.set('Captura un valor aduana manual mayor a cero.');
+        return;
+      }
       this.form.precioEstimadoIdOverride = null;
       this.calcular();
       return;
@@ -2065,6 +2216,8 @@ export class CotizacionNuevaComponent {
 
   /** El admin eligió una entrada del catálogo — calcular con ese ID. */
   calcularConCandidato(candidato: CandidatoPrecio): void {
+    this.manualMode.set(false);
+    this.form.valorAduanaUsdOverride = null;
     this.form.precioEstimadoIdOverride = candidato.precioEstimadoId;
     this.candidatos.set(null);
     this.calcular();
@@ -2072,18 +2225,7 @@ export class CotizacionNuevaComponent {
 
   /** El admin prefiere capturar el valor manualmente — abre el campo de override y le da foco. */
   abrirManual(): void {
-    this.candidatos.set(null);
-    this.form.precioEstimadoIdOverride = null;
-    this.advancedOpen = true;
-    // Scroll al panel avanzado y foco en el input de override
-    setTimeout(() => {
-      const advanced = document.querySelector<HTMLElement>('.advanced');
-      advanced?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const input = document.querySelector<HTMLInputElement>(
-        '.advanced input[placeholder="Sobrescribe Anexo 2"]'
-      );
-      input?.focus();
-    }, 150);
+    this.setManualMode(true);
   }
 
   calcular(): void {

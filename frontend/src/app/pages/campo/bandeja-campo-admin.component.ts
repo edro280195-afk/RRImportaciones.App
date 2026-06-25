@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { CampoService, TareaCampoDto } from '../../services/campo.service';
+import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
 import { TramiteService, TramiteListDto } from '../../services/tramite.service';
@@ -47,7 +49,14 @@ type AccionModal =
             <article class="card">
               <div class="card-photo">
                 @if (t.fotosUrls.length > 0) {
-                  <img [src]="t.fotosUrls[0]" alt="Foto" />
+                  <button
+                    type="button"
+                    class="photo-open"
+                    (click)="openGallery(t, 0)"
+                    aria-label="Ver fotos"
+                  >
+                    <img [src]="fileUrl(t.fotosUrls[0])" alt="Foto" />
+                  </button>
                   @if (t.fotosUrls.length > 1) {
                     <span class="photo-count">+{{ t.fotosUrls.length - 1 }}</span>
                   }
@@ -141,10 +150,10 @@ type AccionModal =
             <p><strong>Fecha:</strong> {{ formatFecha(m.tarea.fechaCreacion) }}</p>
             @if (m.tarea.fotosUrls.length > 0) {
               <div class="photo-grid">
-                @for (url of m.tarea.fotosUrls; track url) {
-                  <a [href]="url" target="_blank" rel="noopener">
-                    <img [src]="url" alt="Foto" />
-                  </a>
+                @for (url of m.tarea.fotosUrls; track url; let idx = $index) {
+                  <button type="button" class="photo-thumb" (click)="openGallery(m.tarea, idx)">
+                    <img [src]="fileUrl(url)" alt="Foto" />
+                  </button>
                 }
               </div>
             }
@@ -293,6 +302,64 @@ type AccionModal =
         </div>
       </div>
     }
+
+    @if (galleryTarea(); as gt) {
+      @let photos = galleryPhotos();
+      @if (photos.length > 0) {
+        <div
+          class="photo-lightbox"
+          (click)="closeGallery()"
+          (touchstart)="onLightboxTouchStart($event)"
+          (touchend)="onLightboxTouchEnd($event)"
+        >
+          <div class="lightbox-top" (click)="$event.stopPropagation()">
+            <div>
+              <strong>{{ gt.vehiculoResumen || 'Fotos de campo' }}</strong>
+              <span>{{ galleryIndex() + 1 }} de {{ photos.length }}</span>
+            </div>
+            <button type="button" class="lightbox-close" (click)="closeGallery()" aria-label="Cerrar">
+              ×
+            </button>
+          </div>
+
+          <button
+            type="button"
+            class="lightbox-nav lightbox-nav--prev"
+            (click)="$event.stopPropagation(); prevPhoto()"
+            [disabled]="photos.length <= 1"
+            aria-label="Foto anterior"
+          >
+            ‹
+          </button>
+          <img
+            class="lightbox-img"
+            [src]="fileUrl(photos[galleryIndex()])"
+            alt="Foto de campo"
+            (click)="$event.stopPropagation()"
+          />
+          <button
+            type="button"
+            class="lightbox-nav lightbox-nav--next"
+            (click)="$event.stopPropagation(); nextPhoto()"
+            [disabled]="photos.length <= 1"
+            aria-label="Foto siguiente"
+          >
+            ›
+          </button>
+
+          @if (canDeletePhotos()) {
+            <button
+              type="button"
+              class="lightbox-delete"
+              (click)="$event.stopPropagation(); deleteCurrentPhoto()"
+              [disabled]="ejecutando()"
+            >
+              {{ ejecutando() ? 'Eliminando...' : 'Eliminar foto' }}
+            </button>
+          }
+        </div>
+      }
+    }
   `,
   styles: [
     `
@@ -358,6 +425,15 @@ type AccionModal =
         width: 100%;
         height: 100%;
         object-fit: cover;
+      }
+      .photo-open {
+        width: 100%;
+        height: 100%;
+        display: block;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: zoom-in;
       }
       .photo-count {
         position: absolute;
@@ -622,12 +698,120 @@ type AccionModal =
         gap: 8px;
         margin-top: 12px;
       }
+      .photo-thumb {
+        display: block;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: zoom-in;
+      }
       .photo-grid img {
         width: 100%;
         height: 120px;
         object-fit: cover;
         border-radius: 8px;
         border: 1px solid #e5e7eb;
+      }
+      .photo-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 12000;
+        display: grid;
+        place-items: center;
+        background: rgba(0, 0, 0, 0.9);
+        padding: 72px 64px 86px;
+      }
+      .lightbox-top {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        right: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #fff;
+        gap: 16px;
+      }
+      .lightbox-top strong {
+        display: block;
+        font-size: 14px;
+      }
+      .lightbox-top span {
+        display: block;
+        margin-top: 2px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.68);
+      }
+      .lightbox-close,
+      .lightbox-nav {
+        border: 0;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.14);
+        cursor: pointer;
+      }
+      .lightbox-close {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        font-size: 26px;
+        line-height: 1;
+      }
+      .lightbox-img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      }
+      .lightbox-nav {
+        position: absolute;
+        top: 50%;
+        width: 44px;
+        height: 64px;
+        border-radius: 14px;
+        transform: translateY(-50%);
+        font-size: 42px;
+        line-height: 1;
+      }
+      .lightbox-nav:disabled {
+        opacity: 0.25;
+        cursor: default;
+      }
+      .lightbox-nav--prev {
+        left: 14px;
+      }
+      .lightbox-nav--next {
+        right: 14px;
+      }
+      .lightbox-delete {
+        position: absolute;
+        left: 50%;
+        bottom: 22px;
+        transform: translateX(-50%);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 12px;
+        background: #dc2626;
+        color: #fff;
+        padding: 10px 16px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .lightbox-delete:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+      @media (max-width: 640px) {
+        .photo-lightbox {
+          padding: 68px 12px 88px;
+        }
+        .lightbox-nav {
+          width: 38px;
+          height: 56px;
+          font-size: 34px;
+          background: rgba(0, 0, 0, 0.34);
+        }
       }
     `,
   ],
@@ -638,6 +822,7 @@ export class BandejaCampoAdminComponent implements OnInit, OnDestroy {
   private realtime = inject(RealtimeService);
   private notify = inject(NotificationService);
   private router = inject(Router);
+  private auth = inject(AuthService);
 
   loading = signal(false);
   ejecutando = signal(false);
@@ -652,8 +837,13 @@ export class BandejaCampoAdminComponent implements OnInit, OnDestroy {
 
   mensajeFotos = signal('');
   motivoDescarte = signal('');
+  galleryTarea = signal<TareaCampoDto | null>(null);
+  galleryIndex = signal(0);
+  private touchStartX = 0;
 
   pendientes = computed(() => this.tareas().filter(t => t.estatus === 'ABIERTA').length);
+  galleryPhotos = computed(() => this.galleryTarea()?.fotosUrls ?? []);
+  canDeletePhotos = computed(() => this.auth.isAdmin());
 
   private preInspSub?: Subscription;
   private campoSub?: Subscription;
@@ -769,6 +959,74 @@ export class BandejaCampoAdminComponent implements OnInit, OnDestroy {
         this.notify.fromHttpError(err, 'No se pudo descartar');
       },
     });
+  }
+
+  openGallery(tarea: TareaCampoDto, index: number): void {
+    if (tarea.fotosUrls.length === 0) return;
+    this.galleryTarea.set(tarea);
+    this.galleryIndex.set(Math.min(Math.max(index, 0), tarea.fotosUrls.length - 1));
+  }
+
+  closeGallery(): void {
+    this.galleryTarea.set(null);
+    this.galleryIndex.set(0);
+  }
+
+  nextPhoto(): void {
+    const photos = this.galleryPhotos();
+    if (photos.length <= 1) return;
+    this.galleryIndex.update(index => (index + 1) % photos.length);
+  }
+
+  prevPhoto(): void {
+    const photos = this.galleryPhotos();
+    if (photos.length <= 1) return;
+    this.galleryIndex.update(index => (index - 1 + photos.length) % photos.length);
+  }
+
+  deleteCurrentPhoto(): void {
+    const tarea = this.galleryTarea();
+    const fotoUrl = this.galleryPhotos()[this.galleryIndex()];
+    if (!tarea || !fotoUrl || !this.canDeletePhotos()) return;
+    if (!window.confirm('Eliminar esta foto de la tarea de campo?')) return;
+
+    this.ejecutando.set(true);
+    this.campoService.deleteFoto(tarea.id, fotoUrl).subscribe({
+      next: updated => {
+        this.ejecutando.set(false);
+        this.notify.success('Foto eliminada.');
+        this.tareas.update(items => items.map(item => (item.id === updated.id ? updated : item)));
+        const currentModal = this.modal();
+        if (currentModal?.tarea.id === updated.id) {
+          this.modal.set({ ...currentModal, tarea: updated });
+        }
+        if (updated.fotosUrls.length === 0) {
+          this.closeGallery();
+          return;
+        }
+        this.galleryTarea.set(updated);
+        this.galleryIndex.set(Math.min(this.galleryIndex(), updated.fotosUrls.length - 1));
+      },
+      error: err => {
+        this.ejecutando.set(false);
+        this.notify.fromHttpError(err, 'No se pudo eliminar la foto');
+      },
+    });
+  }
+
+  onLightboxTouchStart(event: TouchEvent): void {
+    this.touchStartX = event.changedTouches[0]?.clientX ?? 0;
+  }
+
+  onLightboxTouchEnd(event: TouchEvent): void {
+    const endX = event.changedTouches[0]?.clientX ?? this.touchStartX;
+    const diff = endX - this.touchStartX;
+    if (Math.abs(diff) < 42) return;
+    diff < 0 ? this.nextPhoto() : this.prevPhoto();
+  }
+
+  fileUrl(url: string): string {
+    return url.startsWith('http') ? url : `${environment.apiUrl}${url}`;
   }
 
   irACotizar(t: TareaCampoDto): void {

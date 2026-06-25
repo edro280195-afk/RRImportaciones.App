@@ -263,7 +263,7 @@ public partial class CotizadorService : ICotizadorService
             && topEspecifico.EsAntiguedadExacta
             && (especificos.Count == 1 || (especificos.Count > 1 && topEspecifico.Score - especificos[1].Score > 5));
 
-        var requiereSeleccion = !matchDominante;
+        var requiereSeleccion = candidatos.Any(c => c.EsGenerico) || !matchDominante;
 
         return new CandidatosPrecioOutput
         {

@@ -404,6 +404,7 @@ export class VehiculosDetailComponent {
   deleting = signal(false);
   savingInv = signal(false);
   inventarioSaved = signal(false);
+  private currentId = '';
 
   infoItems: { label: string; value: string }[] = [];
 
@@ -415,17 +416,26 @@ export class VehiculosDetailComponent {
   };
 
   constructor() {
-    this.loadVehiculo();
+    this.route.paramMap.subscribe(params => {
+      const id = params.get('id');
+      if (!id) {
+        this.currentId = '';
+        this.vehiculo.set(null);
+        this.error.set('ID no válido');
+        this.loading.set(false);
+        return;
+      }
+
+      if (id === this.currentId) return;
+      this.currentId = id;
+      this.loadVehiculo(id);
+    });
   }
 
-  loadVehiculo(): void {
-    const id = this.route.snapshot.paramMap.get('id');
-    if (!id) {
-      this.error.set('ID no válido');
-      this.loading.set(false);
-      return;
-    }
+  loadVehiculo(id: string = this.currentId): void {
+    if (!id) return;
     this.loading.set(true);
+    this.vehiculo.set(null);
     this.error.set('');
     this.service.getById(id).subscribe({
       next: v => {
@@ -461,7 +471,7 @@ export class VehiculosDetailComponent {
   }
 
   saveInventario(): void {
-    const id = this.route.snapshot.paramMap.get('id');
+    const id = this.currentId;
     if (!id) return;
     this.savingInv.set(true);
     this.inventarioSaved.set(false);

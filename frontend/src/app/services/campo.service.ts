@@ -101,6 +101,12 @@ export class CampoService {
     );
   }
 
+  deleteFoto(id: string, fotoUrl: string): Observable<TareaCampoDto> {
+    return this.http.delete<TareaCampoDto>(`${this.baseUrl}/tareas/${id}/fotos`, {
+      body: { fotoUrl },
+    });
+  }
+
   extractVin(imagenBase64: string, imagenMime: string = 'image/jpeg'): Observable<{ vin: string }> {
     return this.http.post<{ vin: string }>(`${this.baseUrl}/extract-vin`, {
       imagenBase64,

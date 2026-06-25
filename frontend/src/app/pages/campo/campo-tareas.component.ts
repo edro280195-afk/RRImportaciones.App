@@ -1,4 +1,5 @@
 import { Component, signal, computed, OnDestroy, OnInit, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { CampoService, TareaCampoDto } from '../../services/campo.service';
@@ -11,7 +12,7 @@ import { CampoRegistroModalComponent } from './campo-registro-modal.component';
 @Component({
   selector: 'app-campo-tareas',
   standalone: true,
-  imports: [CampoRegistroModalComponent],
+  imports: [FormsModule, CampoRegistroModalComponent],
   template: `
     <div class="shell">
       <!-- ── Header ──────────────────────────────────────────────── -->
@@ -119,6 +120,31 @@ import { CampoRegistroModalComponent } from './campo-registro-modal.component';
       </div>
 
       <!-- ── Filter chips ──────────────────────────────────────── -->
+      <div class="search-box">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="9" cy="9" r="5.5" />
+          <path stroke-linecap="round" d="M13.5 13.5L17 17" />
+        </svg>
+        <input
+          type="search"
+          [ngModel]="searchTerm()"
+          (ngModelChange)="searchTerm.set($event)"
+          placeholder="Buscar VIN, vehiculo, cliente o ubicacion"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        @if (searchTerm()) {
+          <button
+            class="search-clear"
+            type="button"
+            (click)="searchTerm.set('')"
+            aria-label="Limpiar busqueda"
+          >
+            ×
+          </button>
+        }
+      </div>
+
       <div class="filter-bar" role="tablist">
         @for (f of filters; track f.value) {
           <button
@@ -271,13 +297,21 @@ import { CampoRegistroModalComponent } from './campo-registro-modal.component';
                 </svg>
               </div>
               <p class="empty-title">
-                {{ activeFilter() === '' ? 'Sin tareas asignadas' : 'Sin tareas en este estado' }}
+                {{
+                  searchTerm()
+                    ? 'Sin resultados'
+                    : activeFilter() === ''
+                      ? 'Sin tareas asignadas'
+                      : 'Sin tareas en este estado'
+                }}
               </p>
               <p class="empty-sub">
                 {{
-                  activeFilter() !== ''
-                    ? 'Prueba seleccionando otro filtro'
-                    : 'Cuando te asignen una unidad aparecerá aquí'
+                  searchTerm()
+                    ? 'Prueba con otro VIN, cliente o ubicacion'
+                    : activeFilter() !== ''
+                      ? 'Prueba seleccionando otro filtro'
+                      : 'Cuando te asignen una unidad aparecerá aquí'
                 }}
               </p>
             </div>
@@ -524,6 +558,49 @@ import { CampoRegistroModalComponent } from './campo-registro-modal.component';
       }
 
       /* ── Filter bar ─────────────────────────────────────────────── */
+      .search-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 14px 14px 0;
+        padding: 0 12px;
+        min-height: 48px;
+        border: 1.5px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+      }
+      .search-box svg {
+        width: 18px;
+        height: 18px;
+        color: var(--text-3);
+        flex-shrink: 0;
+      }
+      .search-box input {
+        min-width: 0;
+        flex: 1;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--text-1);
+        font: inherit;
+        font-size: 14px;
+      }
+      .search-box input::placeholder {
+        color: var(--text-3);
+      }
+      .search-clear {
+        width: 30px;
+        height: 30px;
+        border: 0;
+        border-radius: 9px;
+        background: #f3f4f6;
+        color: var(--text-2);
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
       .filter-bar {
         display: flex;
         gap: 8px;
@@ -938,6 +1015,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   tareas = signal<TareaCampoDto[]>([]);
   loading = signal(false);
   activeFilter = signal('');
+  searchTerm = signal('');
   showLogout = signal(false);
   showRegistro = signal(false);
 
@@ -963,7 +1041,12 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
 
   filteredTareas = computed(() => {
     const f = this.activeFilter();
-    return f ? this.tareas().filter(t => t.estatus === f) : this.tareas();
+    const q = this.normalizeSearch(this.searchTerm());
+    return this.tareas().filter(t => {
+      const statusMatches = !f || t.estatus === f;
+      const searchMatches = !q || this.matchesSearch(t, q);
+      return statusMatches && searchMatches;
+    });
   });
 
   ngOnInit(): void {
@@ -999,6 +1082,32 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
 
   countByStatus(status: string): number {
     return this.tareas().filter(t => t.estatus === status).length;
+  }
+
+  private matchesSearch(tarea: TareaCampoDto, query: string): boolean {
+    return [
+      tarea.numeroConsecutivo,
+      tarea.vehiculoResumen,
+      tarea.descripcionVehiculo,
+      tarea.clienteNombre,
+      tarea.clienteNombreLibre,
+      tarea.vin,
+      tarea.vinCorto,
+      tarea.ubicacion,
+      tarea.incidencia,
+      tarea.estatus,
+    ]
+      .filter((value): value is string => !!value)
+      .some(value => this.normalizeSearch(value).includes(query));
+  }
+
+  private normalizeSearch(value: string | null | undefined): string {
+    return (value ?? '')
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
   }
 
   openCaptura(tarea: TareaCampoDto): void {

@@ -367,8 +367,10 @@ public partial class CotizadorService
     public async Task AceptarAsync(Guid id)
     {
         var c = await GetEntityAsync(id);
-        if (!string.Equals(c.EstadoLogistico, "ENVIADA", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"No se puede aceptar una cotizacion en estado {c.EstadoLogistico}. Primero debe ser enviada al cliente.");
+        var puedeAceptar = string.Equals(c.EstadoLogistico, "BORRADOR", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(c.EstadoLogistico, "ENVIADA", StringComparison.OrdinalIgnoreCase);
+        if (!puedeAceptar)
+            throw new InvalidOperationException($"No se puede aceptar una cotizacion en estado {c.EstadoLogistico}.");
 
         c.EstadoLogistico = "ACEPTADA";
         c.FechaModificacion = DateTime.UtcNow;
