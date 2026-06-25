@@ -145,7 +145,7 @@ public class VehiculoService : IVehiculoService
             .Include(v => v.Modelo)
             .Include(v => v.FraccionArancelaria)
             .Include(v => v.Tramites.OrderByDescending(t => t.FechaCreacion).Take(10))
-            .Where(v => v.DeletedAt == null)
+            .Where(v => v.Id == id && v.DeletedAt == null)
             .Select(v => new VehiculoDetailDto
             {
                 Id = v.Id,
