@@ -64,7 +64,6 @@ public partial class CotizadorService
     {
         var antiguedad = Math.Clamp(DateTime.Today.Year - anno, 1, 12);
         var hasModel = !string.IsNullOrWhiteSpace(modelo);
-        var hasMarca = marcaId.HasValue || !string.IsNullOrWhiteSpace(marcaTexto);
 
         var fraccionesABuscar = _fraccionesGasolina.Contains(fraccionPrimaria)
             ? _fraccionesGasolina
@@ -78,6 +77,7 @@ public partial class CotizadorService
             return null;
 
         var fraccionIds = fraccionEntities.Select(f => f.Id).ToHashSet();
+        var fraccionPrimariaId = fraccionEntities.FirstOrDefault(f => f.Fraccion == fraccionPrimaria)?.Id;
 
         var precios = await _db.PreciosEstimados
             .Include(x => x.PreciosPorAntiguedad)
@@ -86,11 +86,16 @@ public partial class CotizadorService
             .ToListAsync();
 
         var candidates = precios
-            .Where(x => !x.EsGenerico && MarcaMatches(x, marcaId, marcaTexto))
-            .Select(x => new { Precio = x, Score = ScoreModelMatch(modelo ?? "", x.Modelo, engineCylinders, categoria) })
-            .Where(x => !hasModel || x.Score > 0)
+            .Where(x => hasModel && !x.EsGenerico && MarcaMatches(x, marcaId, marcaTexto) && HasExactPrice(x, antiguedad))
+            .Select(x => new
+            {
+                Precio = x,
+                Score = ScoreModelMatch(modelo ?? "", x.Modelo, engineCylinders, categoria),
+                Price = FindExactPrice(x, antiguedad)!,
+            })
+            .Where(x => x.Score > 0)
             .OrderByDescending(x => x.Score)
-            .ThenByDescending(x => x.Precio.PreciosPorAntiguedad.OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad)).First().PrecioUsd)
+            .ThenByDescending(x => x.Price.PrecioUsd)
             .ToList();
 
         var exact = candidates.FirstOrDefault();
@@ -116,32 +121,7 @@ public partial class CotizadorService
             return BuildPriceLookup(exact.Precio, antiguedad, "ESPECIFICO", exact.Score, warning);
         }
 
-        var preciosPrimaria = precios.Where(x => x.FraccionId == fraccionEntities.FirstOrDefault(f => f.Fraccion == fraccionPrimaria)?.Id).ToList();
-        var brandFallback = hasMarca
-            ? preciosPrimaria
-                .Where(x => !x.EsGenerico && MarcaMatches(x, marcaId, marcaTexto))
-                .OrderByDescending(x => x.PreciosPorAntiguedad.OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad)).First().PrecioUsd)
-                .FirstOrDefault()
-                ?? precios
-                    .Where(x => !x.EsGenerico && MarcaMatches(x, marcaId, marcaTexto))
-                    .OrderByDescending(x => x.PreciosPorAntiguedad.OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad)).First().PrecioUsd)
-                    .FirstOrDefault()
-            : null;
-
-        if (brandFallback is not null)
-            return BuildPriceLookup(brandFallback, antiguedad, "MARCA", 20, "No hubo match de modelo; se usó referencia de la misma marca.");
-
-        var incisoBuscado = InferirIncisoDesdeCategoria(categoria);
-        var generic = preciosPrimaria
-                .Where(x => x.EsGenerico)
-                .Where(x => incisoBuscado is null || string.Equals(x.Inciso, incisoBuscado, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(x.Inciso))
-                .OrderBy(x => string.IsNullOrWhiteSpace(x.Inciso) ? 1 : 0)
-                .FirstOrDefault()
-            ?? precios
-                .Where(x => x.EsGenerico)
-                .Where(x => incisoBuscado is null || string.Equals(x.Inciso, incisoBuscado, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(x.Inciso))
-                .OrderBy(x => string.IsNullOrWhiteSpace(x.Inciso) ? 1 : 0)
-                .FirstOrDefault();
+        var generic = SelectGenericPrecio(precios, fraccionPrimariaId, categoria, antiguedad);
 
         return generic is null
             ? null
@@ -150,21 +130,10 @@ public partial class CotizadorService
 
     private static PriceLookupResult? BuildPriceLookup(PrecioEstimado selected, int antiguedad, string matchTipo, int score, string? warning)
     {
-        var price = selected.PreciosPorAntiguedad
-            .OrderBy(x => Math.Abs(x.AntiguedadAnios - antiguedad))
-            .ThenByDescending(x => x.AntiguedadAnios)
-            .FirstOrDefault();
+        var price = FindExactPrice(selected, antiguedad);
 
         if (price is null)
             return null;
-
-        var distancia = Math.Abs(price.AntiguedadAnios - antiguedad);
-        var combinedWarning = warning;
-        if (distancia > 0)
-        {
-            var nota = $"Catálogo no tiene precio exacto para {antiguedad} años de antigüedad; se usó tabulador de {price.AntiguedadAnios} años (diferencia: {distancia} año{(distancia == 1 ? "" : "s")}).";
-            combinedWarning = string.IsNullOrWhiteSpace(combinedWarning) ? nota : $"{combinedWarning} {nota}";
-        }
 
         return new PriceLookupResult(
             matchTipo == "GENERICO" ? "GENERICO" : "ANEXO2",
@@ -175,8 +144,66 @@ public partial class CotizadorService
             selected.Fraccion?.Fraccion,
             matchTipo,
             score,
-            combinedWarning,
+            warning,
             price.PrecioUsd);
+    }
+
+    private async Task<PriceLookupResult?> FindGenericPrecioEstimadoAsync(string fraccionPrimaria, string categoria, int antiguedad, string warning)
+    {
+        var fraccionesABuscar = _fraccionesGasolina.Contains(fraccionPrimaria)
+            ? _fraccionesGasolina
+            : new[] { fraccionPrimaria };
+
+        var fraccionEntities = await _db.FraccionesArancelarias
+            .Where(x => fraccionesABuscar.Contains(x.Fraccion))
+            .ToListAsync();
+
+        if (fraccionEntities.Count == 0)
+            return null;
+
+        var fraccionIds = fraccionEntities.Select(f => f.Id).ToHashSet();
+        var fraccionPrimariaId = fraccionEntities.FirstOrDefault(f => f.Fraccion == fraccionPrimaria)?.Id;
+
+        var precios = await _db.PreciosEstimados
+            .Include(x => x.PreciosPorAntiguedad)
+            .Include(x => x.Fraccion)
+            .Where(x => fraccionIds.Contains(x.FraccionId) && x.EsGenerico && x.PreciosPorAntiguedad.Any(p => p.AntiguedadAnios == antiguedad))
+            .ToListAsync();
+
+        var generic = SelectGenericPrecio(precios, fraccionPrimariaId, categoria, antiguedad);
+
+        return generic is null
+            ? null
+            : BuildPriceLookup(generic, antiguedad, "GENERICO", 0, warning);
+    }
+
+    private static bool HasExactPrice(PrecioEstimado selected, int antiguedad)
+        => FindExactPrice(selected, antiguedad) is not null;
+
+    private static PrecioPorAntiguedad? FindExactPrice(PrecioEstimado selected, int antiguedad)
+        => selected.PreciosPorAntiguedad.FirstOrDefault(x => x.AntiguedadAnios == antiguedad);
+
+    private static PrecioEstimado? SelectGenericPrecio(IEnumerable<PrecioEstimado> precios, Guid? fraccionPrimariaId, string categoria, int antiguedad)
+    {
+        var incisoBuscado = InferirIncisoDesdeCategoria(categoria);
+
+        bool IncisoMatches(PrecioEstimado x) =>
+            incisoBuscado is null ||
+            string.Equals(x.Inciso, incisoBuscado, StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(x.Inciso);
+
+        var genericos = precios
+            .Where(x => x.EsGenerico && HasExactPrice(x, antiguedad))
+            .Where(IncisoMatches)
+            .ToList();
+
+        return genericos
+            .Where(x => fraccionPrimariaId is null || x.FraccionId == fraccionPrimariaId)
+            .OrderBy(x => string.IsNullOrWhiteSpace(x.Inciso) ? 1 : 0)
+            .FirstOrDefault()
+            ?? genericos
+                .OrderBy(x => string.IsNullOrWhiteSpace(x.Inciso) ? 1 : 0)
+                .FirstOrDefault();
     }
 
     private async Task<ParametroFiscal> GetParametroFiscalAsync(string regimen)

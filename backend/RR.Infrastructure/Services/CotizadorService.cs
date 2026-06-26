@@ -51,6 +51,7 @@ public partial class CotizadorService : ICotizadorService
         var tcStale = false;
         var fuentePrecio = "ANEXO2";
         PriceLookupResult? precioLookup = null;
+        var precioOverrideAplicado = false;
         string? categoriaAmparoUsada = null;
 
         if (regimen == "AMPARO")
@@ -96,9 +97,20 @@ public partial class CotizadorService : ICotizadorService
                     ? "Precio estimado de fracción seleccionado manualmente (modelo no listado en catálogo SAT)."
                     : "Precio seleccionado manualmente por el administrador.";
                 precioLookup = BuildPriceLookup(seleccionAdmin, antiguedad, matchTipo, 100, advertencia);
+                precioOverrideAplicado = precioLookup is not null;
+
+                if (precioLookup is null && !seleccionAdmin.EsGenerico)
+                {
+                    precioLookup = await FindGenericPrecioEstimadoAsync(
+                        clasificacion.Fraccion,
+                        clasificacion.Categoria,
+                        antiguedad,
+                        "La entrada seleccionada no tiene precio exacto para el año del vehículo; se usó precio genérico de la fracción.");
+                }
+
                 valorUsd = precioLookup?.PrecioUsd;
 
-                if (seleccionAdmin.Fraccion?.Fraccion is { } fraccionSeleccionada)
+                if (precioLookup?.FraccionUsada is { } fraccionSeleccionada)
                     clasificacion = (fraccionSeleccionada, clasificacion.Categoria);
             }
             else
@@ -136,7 +148,7 @@ public partial class CotizadorService : ICotizadorService
         var output = CalculateTaxes(input, resolved, clasificacion, regimen, fuentePrecio, precioLookup, valorUsd, valorPesos, tcReferencia, tcAplicado, outputContexto, outputNota, tcStale, fiscal, honorarios, cargoExpress);
         output.CategoriaAmparoUsada = categoriaAmparoUsada;
         output.CategoriaAmparoOverride = input.CategoriaAmparoOverride;
-        if (input.PrecioEstimadoIdOverride.HasValue)
+        if (input.PrecioEstimadoIdOverride.HasValue && precioOverrideAplicado)
             output.PrecioEstimadoSeleccionadoId = input.PrecioEstimadoIdOverride.Value;
         return output;
     }
@@ -149,6 +161,7 @@ public partial class CotizadorService : ICotizadorService
 
         var clasificacion = DetermineFraccion(resolved.CilindradaCm3, input.TipoVehiculo, resolved.VehicleType, resolved.BodyClass, resolved.FuelType);
         var antiguedad = Math.Clamp(DateTime.Today.Year - resolved.Anno.Value, 1, 12);
+        var hasModel = !string.IsNullOrWhiteSpace(resolved.Modelo);
         var fraccionesABuscar = _fraccionesGasolina.Contains(clasificacion.Fraccion)
             ? _fraccionesGasolina
             : new[] { clasificacion.Fraccion };
@@ -173,14 +186,11 @@ public partial class CotizadorService : ICotizadorService
 
         // === Específicos ===
         var scored = precios
-            .Where(x => !x.EsGenerico && MarcaMatches(x))
+            .Where(x => hasModel && !x.EsGenerico && MarcaMatches(x) && HasExactPrice(x, antiguedad))
             .Select(x =>
             {
                 var score = ScoreModelMatch(resolved.Modelo ?? "", x.Modelo, resolved.EngineCylinders, clasificacion.Categoria);
-                var price = x.PreciosPorAntiguedad
-                    .OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad))
-                    .ThenByDescending(p => p.AntiguedadAnios)
-                    .First();
+                var price = FindExactPrice(x, antiguedad)!;
                 return new
                 {
                     Precio = x,
@@ -216,21 +226,11 @@ public partial class CotizadorService : ICotizadorService
         }).ToList();
 
         // === Genérico de la fracción primaria + inciso (fallback "PRECIOS ESTIMADOS APLICABLES...") ===
-        var incisoBuscado = InferirIncisoDesdeCategoria(clasificacion.Categoria);
-        var generico = precios
-            .Where(x => x.EsGenerico && (fraccionPrimariaId is null || x.FraccionId == fraccionPrimariaId))
-            .Where(x => incisoBuscado is null || string.Equals(x.Inciso, incisoBuscado, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(x.Inciso))
-            .OrderBy(x => string.IsNullOrWhiteSpace(x.Inciso) ? 1 : 0) // prefer match con inciso explícito
-            .FirstOrDefault()
-            // Si no encontramos genérico en la fracción primaria, buscar en cualquiera de las fracciones gemelas
-            ?? precios.FirstOrDefault(x => x.EsGenerico && (incisoBuscado is null || string.Equals(x.Inciso, incisoBuscado, StringComparison.OrdinalIgnoreCase)));
+        var generico = SelectGenericPrecio(precios, fraccionPrimariaId, clasificacion.Categoria, antiguedad);
 
         if (generico is not null)
         {
-            var genPrice = generico.PreciosPorAntiguedad
-                .OrderBy(p => Math.Abs(p.AntiguedadAnios - antiguedad))
-                .ThenByDescending(p => p.AntiguedadAnios)
-                .First();
+            var genPrice = FindExactPrice(generico, antiguedad)!;
 
             candidatos.Add(new CandidatoPrecio
             {

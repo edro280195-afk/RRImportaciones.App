@@ -141,6 +141,7 @@ static async Task<int> ImportAnexo2Async(string[] args)
 {
     var file = ReadArg(args, "--file");
     var genericsOnly = args.Contains("--generics-only", StringComparer.OrdinalIgnoreCase);
+    var dryRun = args.Contains("--dry-run", StringComparer.OrdinalIgnoreCase);
     if (string.IsNullOrWhiteSpace(file) || !File.Exists(file))
     {
         Console.WriteLine("Falta archivo válido: --file \"ruta/al/anexo2_catalogo.pdf\"");
@@ -153,20 +154,31 @@ static async Task<int> ImportAnexo2Async(string[] args)
 
     if (!genericsOnly)
     {
-        var oldPrices = await db.PreciosEstimados.Include(x => x.PreciosPorAntiguedad).ToListAsync();
-        db.PreciosPorAntiguedad.RemoveRange(oldPrices.SelectMany(x => x.PreciosPorAntiguedad));
-        db.PreciosEstimados.RemoveRange(oldPrices);
-        await db.SaveChangesAsync();
-        Console.WriteLine("Modo completo: datos existentes eliminados.");
+        if (dryRun)
+        {
+            Console.WriteLine("Modo completo dry-run: no se eliminarán ni insertarán datos.");
+        }
+        else
+        {
+            var oldPrices = await db.PreciosEstimados.Include(x => x.PreciosPorAntiguedad).ToListAsync();
+            db.PreciosPorAntiguedad.RemoveRange(oldPrices.SelectMany(x => x.PreciosPorAntiguedad));
+            db.PreciosEstimados.RemoveRange(oldPrices);
+            await db.SaveChangesAsync();
+            Console.WriteLine("Modo completo: datos existentes eliminados.");
+        }
     }
     else
     {
-        Console.WriteLine("Modo solo-genéricos: no se borrarán datos existentes.");
+        Console.WriteLine(dryRun
+            ? "Modo solo-genéricos dry-run: no se insertarán ni actualizarán datos."
+            : "Modo solo-genéricos: se insertarán o actualizarán defaults sin borrar datos específicos.");
     }
 
     var knownBrands = await LoadKnownBrandsAsync(db);
     var marcaCache = await LoadMarcaCacheAsync(db);
     var insertedModels = 0;
+    var updatedModels = 0;
+    var removedDuplicateModels = 0;
     var insertedPrices = 0;
     var skippedRows = 0;
     var currentFraccion = "";
@@ -248,44 +260,119 @@ static async Task<int> ImportAnexo2Async(string[] args)
             var marca = isGeneric || string.IsNullOrWhiteSpace(brandText) ? null : GetOrCreateMarcaCached(db, marcaCache, brandText);
             var categoria = string.IsNullOrWhiteSpace(currentCategoria) ? CategoriaFromFraccion(currentFraccion) : currentCategoria;
             var fraccion = await GetOrCreateFraccionAsync(db, currentFraccion, categoria);
+            var cleanBrandText = string.IsNullOrWhiteSpace(brandText) ? string.Empty : CleanText(brandText);
+            var cleanModelText = CleanText(modelText);
 
-            var precio = new PrecioEstimado
+            if (dryRun)
             {
-                Id = Guid.NewGuid(),
-                FraccionId = fraccion.Id,
-                MarcaId = marca?.Id,
-                Categoria = categoria,
-                Inciso = currentInciso,
-                MarcaTexto = string.IsNullOrWhiteSpace(brandText) ? string.Empty : CleanText(brandText),
-                Modelo = CleanText(modelText),
-                EsGenerico = isGeneric,
-                HojaOrigen = $"ANEXO2 PDF p{pageNumber}",
-            };
+                if (genericsOnly && isGeneric)
+                {
+                    var exists = await db.PreciosEstimados.AnyAsync(x =>
+                        x.EsGenerico &&
+                        x.FraccionId == fraccion.Id &&
+                        x.Inciso == currentInciso &&
+                        x.Modelo == cleanModelText);
+
+                    if (exists)
+                        updatedModels++;
+                    else
+                        insertedModels++;
+                }
+                else
+                {
+                    insertedModels++;
+                }
+
+                insertedPrices += prices.Count;
+                continue;
+            }
+
+            PrecioEstimado precio;
+            if (genericsOnly && isGeneric)
+            {
+                var existing = await db.PreciosEstimados
+                    .Include(x => x.PreciosPorAntiguedad)
+                    .Where(x =>
+                        x.EsGenerico &&
+                        x.FraccionId == fraccion.Id &&
+                        x.Inciso == currentInciso &&
+                        x.Modelo == cleanModelText)
+                    .ToListAsync();
+
+                precio = existing.FirstOrDefault() ?? new PrecioEstimado
+                {
+                    Id = Guid.NewGuid(),
+                    FraccionId = fraccion.Id,
+                    EsGenerico = true,
+                };
+
+                if (existing.Count == 0)
+                {
+                    db.PreciosEstimados.Add(precio);
+                    insertedModels++;
+                }
+                else
+                {
+                    updatedModels++;
+                }
+
+                foreach (var duplicate in existing.Skip(1))
+                {
+                    db.PreciosPorAntiguedad.RemoveRange(duplicate.PreciosPorAntiguedad);
+                    db.PreciosEstimados.Remove(duplicate);
+                    removedDuplicateModels++;
+                }
+
+                db.PreciosPorAntiguedad.RemoveRange(precio.PreciosPorAntiguedad);
+                precio.PreciosPorAntiguedad.Clear();
+            }
+            else
+            {
+                precio = new PrecioEstimado
+                {
+                    Id = Guid.NewGuid(),
+                    FraccionId = fraccion.Id,
+                    EsGenerico = isGeneric,
+                };
+                db.PreciosEstimados.Add(precio);
+                insertedModels++;
+            }
+
+            precio.FraccionId = fraccion.Id;
+            precio.MarcaId = marca?.Id;
+            precio.Categoria = categoria;
+            precio.Inciso = currentInciso;
+            precio.MarcaTexto = cleanBrandText;
+            precio.Modelo = cleanModelText;
+            precio.EsGenerico = isGeneric;
+            precio.HojaOrigen = $"ANEXO2 PDF p{pageNumber}";
 
             foreach (var price in prices)
             {
                 precio.PreciosPorAntiguedad.Add(new PrecioPorAntiguedad
                 {
                     Id = Guid.NewGuid(),
+                    PrecioEstimadoId = precio.Id,
                     AntiguedadAnios = price.Age,
                     PrecioUsd = price.Value,
                 });
                 insertedPrices++;
             }
-
-            db.PreciosEstimados.Add(precio);
-            insertedModels++;
         }
 
-        if (pageNumber % 10 == 0)
+        if (!dryRun && pageNumber % 10 == 0)
         {
             await db.SaveChangesAsync();
             Console.WriteLine($"Páginas procesadas: {pageNumber}/{document.NumberOfPages}");
         }
     }
 
-    await db.SaveChangesAsync();
-    Console.WriteLine($"Modelos importados desde Anexo 2: {insertedModels}");
+    if (!dryRun)
+        await db.SaveChangesAsync();
+
+    Console.WriteLine($"Modelos insertados desde Anexo 2: {insertedModels}");
+    Console.WriteLine($"Modelos actualizados desde Anexo 2: {updatedModels}");
+    Console.WriteLine($"Duplicados genéricos eliminados: {removedDuplicateModels}");
     Console.WriteLine($"Precios por antigüedad importados: {insertedPrices}");
     Console.WriteLine($"Filas omitidas: {skippedRows}");
     Console.WriteLine($"Modelos en BD: {await db.PreciosEstimados.CountAsync()}");
@@ -919,7 +1006,7 @@ static void PrintUsage()
     Console.WriteLine("Uso:");
     Console.WriteLine("  dotnet run --project RR.DataImporter -- import-tramites --file \"ruta.xlsx\" --tenant \"tenant-guid\" [--dry-run] [--connection-string \"...\"]");
     Console.WriteLine("  dotnet run --project RR.DataImporter -- import-tabuladores --file \"ruta/al/TABULADOR_2026.xlsx\" [--connection-string \"...\"]");
-    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-anexo2 --file \"ruta/al/anexo2_catalogo.pdf\" [--generics-only] [--connection-string \"...\"]");
+    Console.WriteLine("  dotnet run --project RR.DataImporter -- import-anexo2 --file \"ruta/al/anexo2_catalogo.pdf\" [--generics-only] [--dry-run] [--connection-string \"...\"]");
 }
 
 file sealed record PdfLine(double Y, IReadOnlyList<Word> Words);
