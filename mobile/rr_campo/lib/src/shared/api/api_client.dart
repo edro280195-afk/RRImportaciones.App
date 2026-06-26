@@ -89,6 +89,15 @@ class ApiClient {
     return _decode(response);
   }
 
+  Future<dynamic> putJson(String path, Map<String, dynamic> body) async {
+    final response = await httpClient.put(
+      uri(path),
+      headers: await authHeaders(),
+      body: jsonEncode(body),
+    );
+    return _decode(response);
+  }
+
   Future<dynamic> uploadFile(String path, XFile file) async {
     final request = http.MultipartRequest('POST', uri(path));
     request.headers.addAll(await authHeaders(json: false));

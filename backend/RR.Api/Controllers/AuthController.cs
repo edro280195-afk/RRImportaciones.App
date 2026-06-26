@@ -119,7 +119,7 @@ public class AuthController : ControllerBase
         }
     }
 
-    /// <summary>Lista los usuarios de campo para la pantalla de selección de PIN.</summary>
+    /// <summary>Lista usuarios activos con PIN para la pantalla de selección.</summary>
     [HttpGet("campo-users")]
     [AllowAnonymous]
     public async Task<IActionResult> GetCampoUsers()

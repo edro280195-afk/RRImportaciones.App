@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
@@ -45,6 +46,9 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage> {
   bool _finishing = false;
   bool _torchEnabled = false;
   String _status = 'Preparando camara...';
+  String? _detectedVin;
+  Offset? _focusPoint;
+  Timer? _focusTimer;
 
   @override
   void initState() {
@@ -54,6 +58,7 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage> {
 
   @override
   void dispose() {
+    _focusTimer?.cancel();
     _disposeCamera();
     _barcodeScanner.close();
     _textRecognizer.close();
@@ -64,45 +69,65 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage> {
   Widget build(BuildContext context) {
     final controller = _controller;
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (_cameraReady && controller != null)
-            _CameraPreview(controller: controller)
-          else
-            const Center(child: CircularProgressIndicator(color: Colors.white)),
-          const _ScannerMask(),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      IconButton.filledTonal(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.arrow_back),
-                        tooltip: 'Volver',
-                      ),
-                      const Spacer(),
-                      IconButton.filledTonal(
-                        onPressed: _cameraReady ? _toggleTorch : null,
-                        icon: Icon(
-                          _torchEnabled ? Icons.flash_on : Icons.flash_off,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        await _disposeCamera();
+        if (context.mounted) {
+          Navigator.of(context).pop(result);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_cameraReady && controller != null)
+              GestureDetector(
+                onTapDown: (details) => _onTapToFocus(details, controller),
+                child: _CameraPreview(controller: controller),
+              )
+            else
+              const Center(child: CircularProgressIndicator(color: Colors.white)),
+            const _ScannerMask(),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        IconButton.filledTonal(
+                          onPressed: () => Navigator.of(context).maybePop(),
+                          icon: const Icon(Icons.arrow_back),
+                          tooltip: 'Volver',
                         ),
-                        tooltip: 'Linterna',
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  _ScannerInstruction(status: _status),
-                ],
+                        const Spacer(),
+                        IconButton.filledTonal(
+                          onPressed: _cameraReady ? _toggleTorch : null,
+                          icon: Icon(
+                            _torchEnabled ? Icons.flash_on : Icons.flash_off,
+                          ),
+                          tooltip: 'Linterna',
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    _ScannerInstruction(status: _status),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+            if (_detectedVin != null) _buildConfirmationCard(),
+            if (_focusPoint != null)
+              Positioned(
+                left: _focusPoint!.dx - 25,
+                top: _focusPoint!.dy - 25,
+                child: const _FocusRing(),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -177,7 +202,7 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage> {
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
-    if (_processingFrame || _finishing) return;
+    if (_processingFrame || _finishing || _detectedVin != null) return;
 
     final inputImage = _inputImageFromCameraImage(image);
     if (inputImage == null) return;
@@ -186,16 +211,16 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage> {
     try {
       final barcodeVin = await _scanBarcodes(inputImage);
       if (barcodeVin != null) {
-        await _finishScan(barcodeVin);
+        await _onVinDetected(barcodeVin);
         return;
       }
 
       final now = DateTime.now();
-      if (now.difference(_lastOcrAt).inMilliseconds >= 1200) {
+      if (now.difference(_lastOcrAt).inMilliseconds >= 700) {
         _lastOcrAt = now;
         final textVin = await _scanText(inputImage);
         if (textVin != null) {
-          await _finishScan(textVin);
+          await _onVinDetected(textVin);
           return;
         }
       }
@@ -229,13 +254,8 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage> {
     return vin;
   }
 
-  Future<void> _finishScan(String vin) async {
-    if (_finishing) return;
-    _finishing = true;
-
-    if (mounted) {
-      setState(() => _status = 'VIN detectado: ${toShortVin(vin)}');
-    }
+  Future<void> _onVinDetected(String vin) async {
+    if (_finishing || _detectedVin != null) return;
 
     await HapticFeedback.heavyImpact();
     await SystemSound.play(SystemSoundType.click);
@@ -245,9 +265,166 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage> {
       await controller.stopImageStream().catchError((_) {});
     }
 
-    await Future<void>.delayed(const Duration(milliseconds: 250));
+    if (!mounted) return;
+    setState(() {
+      _detectedVin = vin;
+      _status = 'Código detectado';
+    });
+  }
+
+  Future<void> _confirmVin() async {
+    final vin = _detectedVin;
+    if (vin == null || _finishing) return;
+    _finishing = true;
+
+    await _disposeCamera();
+
     if (!mounted) return;
     Navigator.of(context).pop(vin);
+  }
+
+  Future<void> _resumeScan() async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    setState(() {
+      _detectedVin = null;
+      _finishing = false;
+      _status = 'Enfoca el VIN, codigo de barras o QR';
+    });
+
+    try {
+      if (!controller.value.isStreamingImages) {
+        await controller.startImageStream(_processCameraImage);
+      }
+    } catch (e) {
+      _setStatus('Error al reiniciar el escáner: $e');
+    }
+  }
+
+  Future<void> _onTapToFocus(TapDownDetails details, CameraController controller) async {
+    if (!_cameraReady) return;
+
+    try {
+      final renderBox = context.findRenderObject() as RenderBox?;
+      if (renderBox == null) return;
+
+      final size = renderBox.size;
+      final x = details.localPosition.dx / size.width;
+      final y = details.localPosition.dy / size.height;
+      final focusPoint = Offset(x, y);
+
+      await controller.setFocusPoint(focusPoint);
+      await controller.setExposurePoint(focusPoint);
+
+      setState(() {
+        _focusPoint = details.localPosition;
+      });
+      _focusTimer?.cancel();
+      _focusTimer = Timer(const Duration(milliseconds: 600), () {
+        if (mounted) setState(() => _focusPoint = null);
+      });
+    } catch (_) {}
+  }
+
+  Widget _buildConfirmationCard() {
+    final vin = _detectedVin!;
+    return Positioned(
+      bottom: 24,
+      left: 16,
+      right: 16,
+      child: Card(
+        color: Colors.black.withValues(alpha: 0.9),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: Colors.white24, width: 1.5),
+        ),
+        elevation: 12,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.check_circle_outline,
+                color: Color(0xFFC61D26),
+                size: 40,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                '¿El VIN detectado es correcto?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Center(
+                  child: SelectableText(
+                    vin,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _resumeScan,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                        side: const BorderSide(color: Colors.white38),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Escanear de nuevo',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _confirmVin,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFC61D26),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirmar',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   InputImage? _inputImageFromCameraImage(CameraImage image) {
@@ -439,6 +616,57 @@ class _ScannerInstruction extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FocusRing extends StatefulWidget {
+  const _FocusRing();
+
+  @override
+  State<_FocusRing> createState() => _FocusRingState();
+}
+
+class _FocusRingState extends State<_FocusRing> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final scale = 1.3 - (0.3 * _controller.value);
+        final opacity = 1.0 - _controller.value;
+        return Opacity(
+          opacity: opacity,
+          child: Transform.scale(
+            scale: scale,
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFC61D26), width: 1.5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

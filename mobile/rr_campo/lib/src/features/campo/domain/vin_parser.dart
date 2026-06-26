@@ -1,4 +1,5 @@
 final _vinRegex = RegExp(r'[A-HJ-NPR-Z0-9]{17}', caseSensitive: false);
+final _lenientVinRegex = RegExp(r'[A-Z0-9]{17}', caseSensitive: false);
 final _invalidVinCharacters = RegExp(r'[^A-HJ-NPR-Z0-9]');
 final _nonAlphaNumeric = RegExp(r'[^A-Z0-9]');
 final _digit = RegExp(r'\d');
@@ -31,7 +32,37 @@ String? extractVinCandidate(String value) {
     if (labelPrefixed.startsWith('VIN'))
       ..._collectCandidates(labelPrefixed.substring(3)),
   ];
-  final candidates = [...direct, ...compactCandidates];
+
+  final matches = _lenientVinRegex.allMatches(value.toUpperCase());
+  final lenientCandidates = <String>[];
+  for (final match in matches) {
+    final rawCandidate = match.group(0);
+    if (rawCandidate != null) {
+      final corrected = rawCandidate
+          .replaceAll('I', '1')
+          .replaceAll('O', '0')
+          .replaceAll('Q', '0');
+      if (!lenientCandidates.contains(corrected)) {
+        lenientCandidates.add(corrected);
+      }
+    }
+  }
+
+  final compactMatches = _lenientVinRegex.allMatches(compact);
+  for (final match in compactMatches) {
+    final rawCandidate = match.group(0);
+    if (rawCandidate != null) {
+      final corrected = rawCandidate
+          .replaceAll('I', '1')
+          .replaceAll('O', '0')
+          .replaceAll('Q', '0');
+      if (!lenientCandidates.contains(corrected)) {
+        lenientCandidates.add(corrected);
+      }
+    }
+  }
+
+  final candidates = [...direct, ...compactCandidates, ...lenientCandidates];
 
   if (candidates.isEmpty) return null;
   return candidates.firstWhere(

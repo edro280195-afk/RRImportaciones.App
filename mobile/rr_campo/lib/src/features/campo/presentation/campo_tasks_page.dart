@@ -56,7 +56,7 @@ class _CampoTasksPageState extends ConsumerState<CampoTasksPage> {
             onRefresh: () => ref.invalidate(campoTasksProvider),
             onLogout: () async {
               await ref.read(sessionControllerProvider.notifier).logout();
-              if (context.mounted) context.go('/pin');
+              if (context.mounted) context.go('/login');
             },
           ),
           Expanded(

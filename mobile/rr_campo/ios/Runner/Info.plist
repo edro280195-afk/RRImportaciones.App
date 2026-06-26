@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>R&amp;R Campo</string>
+	<string>R&amp;R Importaciones</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -59,6 +59,8 @@
 	<string>Se usa la galeria para adjuntar evidencia del vehiculo cuando sea necesario.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Se permite guardar evidencia fotografica tomada en campo.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Se utiliza Face ID para iniciar sesión de forma segura y rápida en la aplicación.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

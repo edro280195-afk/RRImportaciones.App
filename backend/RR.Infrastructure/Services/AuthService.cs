@@ -196,11 +196,7 @@ public class AuthService : IAuthService
     {
         return await _db.Usuarios
             .IgnoreQueryFilters()
-            .Include(u => u.Role)
-                .ThenInclude(r => r!.RolePermissions)
-                    .ThenInclude(rp => rp.Permission)
-            .Where(u => u.Activo && u.Role != null
-                && u.Role.RolePermissions.Any(rp => rp.Permission != null && rp.Permission.Codigo == "CAMPO_USAR"))
+            .Where(u => u.Activo && u.PinHash != null)
             .OrderBy(u => u.Nombre)
             .Select(u => new CampoUserDto
             {
