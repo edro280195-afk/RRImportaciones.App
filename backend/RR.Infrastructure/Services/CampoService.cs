@@ -379,6 +379,8 @@ public class CampoService : ICampoService
         tarea.EstadoLogistico = string.IsNullOrWhiteSpace(request.Incidencia) ? "COMPLETADA" : "INCIDENCIA";
         tarea.FechaCompletada = DateTime.UtcNow;
 
+        await SyncFotosToVehiculoAsync(tarea.VehiculoId ?? tarea.Tramite?.VehiculoId, tarea.FotosUrls);
+
         if (tarea.TramiteId.HasValue)
         {
             _db.Eventos.Add(new Evento
@@ -488,26 +490,19 @@ public class CampoService : ICampoService
 
     public async Task<TareaCampoDto> AgregarFotoAsync(Guid id, string fotoUrl)
     {
-        var tarea = await _db.TareasCampo.FindAsync(id)
+        var tarea = await _db.TareasCampo
+            .Include(t => t.Tramite)
+            .FirstOrDefaultAsync(t => t.Id == id)
             ?? throw new KeyNotFoundException("Tarea de campo no encontrada");
 
-        var fotos = tarea.FotosUrls.ToList();
-        fotos.Add(fotoUrl);
-        tarea.FotosUrls = fotos.ToArray();
-
-        if (tarea.VehiculoId.HasValue)
+        var fotos = (tarea.FotosUrls ?? Array.Empty<string>()).ToList();
+        if (!fotos.Contains(fotoUrl, StringComparer.Ordinal))
         {
-            var vehiculo = await _db.Vehiculos.FindAsync(tarea.VehiculoId.Value);
-            if (vehiculo != null)
-            {
-                var vFotos = vehiculo.FotosUrls.ToList();
-                if (!vFotos.Contains(fotoUrl))
-                {
-                    vFotos.Add(fotoUrl);
-                    vehiculo.FotosUrls = vFotos.ToArray();
-                }
-            }
+            fotos.Add(fotoUrl);
+            tarea.FotosUrls = fotos.ToArray();
         }
+
+        await SyncFotosToVehiculoAsync(tarea.VehiculoId ?? tarea.Tramite?.VehiculoId, [fotoUrl]);
 
         if (tarea.EstadoLogistico is "ABIERTA" or "TOMADA")
             tarea.EstadoLogistico = "EN_YARDA";
@@ -562,6 +557,40 @@ public class CampoService : ICampoService
         await _db.SaveChangesAsync();
         await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "FOTO_ELIMINADA");
         return (await GetById(id))!;
+    }
+
+    private async Task SyncFotosToVehiculoAsync(Guid? vehiculoId, IEnumerable<string>? fotosUrls)
+    {
+        if (!vehiculoId.HasValue)
+            return;
+
+        var nuevasFotos = (fotosUrls ?? Array.Empty<string>())
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (nuevasFotos.Length == 0)
+            return;
+
+        var vehiculo = await _db.Vehiculos.FindAsync(vehiculoId.Value);
+        if (vehiculo == null)
+            return;
+
+        var fotos = (vehiculo.FotosUrls ?? Array.Empty<string>()).ToList();
+        var existentes = new HashSet<string>(fotos, StringComparer.Ordinal);
+        var changed = false;
+
+        foreach (var fotoUrl in nuevasFotos)
+        {
+            if (existentes.Add(fotoUrl))
+            {
+                fotos.Add(fotoUrl);
+                changed = true;
+            }
+        }
+
+        if (changed)
+            vehiculo.FotosUrls = fotos.ToArray();
     }
 
     public async Task<TareaCampoDto> DescartarAsync(Guid id, DescartarTareaCampoRequest request)

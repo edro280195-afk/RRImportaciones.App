@@ -8,6 +8,7 @@ import {
   UpdateInventarioRequest,
 } from '../../services/vehiculo.service';
 import { NotificationService } from '../../services/notification.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-vehiculos-detail',
@@ -154,6 +155,44 @@ import { NotificationService } from '../../services/notification.service';
               <span class="w-1.5 h-1.5 rounded-full bg-[#2563EB]"></span>
               Sello aduanal
             </span>
+          }
+        </div>
+
+        <!-- Fotos -->
+        <div
+          class="card-elevated rounded-2xl overflow-hidden mb-6 stagger-item"
+          style="animation-delay: 70ms;"
+        >
+          <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#E4E7EC]">
+            <span class="text-[13px] font-semibold text-[#1E2330]">Fotos del vehiculo</span>
+            <span class="text-[11px] text-[#9EA3AE] font-mono-data">{{
+              v.fotosUrls.length
+            }}</span>
+          </div>
+
+          @if (v.fotosUrls.length === 0) {
+            <div class="p-8 text-center">
+              <p class="text-[13px] text-[#9EA3AE]">Sin fotos registradas</p>
+            </div>
+          } @else {
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 p-5">
+              @for (foto of v.fotosUrls; track foto) {
+                <a
+                  [href]="fileUrl(foto)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="group block aspect-[4/3] overflow-hidden rounded-xl border border-[#E4E7EC] bg-[#F8FAFC]"
+                  aria-label="Abrir foto del vehiculo"
+                >
+                  <img
+                    [src]="fileUrl(foto)"
+                    alt="Foto del vehiculo"
+                    class="h-full w-full object-cover transition-transform duration-150 group-hover:scale-[1.03]"
+                    loading="lazy"
+                  />
+                </a>
+              }
+            </div>
           }
         </div>
 
@@ -459,7 +498,7 @@ export class VehiculosDetailComponent {
           ubicacionActual: v.ubicacionActual,
           cumplioRequisitos: v.cumplioRequisitos,
           tieneSelloAduanal: v.tieneSelloAduanal,
-          fechaPedimentoProforma: (v as any).fechaPedimentoProforma || null,
+          fechaPedimentoProforma: v.fechaPedimentoProforma || null,
         };
         this.loading.set(false);
       },
@@ -520,5 +559,9 @@ export class VehiculosDetailComponent {
     };
     const s = map[estatus] || { bg: '#F3F4F6', color: '#4B5162' };
     return { background: s.bg, color: s.color };
+  }
+
+  fileUrl(url: string): string {
+    return url.startsWith('http') ? url : `${environment.apiUrl}${url}`;
   }
 }

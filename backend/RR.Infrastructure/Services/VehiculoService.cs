@@ -52,6 +52,8 @@ public class VehiculoService : IVehiculoService
             })
             .ToListAsync();
 
+        await MergeCampoFotosAsync(items);
+
         return new PagedResult<VehiculoListDto>
         {
             Items = items,
@@ -139,7 +141,7 @@ public class VehiculoService : IVehiculoService
 
     public async Task<VehiculoDetailDto?> GetByIdAsync(Guid id)
     {
-        return await _db.Vehiculos
+        var vehiculo = await _db.Vehiculos
             .Include(v => v.Cliente)
             .Include(v => v.Marca)
             .Include(v => v.Modelo)
@@ -179,6 +181,11 @@ public class VehiculoService : IVehiculoService
                 }).ToList(),
             })
             .FirstOrDefaultAsync();
+
+        if (vehiculo != null)
+            await MergeCampoFotosAsync([vehiculo]);
+
+        return vehiculo;
     }
 
     public async Task<VehiculoDetailDto> CreateAsync(CreateVehiculoRequest request)
@@ -336,7 +343,7 @@ public class VehiculoService : IVehiculoService
 
     public async Task<IEnumerable<VehiculoListDto>> GetInventarioActualAsync()
     {
-        return await _db.Vehiculos
+        var items = await _db.Vehiculos
             .Include(v => v.Cliente)
             .Include(v => v.Marca)
             .Include(v => v.Modelo)
@@ -361,6 +368,56 @@ public class VehiculoService : IVehiculoService
                 FotosUrls = v.FotosUrls
             })
             .ToListAsync();
+
+        await MergeCampoFotosAsync(items);
+        return items;
+    }
+
+    private async Task MergeCampoFotosAsync(IReadOnlyCollection<VehiculoListDto> vehiculos)
+    {
+        if (vehiculos.Count == 0)
+            return;
+
+        var vehiculoIds = vehiculos.Select(v => v.Id).ToArray();
+
+        var fotosDirectas = await _db.TareasCampo
+            .Where(t => t.VehiculoId.HasValue && vehiculoIds.Contains(t.VehiculoId.Value) && t.FotosUrls.Length > 0)
+            .Select(t => new { VehiculoId = t.VehiculoId!.Value, t.FotosUrls })
+            .ToListAsync();
+
+        var fotosPorTramite = await _db.TareasCampo
+            .Where(t => t.Tramite != null
+                     && t.Tramite.VehiculoId.HasValue
+                     && vehiculoIds.Contains(t.Tramite.VehiculoId.Value)
+                     && t.FotosUrls.Length > 0)
+            .Select(t => new { VehiculoId = t.Tramite!.VehiculoId!.Value, t.FotosUrls })
+            .ToListAsync();
+
+        var fotosPorVehiculo = fotosDirectas
+            .Concat(fotosPorTramite)
+            .GroupBy(x => x.VehiculoId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.SelectMany(x => x.FotosUrls ?? Array.Empty<string>())
+                    .Where(url => !string.IsNullOrWhiteSpace(url))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray());
+
+        foreach (var vehiculo in vehiculos)
+        {
+            if (!fotosPorVehiculo.TryGetValue(vehiculo.Id, out var fotosCampo))
+                continue;
+
+            var fotos = (vehiculo.FotosUrls ?? Array.Empty<string>()).ToList();
+            var existentes = new HashSet<string>(fotos, StringComparer.Ordinal);
+            foreach (var foto in fotosCampo)
+            {
+                if (existentes.Add(foto))
+                    fotos.Add(foto);
+            }
+
+            vehiculo.FotosUrls = fotos.ToArray();
+        }
     }
 
     private async Task<Guid?> AutoClassifyFraccionAsync(string? categoria, int? cilindradaCm3)

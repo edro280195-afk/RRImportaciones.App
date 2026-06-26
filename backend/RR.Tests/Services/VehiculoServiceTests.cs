@@ -67,6 +67,52 @@ public class VehiculoServiceTests
         result.MarcaNombre.Should().Be("Honda");
     }
 
+    [Fact]
+    public async Task GetByIdAsync_WhenCampoTaskHasPhotosLinkedByTramite_ReturnsPhotos()
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var tenantContext = new TestTenantContext(tenantId);
+        await using var db = CreateDbContext(tenantContext);
+        var service = new VehiculoService(db, new TestCurrentUserService(), tenantContext);
+
+        var vehiculo = new Vehiculo
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Vin = "1HGCV1F33JA235611",
+            VinCorto = "235611",
+            FotosUrls = [],
+        };
+        var tramite = new Tramite
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            VehiculoId = vehiculo.Id,
+            NumeroConsecutivo = "RR-0001",
+        };
+        var tarea = new TareaCampo
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            TramiteId = tramite.Id,
+            Tipo = "FOTOS_YARDA",
+            EstadoLogistico = "COMPLETADA",
+            CreadoPor = userId,
+            FotosUrls = ["/storage/campo/foto-historica.jpg"],
+        };
+
+        db.Vehiculos.Add(vehiculo);
+        db.Tramites.Add(tramite);
+        db.TareasCampo.Add(tarea);
+        await db.SaveChangesAsync();
+
+        var result = await service.GetByIdAsync(vehiculo.Id);
+
+        result.Should().NotBeNull();
+        result!.FotosUrls.Should().Contain("/storage/campo/foto-historica.jpg");
+    }
+
     private static AppDbContext CreateDbContext(ITenantContext tenantContext)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

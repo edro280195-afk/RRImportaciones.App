@@ -15,8 +15,8 @@ export interface VehiculoListDto {
   tieneTramiteActivo: boolean;
   cumplioRequisitos: boolean;
   tieneSelloAduanal: boolean;
-  fotosCount?: number;
-  fotoPreviewUrl?: string | null;
+  estado: string;
+  fotosUrls: string[];
 }
 
 export interface TramiteSimpleDto {

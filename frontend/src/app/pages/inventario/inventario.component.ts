@@ -1,4 +1,4 @@
-import { Component, signal, inject } from '@angular/core';
+import { Component, signal, inject, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { VehiculoService, VehiculoListDto } from '../../services/vehiculo.service';
@@ -19,6 +19,12 @@ import { environment } from '../../../environments/environment';
             Inventario
           </h1>
         </div>
+        @if (sinClienteCount() > 0) {
+          <div class="sc-alert" title="Vehículos registrados sin cliente — asígnalos">
+            <span class="sc-dot"></span>
+            {{ sinClienteCount() }} sin cliente
+          </div>
+        }
       </div>
 
       @if (loading()) {
@@ -50,14 +56,26 @@ import { environment } from '../../../environments/environment';
               </thead>
               <tbody>
                 @for (v of vehiculos(); track v.id) {
-                  <tr class="text-[13.5px] text-[#1E2330] border-b border-[#F3F4F6]">
+                  <tr
+                    class="text-[13.5px] text-[#1E2330] border-b border-[#F3F4F6]"
+                    [style.background]="!v.clienteApodo ? '#FFFBFB' : null"
+                  >
                     <td class="px-5 py-3.5 font-mono-data font-semibold">
                       {{ v.vinCorto || v.vin }}
                     </td>
                     <td class="px-5 py-3.5">
                       {{ v.marcaNombre || '—' }} {{ v.modeloNombre || '' }}
                     </td>
-                    <td class="px-5 py-3.5">{{ v.clienteApodo || '—' }}</td>
+                    <td class="px-5 py-3.5">
+                      @if (v.clienteApodo) {
+                        {{ v.clienteApodo }}
+                      } @else {
+                        <span class="sc-badge" title="Vehículo sin cliente — asígnalo">
+                          <span class="sc-dot"></span>
+                          Sin cliente
+                        </span>
+                      }
+                    </td>
                     <td class="px-5 py-3.5 text-[#6B717F] font-mono-data text-[12px]">
                       {{ v.fechaIngresoPatio | date: 'dd/MM/yyyy' }}
                     </td>
@@ -103,8 +121,8 @@ import { environment } from '../../../environments/environment';
                         [title]="hasFotos(v) ? 'Ver fotos del vehiculo' : 'Sin fotos cargadas'"
                       >
                         Fotos
-                        @if (v.fotosCount) {
-                          <span class="font-mono-data">{{ v.fotosCount }}</span>
+                        @if (v.fotosUrls.length > 0) {
+                          <span class="font-mono-data">{{ v.fotosUrls.length }}</span>
                         }
                       </button>
                     </td>
@@ -159,12 +177,24 @@ import { environment } from '../../../environments/environment';
             </div>
 
             <div class="p-5">
-              @if (v.fotoPreviewUrl) {
-                <img
-                  [src]="fileUrl(v.fotoPreviewUrl)"
-                  alt="Foto del vehiculo"
-                  class="max-h-[420px] w-full rounded-xl object-contain bg-[#F8FAFC]"
-                />
+              @if (v.fotosUrls.length > 0) {
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  @for (foto of v.fotosUrls; track foto) {
+                    <a
+                      [href]="fileUrl(foto)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="block aspect-[4/3] overflow-hidden rounded-xl border border-[#E4E7EC] bg-[#F8FAFC]"
+                    >
+                      <img
+                        [src]="fileUrl(foto)"
+                        alt="Foto del vehiculo"
+                        class="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </a>
+                  }
+                </div>
               } @else {
                 <div
                   class="rounded-xl border border-dashed border-[#D8DEE8] bg-[#F8FAFC] p-10 text-center"
@@ -191,6 +221,58 @@ import { environment } from '../../../environments/environment';
       }
     </div>
   `,
+  styles: [
+    `
+      .sc-alert {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #feecec;
+        color: #c61d26;
+        font-size: 13px;
+        font-weight: 600;
+        border: 1px solid #f6c5c5;
+      }
+      .sc-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px 3px 8px;
+        border-radius: 999px;
+        background: #feecec;
+        color: #c61d26;
+        font-size: 11px;
+        font-weight: 600;
+        border: 1px solid #f6c5c5;
+      }
+      .sc-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #c61d26;
+        box-shadow: 0 0 0 0 rgba(198, 29, 38, 0.55);
+        animation: sc-pulse 1.4s infinite;
+      }
+      @keyframes sc-pulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(198, 29, 38, 0.55);
+        }
+        70% {
+          box-shadow: 0 0 0 7px rgba(198, 29, 38, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(198, 29, 38, 0);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .sc-dot {
+          animation: none;
+        }
+      }
+    `,
+  ],
 })
 export class InventarioComponent {
   private vehiculoService = inject(VehiculoService);
@@ -199,6 +281,8 @@ export class InventarioComponent {
   vehiculos = signal<VehiculoListDto[]>([]);
   loading = signal(true);
   fotosModalVehiculo = signal<VehiculoListDto | null>(null);
+
+  sinClienteCount = computed(() => this.vehiculos().filter(v => !v.clienteApodo).length);
 
   constructor() {
     this.vehiculoService.getInventarioActual().subscribe({
@@ -211,7 +295,7 @@ export class InventarioComponent {
   }
 
   hasFotos(v: VehiculoListDto): boolean {
-    return (v.fotosCount ?? 0) > 0 || !!v.fotoPreviewUrl;
+    return v.fotosUrls.length > 0;
   }
 
   openFotos(v: VehiculoListDto): void {
