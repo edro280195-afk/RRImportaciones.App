@@ -3,108 +3,54 @@ using RR.Domain.Enums;
 
 namespace RR.Infrastructure.Services;
 
+/// <summary>
+/// Reglas de cambio de estado de un trámite. Modelo permisivo (igual que la
+/// herramienta de Rodri): se puede mover a cualquier estado válido del flujo
+/// semáforo, con dos candados:
+///   1. Un trámite CANCELADO no se puede reactivar.
+///   2. No se permite "cambiar" al mismo estado en el que ya está.
+///
+/// El requisito de que ENTREGADO_AL_CLIENTE tenga una entrega registrada se
+/// valida aparte en <c>TramiteService.CambiarEstadoAsync</c>.
+/// </summary>
 public class TramiteStateService : ITramiteStateService
 {
-    private static readonly Dictionary<string, string[]> TransicionesLogistica = new()
-    {
-        [EstadoLogistico.PENDIENTE] = [EstadoLogistico.RECEPCION_EN_YARDA],
-        [EstadoLogistico.RECEPCION_EN_YARDA] = [EstadoLogistico.REVISION_DOCUMENTAL],
-        [EstadoLogistico.REVISION_DOCUMENTAL] = [EstadoLogistico.LISTO_PARA_ADUANA],
-        [EstadoLogistico.LISTO_PARA_ADUANA] = [EstadoLogistico.PEDIMENTO_DOCUMENTADO],
-        [EstadoLogistico.PEDIMENTO_DOCUMENTADO] = [EstadoLogistico.MODULACION_EN_CRUCE],
-        [EstadoLogistico.MODULACION_EN_CRUCE] = [EstadoLogistico.SEMAFORO_VERDE, EstadoLogistico.SEMAFORO_ROJO],
-        [EstadoLogistico.SEMAFORO_ROJO] = [EstadoLogistico.LIBERADO],
-        [EstadoLogistico.SEMAFORO_VERDE] = [EstadoLogistico.LIBERADO],
-        [EstadoLogistico.LIBERADO] = [EstadoLogistico.ENTREGADO_AL_CLIENTE]
-    };
-
     public bool CanTransitionTo(string estadoActual, string nuevoEstado, out string? razon)
     {
-        if (estadoActual == "VERDE_ENTREGADO") estadoActual = EstadoLogistico.ENTREGADO_AL_CLIENTE;
-        if (nuevoEstado == "VERDE_ENTREGADO") nuevoEstado = EstadoLogistico.ENTREGADO_AL_CLIENTE;
-
         razon = null;
 
-        if (estadoActual == EstadoLogistico.CANCELADO && nuevoEstado != EstadoLogistico.CANCELADO)
+        if (!EstadoTramite.EsValido(nuevoEstado))
         {
-            razon = "Un trámite cancelado no puede reactivarse";
+            razon = $"Estado destino desconocido: {nuevoEstado}";
             return false;
         }
 
-        if (estadoActual == EstadoLogistico.ENTREGADO_AL_CLIENTE)
+        if (string.Equals(estadoActual, nuevoEstado, StringComparison.OrdinalIgnoreCase))
         {
-            razon = "El tramite ya fue entregado y finalizo su ciclo logistico.";
+            razon = "El trámite ya está en ese estado.";
             return false;
         }
 
-        if (nuevoEstado == EstadoLogistico.CANCELADO)
+        if (string.Equals(estadoActual, EstadoTramite.CANCELADO, StringComparison.OrdinalIgnoreCase))
         {
-            return true;
-        }
-
-        if (TransicionesLogistica.TryGetValue(estadoActual, out var permitidas))
-        {
-            if (permitidas.Contains(nuevoEstado))
-                return true;
-
-            var currentIdx = Array.IndexOf(EstadoLogistico.Todos, estadoActual);
-            var newIdx = Array.IndexOf(EstadoLogistico.Todos, nuevoEstado);
-
-            if (newIdx >= 0 && currentIdx >= 0 && newIdx < currentIdx)
-            {
-                razon = $"Transición hacia atrás requiere rol ADMIN: {estadoActual} → {nuevoEstado}";
-                return false;
-            }
-
-            razon = $"Transición no permitida en flujo normal: {estadoActual} → {nuevoEstado}";
+            razon = "Un trámite cancelado no puede reactivarse.";
             return false;
-        }
-
-        if (estadoActual == EstadoLogistico.ENTREGADO_AL_CLIENTE)
-        {
-            razon = "El trámite ya fue entregado y finalizó su ciclo logístico.";
-            return false;
-        }
-
-        razon = $"Estado actual desconocido: {estadoActual}";
-        return false;
-    }
-
-    public string[] GetTransicionesPermitidas(string estadoActual)
-    {
-        if (estadoActual == "VERDE_ENTREGADO") estadoActual = EstadoLogistico.ENTREGADO_AL_CLIENTE;
-
-        if (estadoActual == EstadoLogistico.CANCELADO || estadoActual == EstadoLogistico.ENTREGADO_AL_CLIENTE)
-            return [];
-
-        var result = new List<string>();
-
-        if (TransicionesLogistica.TryGetValue(estadoActual, out var adelante))
-            result.AddRange(adelante);
-
-        result.Add(EstadoLogistico.CANCELADO);
-
-        return result.ToArray();
-    }
-
-    public bool RequiereAdmin(string estadoActual, string nuevoEstado)
-    {
-        if (estadoActual == "VERDE_ENTREGADO") estadoActual = EstadoLogistico.ENTREGADO_AL_CLIENTE;
-        if (nuevoEstado == "VERDE_ENTREGADO") nuevoEstado = EstadoLogistico.ENTREGADO_AL_CLIENTE;
-
-        if (nuevoEstado == EstadoLogistico.CANCELADO) return false;
-
-        if (TransicionesLogistica.TryGetValue(estadoActual, out var permitidas))
-        {
-            if (permitidas.Contains(nuevoEstado)) return false;
-
-            var currentIdx = Array.IndexOf(EstadoLogistico.Todos, estadoActual);
-            var newIdx = Array.IndexOf(EstadoLogistico.Todos, nuevoEstado);
-
-            if (newIdx >= 0 && currentIdx >= 0 && newIdx < currentIdx)
-                return true;
         }
 
         return true;
     }
+
+    public string[] GetTransicionesPermitidas(string estadoActual)
+    {
+        if (string.Equals(estadoActual, EstadoTramite.CANCELADO, StringComparison.OrdinalIgnoreCase))
+            return [];
+
+        return EstadoTramite.Todos
+            .Where(e => !string.Equals(e, estadoActual, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
+    // El modelo permisivo no distingue avances/retrocesos, así que nada requiere
+    // un rol especial. Se conserva por compatibilidad con la interfaz.
+    public bool RequiereAdmin(string estadoActual, string nuevoEstado) => false;
 }

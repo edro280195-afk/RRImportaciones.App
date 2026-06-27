@@ -9,15 +9,18 @@ import '../data/admin_api.dart';
 import '../domain/admin_models.dart';
 import 'tramite_detail_page.dart';
 
-final cotizacionDetailProvider = FutureProvider.autoDispose.family<CotizacionOutput, String>((ref, id) {
-  return ref.watch(adminApiProvider).getCotizacionById(id);
-});
+final cotizacionDetailProvider = FutureProvider.autoDispose
+    .family<CotizacionOutput, String>((ref, id) {
+      return ref.watch(adminApiProvider).getCotizacionById(id);
+    });
 
 final aduanasProvider = FutureProvider.autoDispose<List<AduanaDto>>((ref) {
   return ref.watch(adminApiProvider).getAduanas();
 });
 
-final tramitadoresProvider = FutureProvider.autoDispose<List<TramitadorDto>>((ref) {
+final tramitadoresProvider = FutureProvider.autoDispose<List<TramitadorDto>>((
+  ref,
+) {
   return ref.watch(adminApiProvider).getTramitadores();
 });
 
@@ -31,8 +34,10 @@ class CotizacionDetailPage extends ConsumerWidget {
   }
 
   void _shareQuotePdf(BuildContext context, CotizacionOutput cot) {
-    final pdfUrl = '${refApiUrl(context)}/api/cotizaciones/$cotizacionId/pdf/download';
-    final shareMsg = 'R&R Importaciones - Cotización Oficial ${cot.folio ?? ''}\n'
+    final pdfUrl =
+        '${refApiUrl(context)}/api/cotizaciones/$cotizacionId/pdf/download';
+    final shareMsg =
+        'R&R Importaciones - Cotización Oficial ${cot.folio ?? ''}\n'
         'Vehículo: ${cot.marca ?? ''} ${cot.modelo ?? ''} ${cot.anno ?? ''}\n'
         'Total estimado de importación: \$${NumberFormat('#,##0.00').format(cot.total)} MXN\n'
         'Puedes descargar el PDF oficial aquí: $pdfUrl';
@@ -42,28 +47,36 @@ class CotizacionDetailPage extends ConsumerWidget {
 
   void _sendWhatsApp(BuildContext context, WidgetRef ref) async {
     try {
-      final response = await ref.read(adminApiProvider).getWhatsAppLink(cotizacionId);
+      final response = await ref
+          .read(adminApiProvider)
+          .getWhatsAppLink(cotizacionId);
       final url = Uri.parse(response.whatsappUrl);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No se pudo abrir WhatsApp. Compartiendo texto...')),
+            const SnackBar(
+              content: Text('No se pudo abrir WhatsApp. Compartiendo texto...'),
+            ),
           );
           Share.share(response.mensaje);
         }
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al generar enlace: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al generar enlace: $e')));
       }
     }
   }
 
-  void _showConvertToTramiteDialog(BuildContext context, WidgetRef ref, CotizacionOutput cot) {
+  void _showConvertToTramiteDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CotizacionOutput cot,
+  ) {
     String? selectedAduanaId;
     String? selectedTramitadorId;
     String selectedTipo = cot.regimenFiscal;
@@ -96,11 +109,14 @@ class CotizacionDetailPage extends ConsumerWidget {
                         children: [
                           const Text(
                             'Esta cotización será archivada y se abrirá un nuevo trámite de importación activo.',
-                            style: TextStyle(fontSize: 12, color: AppColors.ink2),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.ink2,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
-                            value: selectedAduanaId,
+                            initialValue: selectedAduanaId,
                             decoration: const InputDecoration(
                               labelText: 'Aduana de Cruce',
                               border: OutlineInputBorder(),
@@ -117,7 +133,7 @@ class CotizacionDetailPage extends ConsumerWidget {
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
-                            value: selectedTramitadorId,
+                            initialValue: selectedTramitadorId,
                             decoration: const InputDecoration(
                               labelText: 'Tramitador Responsable',
                               border: OutlineInputBorder(),
@@ -134,15 +150,24 @@ class CotizacionDetailPage extends ConsumerWidget {
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
-                            value: selectedTipo,
+                            initialValue: selectedTipo,
                             decoration: const InputDecoration(
                               labelText: 'Régimen / Tipo',
                               border: OutlineInputBorder(),
                             ),
                             items: const [
-                              DropdownMenuItem(value: 'REGULAR', child: Text('REGULAR (Importación)')),
-                              DropdownMenuItem(value: 'AMPARO', child: Text('AMPARO')),
-                              DropdownMenuItem(value: 'FRANJA', child: Text('FRANJA FRONTERIZA')),
+                              DropdownMenuItem(
+                                value: 'REGULAR',
+                                child: Text('REGULAR (Importación)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'AMPARO',
+                                child: Text('AMPARO'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'FRANJA',
+                                child: Text('FRANJA FRONTERIZA'),
+                              ),
                             ],
                             onChanged: (val) {
                               if (val != null) {
@@ -170,19 +195,27 @@ class CotizacionDetailPage extends ConsumerWidget {
                     ),
                     FilledButton(
                       onPressed: () async {
-                        if (selectedAduanaId == null || selectedTramitadorId == null) return;
+                        if (selectedAduanaId == null ||
+                            selectedTramitadorId == null) {
+                          return;
+                        }
 
                         // Buscar código aduana seleccionado
-                        final aduana = aduanas.firstWhere((element) => element.id == selectedAduanaId);
+                        final aduana = aduanas.firstWhere(
+                          (element) => element.id == selectedAduanaId,
+                        );
 
                         try {
-                          final result = await ref.read(adminApiProvider).convertirATramite(
+                          final result = await ref
+                              .read(adminApiProvider)
+                              .convertirATramite(
                                 cotizacionId,
                                 ConvertirCotizacionRequest(
                                   aduanaCodigo: aduana.claveAduana,
                                   tramitadorId: selectedTramitadorId!,
                                   tipoTramite: selectedTipo,
-                                  notasAdicionales: notesController.text.trim().isEmpty
+                                  notasAdicionales:
+                                      notesController.text.trim().isEmpty
                                       ? null
                                       : notesController.text.trim(),
                                 ),
@@ -191,12 +224,15 @@ class CotizacionDetailPage extends ConsumerWidget {
                           if (context.mounted) {
                             Navigator.of(context).pop(); // Cierra dialog
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Convertida a trámite con éxito')),
+                              const SnackBar(
+                                content: Text('Convertida a trámite con éxito'),
+                              ),
                             );
                             // Ir al detalle del trámite creado
                             Navigator.of(context).pushReplacement(
                               MaterialPageRoute(
-                                builder: (_) => TramiteDetailPage(tramiteId: result.id),
+                                builder: (_) =>
+                                    TramiteDetailPage(tramiteId: result.id),
                               ),
                             );
                           }
@@ -271,7 +307,8 @@ class CotizacionDetailPage extends ConsumerWidget {
       body: cotizacionAsync.when(
         data: (cot) {
           final statusColor = _getStatusColor(cot.estado);
-          final showConvertBtn = cot.estado.toUpperCase() == 'ACEPTADA' && cot.tramiteId == null;
+          final showConvertBtn =
+              cot.estado.toUpperCase() == 'ACEPTADA' && cot.tramiteId == null;
 
           return Column(
             children: [
@@ -300,7 +337,10 @@ class CotizacionDetailPage extends ConsumerWidget {
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: statusColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
@@ -317,9 +357,20 @@ class CotizacionDetailPage extends ConsumerWidget {
                             ],
                           ),
                           const Divider(height: 24),
-                          _buildDetailRow('Vehículo', '${cot.marca ?? ''} ${cot.modelo ?? ''} ${cot.anno ?? ''}', isBoldVal: true),
-                          _buildDetailRow('VIN', cot.vin ?? 'N/A', isMonospace: true),
-                          _buildDetailRow('Cliente', cot.clienteNombre ?? 'N/A'),
+                          _buildDetailRow(
+                            'Vehículo',
+                            '${cot.marca ?? ''} ${cot.modelo ?? ''} ${cot.anno ?? ''}',
+                            isBoldVal: true,
+                          ),
+                          _buildDetailRow(
+                            'VIN',
+                            cot.vin ?? 'N/A',
+                            isMonospace: true,
+                          ),
+                          _buildDetailRow(
+                            'Cliente',
+                            cot.clienteNombre ?? 'N/A',
+                          ),
                         ],
                       ),
                     ),
@@ -337,21 +388,61 @@ class CotizacionDetailPage extends ConsumerWidget {
                       ),
                       child: Column(
                         children: [
-                          _buildDetailRow('Valor Estimado Aduana (USD)', '\$${NumberFormat('#,##0.00').format(cot.valorAduanaUsd ?? 0)} USD'),
-                          _buildDetailRow('Tipo de Cambio Aplicado', '\$${NumberFormat('#,##0.0000').format(cot.tipoCambioAplicado ?? 0)} MXN'),
-                          _buildDetailRow('Valor en Pesos Mexicanos', currencyFormat.format(cot.valorPesos)),
+                          _buildDetailRow(
+                            'Valor Estimado Aduana (USD)',
+                            '\$${NumberFormat('#,##0.00').format(cot.valorAduanaUsd ?? 0)} USD',
+                          ),
+                          _buildDetailRow(
+                            'Tipo de Cambio Aplicado',
+                            '\$${NumberFormat('#,##0.0000').format(cot.tipoCambioAplicado ?? 0)} MXN',
+                          ),
+                          _buildDetailRow(
+                            'Valor en Pesos Mexicanos',
+                            currencyFormat.format(cot.valorPesos),
+                          ),
                           const Divider(height: 20),
-                          _buildDetailRow('IGI / Arancel (${cot.igiPorcentaje}%)', currencyFormat.format(cot.igi)),
-                          _buildDetailRow('DTA (Derecho Trámite Aduanero)', currencyFormat.format(cot.dta)),
-                          _buildDetailRow('IVA', currencyFormat.format(cot.iva)),
-                          _buildDetailRow('PREV (Prevalidación)', currencyFormat.format(cot.prev)),
-                          _buildDetailRow('PRV (Procesamiento)', currencyFormat.format(cot.prv)),
+                          _buildDetailRow(
+                            'IGI / Arancel (${cot.igiPorcentaje}%)',
+                            currencyFormat.format(cot.igi),
+                          ),
+                          _buildDetailRow(
+                            'DTA (Derecho Trámite Aduanero)',
+                            currencyFormat.format(cot.dta),
+                          ),
+                          _buildDetailRow(
+                            'IVA',
+                            currencyFormat.format(cot.iva),
+                          ),
+                          _buildDetailRow(
+                            'PREV (Prevalidación)',
+                            currencyFormat.format(cot.prev),
+                          ),
+                          _buildDetailRow(
+                            'PRV (Procesamiento)',
+                            currencyFormat.format(cot.prv),
+                          ),
                           const Divider(height: 20),
-                          _buildDetailRow('Subtotal Impuestos', currencyFormat.format(cot.impuestosTotal), isBoldVal: true),
-                          _buildDetailRow('Honorarios Agencia', currencyFormat.format(cot.honorarios)),
-                          _buildDetailRow('Cargo Express', currencyFormat.format(cot.cargoExpress)),
+                          _buildDetailRow(
+                            'Subtotal Impuestos',
+                            currencyFormat.format(cot.impuestosTotal),
+                            isBoldVal: true,
+                          ),
+                          _buildDetailRow(
+                            'Honorarios Agencia',
+                            currencyFormat.format(cot.honorarios),
+                          ),
+                          _buildDetailRow(
+                            'Cargo Express',
+                            currencyFormat.format(cot.cargoExpress),
+                          ),
                           const Divider(height: 20),
-                          _buildDetailRow('Total General', currencyFormat.format(cot.total), isBoldVal: true, valColor: AppColors.red, fontSize: 16),
+                          _buildDetailRow(
+                            'Total General',
+                            currencyFormat.format(cot.total),
+                            isBoldVal: true,
+                            valColor: AppColors.red,
+                            fontSize: 16,
+                          ),
                         ],
                       ),
                     ),
@@ -370,7 +461,10 @@ class CotizacionDetailPage extends ConsumerWidget {
                         ),
                         child: Text(
                           cot.notas ?? '',
-                          style: const TextStyle(color: AppColors.ink2, fontSize: 13),
+                          style: const TextStyle(
+                            color: AppColors.ink2,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -404,7 +498,9 @@ class CotizacionDetailPage extends ConsumerWidget {
                             icon: const Icon(Icons.send, size: 18),
                             label: const Text('WhatsApp'),
                             style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF25D366), // WhatsApp color
+                              backgroundColor: const Color(
+                                0xFF25D366,
+                              ), // WhatsApp color
                               minimumSize: const Size.fromHeight(48),
                             ),
                           ),
@@ -414,7 +510,8 @@ class CotizacionDetailPage extends ConsumerWidget {
                     if (showConvertBtn) ...[
                       const SizedBox(height: 12),
                       FilledButton.icon(
-                        onPressed: () => _showConvertToTramiteDialog(context, ref, cot),
+                        onPressed: () =>
+                            _showConvertToTramiteDialog(context, ref, cot),
                         icon: const Icon(Icons.swap_calls),
                         label: const Text('Convertir en Trámite Activo'),
                         style: FilledButton.styleFrom(
@@ -428,7 +525,8 @@ class CotizacionDetailPage extends ConsumerWidget {
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => TramiteDetailPage(tramiteId: cot.tramiteId!),
+                              builder: (_) =>
+                                  TramiteDetailPage(tramiteId: cot.tramiteId!),
                             ),
                           );
                         },
@@ -456,7 +554,11 @@ class CotizacionDetailPage extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
+                const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: AppColors.danger,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'Error: $err',
@@ -483,14 +585,24 @@ class CotizacionDetailPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isMonospace = false, bool isBoldVal = false, Color? valColor, double fontSize = 13}) {
+  Widget _buildDetailRow(
+    String label,
+    String value, {
+    bool isMonospace = false,
+    bool isBoldVal = false,
+    Color? valColor,
+    double fontSize = 13,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.ink2, fontSize: 13)),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.ink2, fontSize: 13),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
@@ -517,9 +629,7 @@ class _LoadingDialogContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return const SizedBox(
       height: 150,
-      child: Center(
-        child: CircularProgressIndicator(color: AppColors.red),
-      ),
+      child: Center(child: CircularProgressIndicator(color: AppColors.red)),
     );
   }
 }
@@ -534,7 +644,10 @@ class _ErrorDialogContent extends StatelessWidget {
     return SizedBox(
       height: 150,
       child: Center(
-        child: Text('Error: $message', style: const TextStyle(color: AppColors.danger)),
+        child: Text(
+          'Error: $message',
+          style: const TextStyle(color: AppColors.danger),
+        ),
       ),
     );
   }

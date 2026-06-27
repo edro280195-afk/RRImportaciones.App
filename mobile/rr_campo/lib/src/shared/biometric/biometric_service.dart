@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../api/api_client.dart';
@@ -15,7 +16,7 @@ class BiometricService {
   BiometricService(this._storage);
 
   final _auth = LocalAuthentication();
-  final dynamic _storage;
+  final FlutterSecureStorage _storage;
 
   static const _enabledKey = 'biometric_enabled';
 
@@ -48,13 +49,15 @@ class BiometricService {
   }
 
   /// Intentar autenticación biométrica del sistema operativo.
-  Future<bool> authenticate() async {
+  Future<bool> authenticate({
+    String localizedReason = 'Confirma tu identidad para entrar a R&R',
+  }) async {
     try {
       return await _auth.authenticate(
-        localizedReason: 'Desbloquea R&R Importaciones',
+        localizedReason: localizedReason,
         options: const AuthenticationOptions(
           stickyAuth: true,
-          biometricOnly: false,
+          biometricOnly: true,
         ),
       );
     } catch (_) {
@@ -73,7 +76,20 @@ class BiometricService {
     await _storage.write(key: _enabledKey, value: enabled ? 'true' : 'false');
   }
 
-  /// Limpiar preferencia al cerrar sesión.
+  /// Valida la biometría antes de activarla en este dispositivo.
+  Future<bool> enable() async {
+    if (!await isAvailable()) return false;
+
+    final authenticated = await authenticate(
+      localizedReason: 'Confirma tu identidad para activar la biometría',
+    );
+    if (!authenticated) return false;
+
+    await setEnabled(true);
+    return true;
+  }
+
+  /// Elimina la preferencia biométrica del dispositivo.
   Future<void> clear() async {
     await _storage.delete(key: _enabledKey);
   }
@@ -91,10 +107,17 @@ class BiometricEnabledStateNotifier extends AsyncNotifier<bool> {
     return biometric.isEnabled();
   }
 
-  Future<void> toggle(bool enabled) async {
+  Future<bool> toggle(bool enabled) async {
     final biometric = ref.read(biometricServiceProvider);
-    await biometric.setEnabled(enabled);
-    state = AsyncData(enabled);
+    if (!enabled) {
+      await biometric.setEnabled(false);
+      state = const AsyncData(false);
+      return true;
+    }
+
+    final activated = await biometric.enable();
+    state = AsyncData(activated);
+    return activated;
   }
 }
 

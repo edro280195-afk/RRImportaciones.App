@@ -59,7 +59,8 @@ class _CotizacionListPageState extends ConsumerState<CotizacionListPage> {
         pageSize: _pageSize,
       );
 
-      final isLastPage = result.items.length < _pageSize || pageKey >= result.totalPages;
+      final isLastPage =
+          result.items.length < _pageSize || pageKey >= result.totalPages;
       if (isLastPage) {
         _pagingController.appendLastPage(result.items);
       } else {
@@ -119,11 +120,13 @@ class _CotizacionListPageState extends ConsumerState<CotizacionListPage> {
         actions: [
           IconButton(
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const CotizacionNuevaPage(),
-                ),
-              ).then((_) => _pagingController.refresh());
+              Navigator.of(context)
+                  .push(
+                    MaterialPageRoute(
+                      builder: (_) => const CotizacionNuevaPage(),
+                    ),
+                  )
+                  .then((_) => _pagingController.refresh());
             },
             icon: const Icon(Icons.add_circle_outline, color: AppColors.red),
             tooltip: 'Nueva Cotización',
@@ -189,7 +192,9 @@ class _CotizacionListPageState extends ConsumerState<CotizacionListPage> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(999),
                             side: BorderSide(
-                              color: isSelected ? Colors.transparent : AppColors.border,
+                              color: isSelected
+                                  ? Colors.transparent
+                                  : AppColors.border,
                             ),
                           ),
                           showCheckmark: false,
@@ -222,11 +227,14 @@ class _CotizacionListPageState extends ConsumerState<CotizacionListPage> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(AppRadius.lg),
                       onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => CotizacionDetailPage(cotizacionId: item.id),
-                          ),
-                        ).then((_) => _pagingController.refresh());
+                        Navigator.of(context)
+                            .push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    CotizacionDetailPage(cotizacionId: item.id),
+                              ),
+                            )
+                            .then((_) => _pagingController.refresh());
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -268,8 +276,11 @@ class _CotizacionListPageState extends ConsumerState<CotizacionListPage> {
                             // Mid: Vehicle
                             Row(
                               children: [
-                                const Icon(Icons.directions_car_filled_outlined,
-                                    size: 16, color: AppColors.ink3),
+                                const Icon(
+                                  Icons.directions_car_filled_outlined,
+                                  size: 16,
+                                  color: AppColors.ink3,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -286,8 +297,11 @@ class _CotizacionListPageState extends ConsumerState<CotizacionListPage> {
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  const Icon(Icons.pin,
-                                      size: 16, color: AppColors.ink3),
+                                  const Icon(
+                                    Icons.pin,
+                                    size: 16,
+                                    color: AppColors.ink3,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'VIN: ${item.vin}',
@@ -304,8 +318,11 @@ class _CotizacionListPageState extends ConsumerState<CotizacionListPage> {
                             // Client
                             Row(
                               children: [
-                                const Icon(Icons.person_outline,
-                                    size: 16, color: AppColors.ink3),
+                                const Icon(
+                                  Icons.person_outline,
+                                  size: 16,
+                                  color: AppColors.ink3,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Cliente: ${item.clienteNombre ?? 'N/A'}',

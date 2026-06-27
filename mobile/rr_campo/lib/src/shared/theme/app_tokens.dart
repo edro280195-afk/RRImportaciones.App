@@ -98,6 +98,122 @@ Color estatusColor(String estatus) {
   }
 }
 
+/// Etiqueta legible del estatus de un **trámite** (esquema semáforo del web).
+String tramiteEstatusLabel(String estatus) {
+  switch (estatus.toUpperCase()) {
+    case 'PENDIENTE_TRAMITE':
+    case 'PENDIENTE_DE_TRAMITE':
+      return 'Pendiente de trámite';
+    case 'FOTOS_SOLICITADAS':
+      return 'Fotos solicitadas';
+    case 'FOTOS_RECIBIDAS':
+      return 'Fotos recibidas';
+    case 'REQUISITOS_PENDIENTES':
+      return 'Requisitos pendientes';
+    case 'BAJA_EN_PROCESO':
+      return 'Baja en proceso';
+    case 'BAJA_COMPLETADA':
+      return 'Baja completada';
+    case 'LISTO_PARA_PEDIMENTO':
+      return 'Listo para pedimento';
+    case 'PEDIMENTO_DOCUMENTADO':
+      return 'Pedimento documentado';
+    case 'PAGO_PEDIMENTO_PENDIENTE':
+      return 'Pago de pedimento pendiente';
+    case 'MANDADO_A_CRUCE':
+      return 'Mandado a cruce';
+    case 'EN_PROCESO':
+      return 'En proceso (cruce)';
+    case 'ROJO_DESADUANADO':
+      return 'Desaduanado';
+    case 'VERDE_ENTREGADO':
+      return 'Entregado (yarda)';
+    case 'AMARILLO_PENDIENTE_PAGO':
+      return 'Pendiente de pago';
+    case 'COBRADO':
+      return 'Cobrado';
+    case 'ENTREGADO_AL_CLIENTE':
+      return 'Entregado al cliente';
+    case 'CANCELADO':
+      return 'Cancelado';
+    default:
+      return estatus.replaceAll('_', ' ');
+  }
+}
+
+/// Color del estatus de un trámite (mismos tonos que el web).
+Color tramiteEstatusColor(String estatus) {
+  switch (estatus.toUpperCase()) {
+    case 'PENDIENTE_TRAMITE':
+    case 'PENDIENTE_DE_TRAMITE':
+    case 'REQUISITOS_PENDIENTES':
+    case 'AMARILLO_PENDIENTE_PAGO':
+    case 'PAGO_PEDIMENTO_PENDIENTE':
+      return const Color(0xFFD97706); // ámbar
+    case 'FOTOS_SOLICITADAS':
+    case 'FOTOS_RECIBIDAS':
+      return const Color(0xFFC61D26);
+    case 'BAJA_EN_PROCESO':
+    case 'BAJA_COMPLETADA':
+      return const Color(0xFF7C3AED);
+    case 'PEDIMENTO_DOCUMENTADO':
+    case 'LISTO_PARA_PEDIMENTO':
+      return const Color(0xFF2563EB);
+    case 'MANDADO_A_CRUCE':
+    case 'EN_PROCESO':
+      return const Color(0xFF0F766E);
+    case 'ROJO_DESADUANADO':
+      return const Color(0xFFDC2626);
+    case 'VERDE_ENTREGADO':
+    case 'COBRADO':
+    case 'ENTREGADO_AL_CLIENTE':
+      return const Color(0xFF16A34A);
+    case 'CANCELADO':
+      return const Color(0xFF6B7280);
+    default:
+      return AppColors.ink2;
+  }
+}
+
+/// Filtros de estatus para el listado de trámites (valor + etiqueta corta),
+/// reflejando las pestañas del web.
+const List<({String value, String label})> tramiteEstatusFiltros = [
+  (value: 'PENDIENTE_TRAMITE', label: 'Pendientes'),
+  (value: 'FOTOS_SOLICITADAS', label: 'Fotos'),
+  (value: 'REQUISITOS_PENDIENTES', label: 'Requisitos'),
+  (value: 'BAJA_EN_PROCESO', label: 'Baja'),
+  (value: 'PEDIMENTO_DOCUMENTADO', label: 'Pedimento'),
+  (value: 'MANDADO_A_CRUCE', label: 'Cruce'),
+  (value: 'ROJO_DESADUANADO', label: 'Desaduanados'),
+  (value: 'VERDE_ENTREGADO', label: 'Entregados'),
+  (value: 'AMARILLO_PENDIENTE_PAGO', label: 'Pte. pago'),
+  (value: 'COBRADO', label: 'Cobrados'),
+  (value: 'CANCELADO', label: 'Cancelados'),
+];
+
+/// Todos los estatus válidos de un trámite, en orden de flujo (espejo de
+/// `EstadoTramite.Todos` del backend). Se usa como respaldo del selector de
+/// "Cambiar estado" si el endpoint de transiciones no responde.
+const List<String> tramiteEstadosTodos = [
+  'PENDIENTE_TRAMITE',
+  'FOTOS_SOLICITADAS',
+  'FOTOS_RECIBIDAS',
+  'REQUISITOS_PENDIENTES',
+  'BAJA_EN_PROCESO',
+  'BAJA_COMPLETADA',
+  'LISTO_PARA_PEDIMENTO',
+  'PEDIMENTO_DOCUMENTADO',
+  'PAGO_PEDIMENTO_PENDIENTE',
+  'MANDADO_A_CRUCE',
+  'EN_PROCESO',
+  'ROJO_DESADUANADO',
+  'VERDE_ENTREGADO',
+  'ENTREGADO_AL_CLIENTE',
+  'AMARILLO_PENDIENTE_PAGO',
+  'COBRADO',
+  'CANCELADO',
+];
+
 /// Nombre amigable del rol para el subtítulo `rol en sesión`.
 String roleLabel(String? role) {
   if (role == null || role.isEmpty) return 'Campo';

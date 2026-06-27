@@ -25,15 +25,6 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
   String _search = '';
   String? _selectedStatus;
 
-  final List<String> _statuses = [
-    'REGISTRO',
-    'RECEPCION',
-    'FOTOS',
-    'ADUANA',
-    'PAGO',
-    'ENTREGADO',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -59,7 +50,8 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
         pageSize: _pageSize,
       );
 
-      final isLastPage = result.items.length < _pageSize || pageKey >= result.totalPages;
+      final isLastPage =
+          result.items.length < _pageSize || pageKey >= result.totalPages;
       if (isLastPage) {
         _pagingController.appendLastPage(result.items);
       } else {
@@ -83,25 +75,6 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
       _selectedStatus = _selectedStatus == status ? null : status;
     });
     _pagingController.refresh();
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toUpperCase()) {
-      case 'REGISTRO':
-        return Colors.blue;
-      case 'RECEPCION':
-        return Colors.orange;
-      case 'FOTOS':
-        return Colors.purple;
-      case 'ADUANA':
-        return Colors.teal;
-      case 'PAGO':
-        return Colors.amber;
-      case 'ENTREGADO':
-        return Colors.green;
-      default:
-        return AppColors.ink3;
-    }
   }
 
   @override
@@ -158,14 +131,14 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
                   height: 34,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
-                    children: _statuses.map((status) {
-                      final isSelected = _selectedStatus == status;
-                      final chipColor = _getStatusColor(status);
+                    children: tramiteEstatusFiltros.map((filtro) {
+                      final isSelected = _selectedStatus == filtro.value;
+                      final chipColor = tramiteEstatusColor(filtro.value);
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
                           label: Text(
-                            status,
+                            filtro.label,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
@@ -178,11 +151,13 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(999),
                             side: BorderSide(
-                              color: isSelected ? Colors.transparent : AppColors.border,
+                              color: isSelected
+                                  ? Colors.transparent
+                                  : AppColors.border,
                             ),
                           ),
                           showCheckmark: false,
-                          onSelected: (_) => _onStatusSelected(status),
+                          onSelected: (_) => _onStatusSelected(filtro.value),
                         ),
                       );
                     }).toList(),
@@ -198,7 +173,7 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
               padding: const EdgeInsets.all(16),
               builderDelegate: PagedChildBuilderDelegate<TramiteListDto>(
                 itemBuilder: (context, item, index) {
-                  final statusColor = _getStatusColor(item.estatus);
+                  final statusColor = tramiteEstatusColor(item.estatus);
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     elevation: 0,
@@ -209,11 +184,14 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(AppRadius.lg),
                       onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => TramiteDetailPage(tramiteId: item.id),
-                          ),
-                        ).then((_) => _pagingController.refresh());
+                        Navigator.of(context)
+                            .push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    TramiteDetailPage(tramiteId: item.id),
+                              ),
+                            )
+                            .then((_) => _pagingController.refresh());
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -241,7 +219,7 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    item.estatus.toUpperCase(),
+                                    tramiteEstatusLabel(item.estatus),
                                     style: TextStyle(
                                       color: statusColor,
                                       fontSize: 10,
@@ -255,8 +233,11 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
                             // Mid: Vehiculo info & VIN
                             Row(
                               children: [
-                                const Icon(Icons.directions_car_filled_outlined,
-                                    size: 16, color: AppColors.ink3),
+                                const Icon(
+                                  Icons.directions_car_filled_outlined,
+                                  size: 16,
+                                  color: AppColors.ink3,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -273,8 +254,11 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  const Icon(Icons.pin,
-                                      size: 16, color: AppColors.ink3),
+                                  const Icon(
+                                    Icons.pin,
+                                    size: 16,
+                                    color: AppColors.ink3,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'VIN (Corto): ${item.vehiculoVinCorto}',
@@ -291,8 +275,11 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
                             // Client
                             Row(
                               children: [
-                                const Icon(Icons.person_outline,
-                                    size: 16, color: AppColors.ink3),
+                                const Icon(
+                                  Icons.person_outline,
+                                  size: 16,
+                                  color: AppColors.ink3,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Cliente: ${item.clienteNombre ?? item.clienteApodo ?? 'N/A'}',

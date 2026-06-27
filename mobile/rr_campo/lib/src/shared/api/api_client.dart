@@ -98,6 +98,14 @@ class ApiClient {
     return _decode(response);
   }
 
+  Future<dynamic> deleteJson(String path) async {
+    final response = await httpClient.delete(
+      uri(path),
+      headers: await authHeaders(),
+    );
+    return _decode(response);
+  }
+
   Future<dynamic> uploadFile(String path, XFile file) async {
     final request = http.MultipartRequest('POST', uri(path));
     request.headers.addAll(await authHeaders(json: false));

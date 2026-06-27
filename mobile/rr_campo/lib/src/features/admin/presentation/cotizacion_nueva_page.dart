@@ -21,31 +21,49 @@ class CotizacionNuevaPage extends ConsumerStatefulWidget {
 
 class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
   int _currentStep = 0;
+  int _wizardEpoch = 0;
   bool _loading = false;
   String? _errorMessage;
   late final PageController _pageController;
 
-  // â”€â”€ Step 0: VIN & Decode â”€â”€
+  // ── Step 0: VIN & Decode ──
   final _vinController = TextEditingController();
   VehicleDecodedDto? _decodedVehicle;
 
-  // â”€â”€ Step 1: Candidates Anexo 2 â”€â”€
+  // ── Step 1: Candidates Anexo 2 ──
   CandidatosPrecioOutput? _candidatesOutput;
   CandidatoPrecio? _selectedCandidate;
   final _valorAduanaController = TextEditingController();
 
-  // â”€â”€ Step 2: Fiscal & Type of Change â”€â”€
-  String _selectedTipoTramite = 'REGULAR';
+  // ── Step 2: Fiscal & Type of Change ──
+  String _selectedTipoTramite = 'NORMAL';
   String? _selectedCategoriaAmparo = 'NORMAL';
   final _tcMargenController = TextEditingController(text: '0.00');
   final _honorariosController = TextEditingController();
   TipoCambioDto? _tipoCambio;
   String _selectedTcContexto = 'FIX';
   CotizacionOutput? _calculatedOutput;
+  bool _showFiscalOptions = false;
 
-  // â”€â”€ Step 3: Client & Save â”€â”€
+  // ── Step 3: Client & Save ──
   ClienteListDto? _selectedCliente;
   final _notasController = TextEditingController();
+
+  String get _detectedFiscalRegime {
+    final year = _decodedVehicle?.modelYear;
+    if (year == null) return 'PENDIENTE';
+    if (year >= 2019 && year <= 2021) return 'AMPARO';
+    return year >= 2017 ? 'POST_2017' : 'PRE_2016';
+  }
+
+  String get _detectedFiscalRegimeLabel {
+    return switch (_detectedFiscalRegime) {
+      'AMPARO' => 'Amparo',
+      'POST_2017' => 'Modelo 2017 o posterior',
+      'PRE_2016' => 'Modelo 2016 o anterior',
+      _ => 'Se determinará con el año modelo',
+    };
+  }
 
   @override
   void initState() {
@@ -207,9 +225,11 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
         anno: vehicle.modelYear,
         cilindradaCm3: vehicle.displacementCC?.toInt(),
         tipoVehiculo: vehicle.vehicleType,
-        valorAduanaUsdOverride: double.tryParse(_valorAduanaController.text),
+        valorAduanaUsdOverride: _selectedCandidate == null
+            ? double.tryParse(_valorAduanaController.text)
+            : null,
         precioEstimadoIdOverride: _selectedCandidate?.precioEstimadoId,
-        categoriaAmparoOverride: _selectedTipoTramite == 'AMPARO'
+        categoriaAmparoOverride: _detectedFiscalRegime == 'AMPARO'
             ? _selectedCategoriaAmparo
             : null,
         tcMargen: double.tryParse(_tcMargenController.text) ?? 0.0,
@@ -225,7 +245,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
       });
       _goToPage(3);
     } catch (e) {
-      setState(() => _errorMessage = 'Error al calcular cotizaciÃ³n: $e');
+      setState(() => _errorMessage = 'Error al calcular cotización: $e');
     } finally {
       setState(() => _loading = false);
     }
@@ -254,9 +274,11 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
         anno: vehicle.modelYear,
         cilindradaCm3: vehicle.displacementCC?.toInt(),
         tipoVehiculo: vehicle.vehicleType,
-        valorAduanaUsdOverride: double.tryParse(_valorAduanaController.text),
+        valorAduanaUsdOverride: _selectedCandidate == null
+            ? double.tryParse(_valorAduanaController.text)
+            : null,
         precioEstimadoIdOverride: _selectedCandidate?.precioEstimadoId,
-        categoriaAmparoOverride: _selectedTipoTramite == 'AMPARO'
+        categoriaAmparoOverride: _detectedFiscalRegime == 'AMPARO'
             ? _selectedCategoriaAmparo
             : null,
         tcMargen: double.tryParse(_tcMargenController.text) ?? 0.0,
@@ -278,7 +300,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('CotizaciÃ³n guardada exitosamente')),
+          const SnackBar(content: Text('Cotización guardada exitosamente')),
         );
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -287,7 +309,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
         );
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Error al guardar cotizaciÃ³n: $e');
+      setState(() => _errorMessage = 'Error al guardar cotización: $e');
     } finally {
       setState(() => _loading = false);
     }
@@ -319,134 +341,299 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     }
   }
 
+  /// Hay información capturada que se perdería al salir o reiniciar.
+  bool get _hasProgress =>
+      _vinController.text.trim().isNotEmpty ||
+      _decodedVehicle != null ||
+      _selectedCandidate != null ||
+      _calculatedOutput != null ||
+      _selectedCliente != null;
+
+  /// Texto de contexto en el AppBar para que siempre se sepa qué se cotiza.
+  String _wizardContextLabel() {
+    final vehicle = _decodedVehicle;
+    if (vehicle != null) {
+      final parts = <String>[
+        if ((vehicle.make ?? '').trim().isNotEmpty) vehicle.make!.trim(),
+        if ((vehicle.model ?? '').trim().isNotEmpty) vehicle.model!.trim(),
+        if (vehicle.modelYear != null) '${vehicle.modelYear}',
+      ];
+      if (parts.isNotEmpty) return parts.join(' · ');
+      return vehicle.vin;
+    }
+    final vin = _vinController.text.trim();
+    if (vin.isNotEmpty) return 'VIN $vin';
+    return 'Paso ${_currentStep + 1} de 4';
+  }
+
+  Future<bool> _confirmDiscard({
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  /// Sale del wizard por completo (descarta la cotización en curso).
+  Future<void> _cancelWizard() async {
+    if (_hasProgress) {
+      final shouldExit = await _confirmDiscard(
+        title: '¿Cancelar cotización?',
+        message:
+            'Se descartará la información capturada y volverás al listado.',
+        confirmLabel: 'Sí, cancelar',
+      );
+      if (!shouldExit) return;
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Limpia todo y regresa al paso del VIN. Con [scan] abre la cámara para
+  /// capturar otro vehículo de inmediato ("buscar otro").
+  Future<void> _resetWizard({bool scan = false}) async {
+    if (_hasProgress) {
+      final shouldReset = await _confirmDiscard(
+        title: scan ? '¿Buscar otro vehículo?' : '¿Reiniciar cotización?',
+        message: 'Se borrarán los datos capturados y volverás al paso del VIN.',
+        confirmLabel: scan ? 'Buscar otro' : 'Reiniciar',
+      );
+      if (!shouldReset) return;
+    }
+
+    setState(() {
+      _wizardEpoch++;
+      _currentStep = 0;
+      _loading = false;
+      _errorMessage = null;
+      _vinController.clear();
+      _decodedVehicle = null;
+      _candidatesOutput = null;
+      _selectedCandidate = null;
+      _valorAduanaController.clear();
+      _selectedTipoTramite = 'NORMAL';
+      _selectedCategoriaAmparo = 'NORMAL';
+      _tcMargenController.text = '0.00';
+      _honorariosController.clear();
+      _tipoCambio = null;
+      _selectedTcContexto = 'FIX';
+      _calculatedOutput = null;
+      _showFiscalOptions = false;
+      _selectedCliente = null;
+      _notasController.clear();
+    });
+    _goToPage(0);
+
+    if (scan) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scanVin();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Nueva CotizaciÃ³n',
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
-        elevation: 0,
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.ink,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (_currentStep > 0) {
-              _previousStep();
-            } else {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
-      ),
-      body: Stack(
-        children: [
-          Column(
+    return PopScope(
+      canPop: !_hasProgress,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _cancelWizard();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: AppColors.surface,
+          foregroundColor: AppColors.ink,
+          titleSpacing: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Cancelar cotización',
+            onPressed: _cancelWizard,
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _buildProgressBar(),
-              Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (_errorMessage != null) _buildError(),
-                          _buildStep0(),
-                        ],
-                      ),
-                    ),
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (_errorMessage != null) _buildError(),
-                          _buildStep1(),
-                        ],
-                      ),
-                    ),
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (_errorMessage != null) _buildError(),
-                          _buildStep2(),
-                        ],
-                      ),
-                    ),
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (_errorMessage != null) _buildError(),
-                          _buildStep3(),
-                        ],
-                      ),
-                    ),
-                  ],
+              const Text(
+                'Nueva Cotización',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+              ),
+              Text(
+                _wizardContextLabel(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.ink3,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
-          if (_loading)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.15),
-                child: const Center(
-                  child: CircularProgressIndicator(color: AppColors.red),
+          actions: [
+            PopupMenuButton<String>(
+              tooltip: 'Más opciones',
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                switch (value) {
+                  case 'scan':
+                    _resetWizard(scan: true);
+                    break;
+                  case 'reset':
+                    _resetWizard();
+                    break;
+                  case 'cancel':
+                    _cancelWizard();
+                    break;
+                }
+              },
+              itemBuilder: (menuContext) => const [
+                PopupMenuItem(
+                  value: 'scan',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.qr_code_scanner_outlined),
+                    title: Text('Buscar otro VIN'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'reset',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.restart_alt),
+                    title: Text('Reiniciar cotización'),
+                  ),
+                ),
+                PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'cancel',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.close, color: AppColors.danger),
+                    title: Text(
+                      'Cancelar y salir',
+                      style: TextStyle(color: AppColors.danger),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                _buildProgressBar(),
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_errorMessage != null) _buildError(),
+                            _buildStep0(),
+                          ],
+                        ),
+                      ),
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_errorMessage != null) _buildError(),
+                            _buildStep1(),
+                          ],
+                        ),
+                      ),
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_errorMessage != null) _buildError(),
+                            _buildStep2(),
+                          ],
+                        ),
+                      ),
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_errorMessage != null) _buildError(),
+                            _buildStep3(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (_loading)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: AppColors.red),
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
+        bottomNavigationBar: _buildBottomActionBar(),
       ),
-      bottomNavigationBar: _buildBottomActionBar(),
     );
   }
 
   Widget _buildProgressBar() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: List.generate(4, (index) {
-            final labels = ['VIN', 'Valor', 'Régimen', 'Cliente'];
-            final icons = [
-              Icons.qr_code_scanner,
-              Icons.price_check_outlined,
-              Icons.account_balance_outlined,
-              Icons.person_search_outlined,
-            ];
-            final enabled = _canOpenStep(index);
-            final completed = _isStepComplete(index);
-            final active = _currentStep == index;
-            return Padding(
-              padding: EdgeInsets.only(right: index == 3 ? 0 : 8),
-              child: _FlowStepChip(
-                label: labels[index],
-                icon: completed ? Icons.check_circle : icons[index],
-                active: active,
-                completed: completed,
-                enabled: enabled,
-                onTap: enabled ? () => _openStepFromChip(index) : null,
-              ),
-            );
-          }),
-        ),
+      child: Row(
+        children: List.generate(4, (index) {
+          final labels = ['VIN', 'Valor', 'Cálculo', 'Revisar'];
+          final enabled = _canOpenStep(index);
+          final completed = _isStepComplete(index);
+          return Expanded(
+            child: _FlowStepItem(
+              number: index + 1,
+              label: labels[index],
+              active: _currentStep == index,
+              completed: completed,
+              enabled: enabled,
+              showConnector: index < 3,
+              onTap: enabled ? () => _openStepFromChip(index) : null,
+            ),
+          );
+        }),
       ),
     );
   }
@@ -524,6 +711,16 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     return 'Sin calcular';
   }
 
+  bool _canRunCurrentAction() {
+    return switch (_currentStep) {
+      0 => _vinController.text.trim().length == 17,
+      1 => (double.tryParse(_valorAduanaController.text) ?? 0) > 0,
+      2 => _decodedVehicle != null,
+      3 => _selectedCliente != null,
+      _ => false,
+    };
+  }
+
   Widget _buildBottomActionBar() {
     return AbsorbPointer(
       absorbing: _loading,
@@ -589,7 +786,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
               SizedBox(
                 width: 158,
                 child: FilledButton(
-                  onPressed: _nextStepAction,
+                  onPressed: _canRunCurrentAction() ? _nextStepAction : null,
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
                     textStyle: const TextStyle(
@@ -651,7 +848,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Identifica el VehÃ­culo',
+          '¿Qué vehículo vas a cotizar?',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w900,
@@ -660,149 +857,31 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Ingresa el nÃºmero de identificaciÃ³n vehicular (VIN) de 17 caracteres para decodificarlo automÃ¡ticamente.',
+          'Escanea el VIN o escríbelo. Al continuar buscaremos el vehículo y su valor en el catálogo del SAT.',
           style: TextStyle(color: AppColors.ink2, fontSize: 13, height: 1.4),
-        ),
-        const SizedBox(height: 24),
-        Container(
-          width: double.infinity,
-          height: 180,
-          decoration: BoxDecoration(
-            color: AppColors.ink.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              const ClipRRect(
-                borderRadius: BorderRadius.all(Radius.circular(18)),
-                child: _ScannerBeam(),
-              ),
-              Positioned(
-                top: 20,
-                left: 20,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: AppColors.purple, width: 3),
-                      left: BorderSide(color: AppColors.purple, width: 3),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 20,
-                right: 20,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: AppColors.purple, width: 3),
-                      right: BorderSide(color: AppColors.purple, width: 3),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 20,
-                left: 20,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: AppColors.purple, width: 3),
-                      left: BorderSide(color: AppColors.purple, width: 3),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 20,
-                right: 20,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: AppColors.purple, width: 3),
-                      right: BorderSide(color: AppColors.purple, width: 3),
-                    ),
-                  ),
-                ),
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.qr_code_scanner,
-                    size: 40,
-                    color: AppColors.purple.withValues(alpha: 0.8),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Listo para escanear',
-                    style: TextStyle(
-                      color: AppColors.purple.withValues(alpha: 0.8),
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        FilledButton.icon(
-          onPressed: _scanVin,
-          icon: const Icon(Icons.camera_alt_outlined),
-          label: const Text('Escanear VIN por CÃ¡mara'),
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.purple,
-            foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            textStyle: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Row(
-          children: [
-            Expanded(child: Divider()),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'O INGRESA MANUALMENTE',
-                style: TextStyle(
-                  color: AppColors.ink3,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-            Expanded(child: Divider()),
-          ],
         ),
         const SizedBox(height: 20),
         TextField(
           controller: _vinController,
+          onChanged: (_) {
+            setState(() {
+              _decodedVehicle = null;
+              _candidatesOutput = null;
+              _selectedCandidate = null;
+              _calculatedOutput = null;
+              _errorMessage = null;
+            });
+          },
           maxLength: 17,
           maxLengthEnforcement:
               MaxLengthEnforcement.truncateAfterCompositionEnds,
           textCapitalization: TextCapitalization.characters,
           decoration: InputDecoration(
-            labelText: 'NÃºmero VIN (17 caracteres)',
+            labelText: 'VIN',
             hintText: 'Ej. 1FTFW1EF5CFA00000',
             counterText: '',
-            prefixIcon: const Icon(Icons.pin, size: 20),
+            helperText: '17 caracteres',
+            prefixIcon: const Icon(Icons.pin_outlined, size: 20),
             filled: true,
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
@@ -825,6 +904,48 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _scanVin,
+          icon: const Icon(Icons.document_scanner_outlined),
+          label: const Text('Escanear VIN con la cámara'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.ink,
+            minimumSize: const Size.fromHeight(54),
+            side: const BorderSide(color: AppColors.border),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            textStyle: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, size: 19, color: AppColors.ink2),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Puedes revisar los datos antes de calcular. El escaneo no guarda fotografías.',
+                  style: TextStyle(
+                    color: AppColors.ink2,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -837,12 +958,17 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Validar Datos del SAT (Anexo 2)',
+          'Selecciona el valor aduana',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w900,
             color: AppColors.ink,
           ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Compara las coincidencias del Anexo 2 y toca la que corresponde al vehículo.',
+          style: TextStyle(color: AppColors.ink2, fontSize: 13, height: 1.4),
         ),
         const SizedBox(height: 12),
         Container(
@@ -850,9 +976,8 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(color: AppColors.border),
-            boxShadow: AppShadows.soft,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -879,7 +1004,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'AÃ±o: ${vehicle.modelYear ?? 'N/A'} Â· Planta: ${vehicle.plantCountry ?? 'N/A'}',
+                          'Año: ${vehicle.modelYear ?? 'N/A'} · Planta: ${vehicle.plantCountry ?? 'N/A'}',
                           style: const TextStyle(
                             color: AppColors.ink2,
                             fontSize: 12,
@@ -905,7 +1030,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                         : 'N/A',
                   ),
                   _buildSummaryInfoItem(
-                    'Tipo VehÃ­culo',
+                    'Tipo Vehículo',
                     vehicle.vehicleType?.toString() ?? 'N/A',
                   ),
                 ],
@@ -917,7 +1042,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
         if (_candidatesOutput != null &&
             _candidatesOutput!.candidatos.isNotEmpty) ...[
           const Text(
-            'Coincidencias en CatÃ¡logo SAT',
+            'Coincidencias en Catálogo SAT',
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 14,
@@ -940,7 +1065,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   side: BorderSide(
-                    color: isSelected ? AppColors.purple : AppColors.border,
+                    color: isSelected ? AppColors.red : AppColors.border,
                     width: isSelected ? 2 : 1,
                   ),
                 ),
@@ -950,6 +1075,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                     setState(() {
                       _selectedCandidate = cand;
                       _valorAduanaController.text = cand.precioUsd.toString();
+                      _calculatedOutput = null;
                     });
                   },
                   child: Padding(
@@ -973,7 +1099,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'FracciÃ³n: ${cand.fraccion} Â· Hoja: ${cand.hojaOrigen}',
+                                'Fracción: ${cand.fraccion} · Hoja: ${cand.hojaOrigen}',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.ink2,
@@ -991,7 +1117,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                                 fontWeight: FontWeight.w900,
                                 fontSize: 15,
                                 color: isSelected
-                                    ? AppColors.purple
+                                    ? AppColors.red
                                     : AppColors.ink,
                                 fontFeatures: const [
                                   FontFeature.tabularFigures(),
@@ -1038,13 +1164,20 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'No encontramos coincidencias automÃ¡ticas en el catÃ¡logo. DeberÃ¡s ingresar el valor estimado de aduana manualmente.',
+            'No encontramos coincidencias automáticas en el catálogo. Deberás ingresar el valor estimado de aduana manualmente.',
             style: TextStyle(color: AppColors.ink3, fontSize: 12),
           ),
         ],
         const SizedBox(height: 24),
         TextField(
           controller: _valorAduanaController,
+          onChanged: (_) {
+            setState(() {
+              _selectedCandidate = null;
+              _calculatedOutput = null;
+              _errorMessage = null;
+            });
+          },
           decoration: InputDecoration(
             labelText: 'Valor en Aduana (USD)',
             hintText: 'Ej. 8500.00',
@@ -1062,7 +1195,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.purple, width: 2),
+              borderSide: const BorderSide(color: AppColors.red, width: 2),
             ),
           ),
           style: const TextStyle(
@@ -1106,31 +1239,87 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'ParÃ¡metros Fiscales',
+          'Confirma el cálculo',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w900,
             color: AppColors.ink,
           ),
         ),
-        const SizedBox(height: 16),
         const Text(
-          'Tipo de RÃ©gimen / TrÃ¡mite',
+          'El régimen fiscal se determina por el año modelo. Sólo elige si el servicio será normal o express.',
+          style: TextStyle(color: AppColors.ink2, fontSize: 13, height: 1.4),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.account_balance_outlined,
+                color: AppColors.ink2,
+                size: 22,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Régimen fiscal detectado',
+                      style: TextStyle(
+                        color: AppColors.ink3,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _detectedFiscalRegimeLabel,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '${_decodedVehicle?.modelYear ?? ''}',
+                style: const TextStyle(
+                  color: AppColors.ink2,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'TIPO DE SERVICIO',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
             color: AppColors.ink2,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
           ),
         ),
         const SizedBox(height: 8),
         _buildSegmentedControl(),
-        if (_selectedTipoTramite == 'AMPARO') ...[
-          const SizedBox(height: 16),
+        if (_detectedFiscalRegime == 'AMPARO') ...[
+          const SizedBox(height: 18),
           const Text(
-            'CategorÃ­a de Amparo',
+            '¿Qué categoría de amparo corresponde?',
             style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
               color: AppColors.ink2,
             ),
           ),
@@ -1138,15 +1327,14 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
           _buildAmparoSegmentedControl(),
         ],
         const SizedBox(height: 24),
-        _buildSectionTitle('Tipo de Cambio Oficial (Banxico)'),
+        _buildSectionTitle('TIPO DE CAMBIO'),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(color: AppColors.border),
-            boxShadow: AppShadows.soft,
           ),
           child: Column(
             children: [
@@ -1162,7 +1350,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                     underline: const SizedBox(),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: AppColors.purple,
+                      color: AppColors.red,
                       fontSize: 13,
                     ),
                     items: const [
@@ -1177,7 +1365,10 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                     ],
                     onChanged: (val) {
                       if (val != null) {
-                        setState(() => _selectedTcContexto = val);
+                        setState(() {
+                          _selectedTcContexto = val;
+                          _calculatedOutput = null;
+                        });
                         _fetchTipoCambioAndRates();
                       }
                     },
@@ -1208,160 +1399,264 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
             ],
           ),
         ),
-        const SizedBox(height: 24),
-        TextField(
-          controller: _tcMargenController,
-          decoration: InputDecoration(
-            labelText: 'Margen de Riesgo sobre TC (\$ MXN)',
-            hintText: '0.00',
-            prefixText: '+ \$ ',
-            suffixText: ' MXN',
-            filled: true,
-            fillColor: AppColors.surface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.red, width: 2),
-            ),
+        const SizedBox(height: 10),
+        TextButton.icon(
+          onPressed: () {
+            setState(() => _showFiscalOptions = !_showFiscalOptions);
+          },
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.ink2,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
           ),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-            fontFeatures: [FontFeature.tabularFigures()],
+          icon: Icon(
+            _showFiscalOptions ? Icons.keyboard_arrow_up : Icons.tune_outlined,
           ),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          label: Text(
+            _showFiscalOptions
+                ? 'Ocultar ajustes opcionales'
+                : 'Ajustes opcionales',
+          ),
         ),
-        const SizedBox(height: 20),
-        TextField(
-          controller: _honorariosController,
-          decoration: InputDecoration(
-            labelText: 'Honorarios Agencia (\$ MXN)',
-            hintText: 'Opcional (predeterminado si queda vacÃ­o)',
-            prefixText: '\$ ',
-            suffixText: ' MXN',
-            filled: true,
-            fillColor: AppColors.surface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.border),
+        if (_showFiscalOptions) ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _tcMargenController,
+            onChanged: (_) => setState(() => _calculatedOutput = null),
+            decoration: InputDecoration(
+              labelText: 'Margen sobre tipo de cambio',
+              hintText: '0.00',
+              prefixText: '+ \$ ',
+              suffixText: ' MXN',
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: const BorderSide(color: AppColors.red, width: 2),
+              ),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.border),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              fontFeatures: [FontFeature.tabularFigures()],
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.red, width: 2),
-            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-            fontFeatures: [FontFeature.tabularFigures()],
+          const SizedBox(height: 14),
+          TextField(
+            controller: _honorariosController,
+            onChanged: (_) => setState(() => _calculatedOutput = null),
+            decoration: InputDecoration(
+              labelText: 'Honorarios de agencia',
+              hintText: 'Se usará el monto predeterminado si queda vacío',
+              prefixText: '\$ ',
+              suffixText: ' MXN',
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: const BorderSide(color: AppColors.red, width: 2),
+              ),
+            ),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        ),
+        ],
       ],
     );
   }
 
   Widget _buildSegmentedControl() {
-    final options = ['REGULAR', 'AMPARO', 'FRANJA'];
-    final labels = ['REGULAR', 'AMPARO', 'FRANJA FRONTERIZA'];
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
+    const options = [
+      (
+        value: 'NORMAL',
+        title: 'Normal',
+        description: 'Sin cargo adicional por prioridad.',
+        icon: Icons.receipt_long_outlined,
       ),
-      child: Row(
-        children: List.generate(options.length, (idx) {
-          final isSelected = _selectedTipoTramite == options[idx];
-          return Expanded(
-            child: GestureDetector(
+      (
+        value: 'EXPRESS',
+        title: 'Express',
+        description: 'Agrega \$2,000 MXN por servicio express.',
+        icon: Icons.bolt_outlined,
+      ),
+    ];
+
+    return Column(
+      children: options.map((option) {
+        final selected = _selectedTipoTramite == option.value;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 9),
+          child: Material(
+            color: selected ? AppColors.redSoft : AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: InkWell(
               onTap: () {
                 setState(() {
-                  _selectedTipoTramite = options[idx];
+                  _selectedTipoTramite = option.value;
+                  _calculatedOutput = null;
                 });
               },
+              borderRadius: BorderRadius.circular(AppRadius.md),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.surface : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                  boxShadow: isSelected ? AppShadows.soft : null,
-                ),
-                child: Center(
-                  child: Text(
-                    labels[idx],
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: isSelected ? AppColors.red : AppColors.ink2,
-                    ),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(
+                    color: selected ? AppColors.red : AppColors.border,
+                    width: selected ? 2 : 1,
                   ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      option.icon,
+                      color: selected ? AppColors.red : AppColors.ink2,
+                      size: 23,
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            option.title,
+                            style: const TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            option.description,
+                            style: const TextStyle(
+                              color: AppColors.ink2,
+                              fontSize: 12,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      selected
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      color: selected ? AppColors.red : AppColors.ink3,
+                      size: 22,
+                    ),
+                  ],
                 ),
               ),
             ),
-          );
-        }),
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 
   Widget _buildAmparoSegmentedControl() {
-    final options = ['NORMAL', 'LUJO'];
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
+    const options = [
+      (
+        value: 'NORMAL',
+        title: 'Normal',
+        description: 'Tabulador estándar de amparo.',
       ),
-      child: Row(
-        children: List.generate(options.length, (idx) {
-          final isSelected = _selectedCategoriaAmparo == options[idx];
-          return Expanded(
-            child: GestureDetector(
+      (
+        value: 'LUJO',
+        title: 'Lujo',
+        description: 'Selección manual para el tabulador de lujo.',
+      ),
+    ];
+
+    return Row(
+      children: List.generate(options.length, (index) {
+        final option = options[index];
+        final selected = _selectedCategoriaAmparo == option.value;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: index == 0 ? 8 : 0),
+            child: InkWell(
               onTap: () {
                 setState(() {
-                  _selectedCategoriaAmparo = options[idx];
+                  _selectedCategoriaAmparo = option.value;
+                  _calculatedOutput = null;
                 });
               },
+              borderRadius: BorderRadius.circular(AppRadius.md),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                duration: const Duration(milliseconds: 180),
+                constraints: const BoxConstraints(minHeight: 88),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.surface : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                  boxShadow: isSelected ? AppShadows.soft : null,
-                ),
-                child: Center(
-                  child: Text(
-                    options[idx],
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: isSelected ? AppColors.red : AppColors.ink2,
-                    ),
+                  color: selected ? AppColors.redSoft : AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(
+                    color: selected ? AppColors.red : AppColors.border,
+                    width: selected ? 2 : 1,
                   ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            option.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          selected
+                              ? Icons.check_circle
+                              : Icons.radio_button_unchecked,
+                          color: selected ? AppColors.red : AppColors.ink3,
+                          size: 19,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      option.description,
+                      style: const TextStyle(
+                        color: AppColors.ink2,
+                        fontSize: 11,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          );
-        }),
-      ),
+          ),
+        );
+      }),
     );
   }
 
@@ -1373,24 +1668,32 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'ConfirmaciÃ³n y Cliente',
+          'Revisa el total',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w900,
             color: AppColors.ink,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 6),
         const Text(
-          'Selecciona el Cliente',
+          'Confirma cómo se forma la cotización antes de asignar el cliente.',
+          style: TextStyle(color: AppColors.ink2, fontSize: 13, height: 1.4),
+        ),
+        const SizedBox(height: 16),
+        _TaxBreakdown(calc: calc),
+        const SizedBox(height: 24),
+        const Text(
+          '¿A qué cliente corresponde?',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
             color: AppColors.ink2,
           ),
         ),
         const SizedBox(height: 8),
         Autocomplete<ClienteListDto>(
+          key: ValueKey('cliente-$_wizardEpoch'),
           optionsBuilder: (TextEditingValue textEditingValue) async {
             if (textEditingValue.text.isEmpty) {
               return const Iterable<ClienteListDto>.empty();
@@ -1454,7 +1757,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Cliente Seleccionado: ${_selectedCliente!.nombreCompleto ?? _selectedCliente!.apodo} (${_selectedCliente!.apodo})',
+                    '${_selectedCliente!.nombreCompleto ?? _selectedCliente!.apodo} (${_selectedCliente!.apodo})',
                     style: const TextStyle(
                       color: AppColors.success,
                       fontWeight: FontWeight.bold,
@@ -1467,14 +1770,12 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
           ),
         ],
         const SizedBox(height: 24),
-        _TaxBreakdownAccordion(calc: calc),
-        const SizedBox(height: 24),
         TextField(
           controller: _notasController,
           maxLines: 3,
           decoration: InputDecoration(
             labelText: 'Notas adicionales (Se imprimen en el PDF)',
-            hintText: 'Ej. No incluye grÃºa...',
+            hintText: 'Ej. No incluye grúa...',
             filled: true,
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
@@ -1509,61 +1810,23 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
   }
 }
 
-class _ScannerBeam extends StatefulWidget {
-  const _ScannerBeam();
-
-  @override
-  State<_ScannerBeam> createState() => _ScannerBeamState();
-}
-
-class _ScannerBeamState extends State<_ScannerBeam>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          painter: _ScannerLinePainter(_controller.value),
-          child: const SizedBox(height: 180, width: double.infinity),
-        );
-      },
-    );
-  }
-}
-
-class _FlowStepChip extends StatelessWidget {
-  const _FlowStepChip({
+class _FlowStepItem extends StatelessWidget {
+  const _FlowStepItem({
+    required this.number,
     required this.label,
-    required this.icon,
     required this.active,
     required this.completed,
     required this.enabled,
+    required this.showConnector,
     required this.onTap,
   });
 
+  final int number;
   final String label;
-  final IconData icon;
   final bool active;
   final bool completed;
   final bool enabled;
+  final bool showConnector;
   final VoidCallback? onTap;
 
   @override
@@ -1573,39 +1836,83 @@ class _FlowStepChip extends StatelessWidget {
         : enabled
         ? AppColors.ink2
         : AppColors.ink3;
-    final background = active
-        ? AppColors.redSoft
+    final circleColor = active
+        ? AppColors.red
         : completed
-        ? AppColors.surface
-        : AppColors.background;
-    final border = active || completed ? AppColors.red : AppColors.border;
+        ? AppColors.redSoft
+        : AppColors.surface;
 
     return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(999),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: border.withValues(alpha: enabled ? 1 : 0.6),
-            ),
-          ),
-          child: Row(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 16, color: foreground),
-              const SizedBox(width: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 1,
+                      color: number == 1
+                          ? Colors.transparent
+                          : completed || active
+                          ? AppColors.red
+                          : AppColors.border,
+                    ),
+                  ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 27,
+                    height: 27,
+                    decoration: BoxDecoration(
+                      color: circleColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: active || completed
+                            ? AppColors.red
+                            : AppColors.border,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: completed
+                        ? const Icon(
+                            Icons.check,
+                            size: 16,
+                            color: AppColors.red,
+                          )
+                        : Text(
+                            '$number',
+                            style: TextStyle(
+                              color: active ? AppColors.surface : foreground,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      height: 1,
+                      color: showConnector
+                          ? completed
+                                ? AppColors.red
+                                : AppColors.border
+                          : Colors.transparent,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: foreground,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
+                  fontSize: 10,
+                  fontWeight: active ? FontWeight.w900 : FontWeight.w700,
                 ),
               ),
             ],
@@ -1616,161 +1923,246 @@ class _FlowStepChip extends StatelessWidget {
   }
 }
 
-class _ScannerLinePainter extends CustomPainter {
-  _ScannerLinePainter(this.progress);
-  final double progress;
+class _TaxBreakdown extends StatelessWidget {
+  const _TaxBreakdown({required this.calc});
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          AppColors.purple.withValues(alpha: 0.0),
-          AppColors.purple.withValues(alpha: 0.8),
-          AppColors.purple.withValues(alpha: 0.0),
-        ],
-        stops: const [0.0, 0.5, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    final y = size.height * progress;
-    canvas.drawRect(Rect.fromLTWH(0, y - 10, size.width, 20), paint);
-
-    final linePaint = Paint()
-      ..color = AppColors.purple
-      ..strokeWidth = 2.0;
-    canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ScannerLinePainter oldDelegate) =>
-      oldDelegate.progress != progress;
-}
-
-class _TaxBreakdownAccordion extends StatefulWidget {
-  const _TaxBreakdownAccordion({required this.calc});
   final CotizacionOutput calc;
 
   @override
-  State<_TaxBreakdownAccordion> createState() => _TaxBreakdownAccordionState();
-}
-
-class _TaxBreakdownAccordionState extends State<_TaxBreakdownAccordion> {
-  bool _expanded = false;
-
-  @override
   Widget build(BuildContext context) {
-    final calc = widget.calc;
     final currencyFormat = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+    final usdFormat = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+    final isAmparo = calc.regimenFiscal == 'AMPARO';
+    final servicesTotal = calc.honorarios + calc.cargoExpress;
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.soft,
       ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Resumen del CÃ¡lculo de Impuestos',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-                  ),
-                  Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'TOTAL COTIZADO',
+              style: TextStyle(
+                color: AppColors.ink3,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${currencyFormat.format(calc.total)} MXN',
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _SummaryTag(
+                  icon: Icons.account_balance_outlined,
+                  label: _regimeLabel(calc.regimenFiscal),
+                ),
+                _SummaryTag(
+                  icon: Icons.description_outlined,
+                  label: calc.fraccion,
+                ),
+              ],
+            ),
+            const Divider(height: 32),
+            Text(
+              isAmparo ? 'PRECIO DE AMPARO' : 'BASE DEL CÁLCULO',
+              style: const TextStyle(
+                color: AppColors.ink2,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (!isAmparo) ...[
+              _TaxRow(
+                label: 'Valor aduana',
+                value: '${usdFormat.format(calc.valorAduanaUsd ?? 0)} USD',
+              ),
+              _TaxRow(
+                label: 'Tipo de cambio aplicado',
+                value:
+                    '\$${NumberFormat('#,##0.0000').format(calc.tipoCambioAplicado ?? 0)}',
+              ),
+              _TaxRow(
+                label: 'Valor fiscal en pesos',
+                value: currencyFormat.format(calc.valorPesos),
+                emphasized: true,
+              ),
+            ] else ...[
+              _TaxRow(
+                label: 'Precio de tabulador',
+                value: currencyFormat.format(calc.valorPesos),
+                emphasized: true,
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text(
+                  'El precio de amparo es todo incluido; por eso IGI, DTA e IVA no aparecen como partidas separadas.',
+                  style: TextStyle(
                     color: AppColors.ink2,
+                    fontSize: 11,
+                    height: 1.35,
                   ),
-                ],
+                ),
+              ),
+            ],
+            const Divider(height: 28),
+            const Text(
+              'IMPUESTOS Y DERECHOS',
+              style: TextStyle(
+                color: AppColors.ink2,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
               ),
             ),
-          ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox(width: double.infinity),
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-              child: Column(
-                children: [
-                  const Divider(height: 12),
-                  _buildAccordionRow(
-                    'Valor Aduana Usado',
-                    '\$${NumberFormat('#,##0.00').format(calc.valorAduanaUsd ?? 0)} USD',
-                  ),
-                  _buildAccordionRow(
-                    'Tipo Cambio Aplicado',
-                    '\$${NumberFormat('#,##0.0000').format(calc.tipoCambioAplicado ?? 0)} MXN',
-                  ),
-                  _buildAccordionRow(
-                    'Valor en Pesos',
-                    currencyFormat.format(calc.valorPesos),
-                  ),
-                  const Divider(height: 20),
-                  _buildAccordionRow(
-                    'IGI / Arancel',
-                    currencyFormat.format(calc.igi),
-                  ),
-                  _buildAccordionRow(
-                    'Derecho TrÃ¡mite (DTA)',
-                    currencyFormat.format(calc.dta),
-                  ),
-                  _buildAccordionRow('IVA', currencyFormat.format(calc.iva)),
-                  _buildAccordionRow(
-                    'Otros (PREV/PRV)',
-                    currencyFormat.format(calc.prev + calc.prv),
-                  ),
-                  const Divider(height: 20),
-                  _buildAccordionRow(
-                    'Total Impuestos',
-                    currencyFormat.format(calc.impuestosTotal),
-                    isBold: true,
-                  ),
-                  _buildAccordionRow(
-                    'Honorarios Agencia',
-                    currencyFormat.format(calc.honorarios),
-                  ),
-                  _buildAccordionRow(
-                    'Cargo Express',
-                    currencyFormat.format(calc.cargoExpress),
-                  ),
-                ],
+            const SizedBox(height: 8),
+            if (!isAmparo) ...[
+              _TaxRow(
+                label:
+                    'IGI (${(calc.igiPorcentaje * 100).toStringAsFixed(0)}%)',
+                value: currencyFormat.format(calc.igi),
+              ),
+              _TaxRow(label: 'DTA', value: currencyFormat.format(calc.dta)),
+              _TaxRow(label: 'IVA', value: currencyFormat.format(calc.iva)),
+              if (calc.prev > 0)
+                _TaxRow(label: 'PREV', value: currencyFormat.format(calc.prev)),
+              if (calc.prv > 0)
+                _TaxRow(label: 'PRV', value: currencyFormat.format(calc.prv)),
+            ],
+            _TaxRow(
+              label: isAmparo ? 'Amparo todo incluido' : 'Subtotal impuestos',
+              value: currencyFormat.format(calc.impuestosTotal),
+              emphasized: true,
+            ),
+            const Divider(height: 28),
+            const Text(
+              'SERVICIOS',
+              style: TextStyle(
+                color: AppColors.ink2,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
               ),
             ),
-            crossFadeState: _expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 300),
+            const SizedBox(height: 8),
+            _TaxRow(
+              label: 'Honorarios',
+              value: currencyFormat.format(calc.honorarios),
+            ),
+            if (calc.cargoExpress > 0)
+              _TaxRow(
+                label: 'Cargo express',
+                value: currencyFormat.format(calc.cargoExpress),
+              ),
+            _TaxRow(
+              label: 'Subtotal servicios',
+              value: currencyFormat.format(servicesTotal),
+              emphasized: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _regimeLabel(String regime) {
+    return switch (regime) {
+      'AMPARO' => 'Amparo',
+      'POST_2017' => '2017 o posterior',
+      'PRE_2016' => '2016 o anterior',
+      _ => regime,
+    };
+  }
+}
+
+class _SummaryTag extends StatelessWidget {
+  const _SummaryTag({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.ink2),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.ink2,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildAccordionRow(String label, String value, {bool isBold = false}) {
+class _TaxRow extends StatelessWidget {
+  const _TaxRow({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(color: AppColors.ink2, fontSize: 13),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: emphasized ? AppColors.ink : AppColors.ink2,
+                fontSize: 12,
+                fontWeight: emphasized ? FontWeight.w800 : FontWeight.w500,
+              ),
+            ),
           ),
+          const SizedBox(width: 12),
           Text(
             value,
             style: TextStyle(
-              fontWeight: isBold ? FontWeight.w900 : FontWeight.bold,
+              fontWeight: emphasized ? FontWeight.w900 : FontWeight.w700,
               color: AppColors.ink,
-              fontSize: 13,
+              fontSize: 12,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),

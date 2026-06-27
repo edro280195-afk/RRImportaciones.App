@@ -54,9 +54,9 @@ class _CampoTasksPageState extends ConsumerState<CampoTasksPage> {
             apellidos: user?.apellidos,
             role: user?.role,
             onRefresh: () => ref.invalidate(campoTasksProvider),
-            onLogout: () async {
-              await ref.read(sessionControllerProvider.notifier).logout();
-              if (context.mounted) context.go('/login');
+            onLock: () {
+              ref.read(sessionControllerProvider.notifier).lock();
+              context.go('/login');
             },
           ),
           Expanded(
@@ -145,14 +145,14 @@ class _UserHeader extends StatelessWidget {
     required this.apellidos,
     required this.role,
     required this.onRefresh,
-    required this.onLogout,
+    required this.onLock,
   });
 
   final String nombre;
   final String? apellidos;
   final String? role;
   final VoidCallback onRefresh;
-  final VoidCallback onLogout;
+  final VoidCallback onLock;
 
   @override
   Widget build(BuildContext context) {
@@ -198,9 +198,9 @@ class _UserHeader extends StatelessWidget {
             icon: const Icon(Icons.refresh, color: AppColors.ink2),
           ),
           IconButton(
-            tooltip: 'Salir',
-            onPressed: onLogout,
-            icon: const Icon(Icons.logout, color: AppColors.ink2),
+            tooltip: 'Bloquear aplicación',
+            onPressed: onLock,
+            icon: const Icon(Icons.lock_outline, color: AppColors.ink2),
           ),
         ],
       ),

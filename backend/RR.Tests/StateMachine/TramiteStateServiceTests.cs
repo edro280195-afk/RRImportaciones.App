@@ -9,20 +9,16 @@ public class TramiteStateServiceTests
     private readonly TramiteStateService _sut = new();
 
     [Theory]
-    [InlineData("PENDIENTE", "RECEPCION_EN_YARDA")]
-    [InlineData("RECEPCION_EN_YARDA", "REVISION_DOCUMENTAL")]
-    [InlineData("REVISION_DOCUMENTAL", "LISTO_PARA_ADUANA")]
-    [InlineData("LISTO_PARA_ADUANA", "PEDIMENTO_DOCUMENTADO")]
-    [InlineData("PEDIMENTO_DOCUMENTADO", "MODULACION_EN_CRUCE")]
-    [InlineData("MODULACION_EN_CRUCE", "SEMAFORO_VERDE")]
-    [InlineData("MODULACION_EN_CRUCE", "SEMAFORO_ROJO")]
-    [InlineData("SEMAFORO_VERDE", "LIBERADO")]
-    [InlineData("SEMAFORO_ROJO", "LIBERADO")]
-    [InlineData("LIBERADO", "ENTREGADO_AL_CLIENTE")]
-    public void CanTransitionTo_ValidForwardTransitions_ReturnsTrue(string current, string next)
+    [InlineData("PENDIENTE_TRAMITE", "FOTOS_SOLICITADAS")]
+    [InlineData("PENDIENTE_TRAMITE", "MANDADO_A_CRUCE")] // salto hacia adelante
+    [InlineData("ROJO_DESADUANADO", "COBRADO")]
+    [InlineData("AMARILLO_PENDIENTE_PAGO", "COBRADO")]
+    [InlineData("ENTREGADO_AL_CLIENTE", "COBRADO")] // post-entrega permitido
+    [InlineData("MANDADO_A_CRUCE", "REQUISITOS_PENDIENTES")] // hacia atrás permitido
+    public void CanTransitionTo_EntreEstadosValidos_ReturnsTrue(string current, string next)
     {
         var result = _sut.CanTransitionTo(current, next, out var reason);
-        
+
         result.Should().BeTrue();
         reason.Should().BeNull();
     }
@@ -30,68 +26,61 @@ public class TramiteStateServiceTests
     [Fact]
     public void CanTransitionTo_Cancelado_ToAnything_ReturnsFalse()
     {
-        var result = _sut.CanTransitionTo("CANCELADO", "PENDIENTE", out var reason);
-        
+        var result = _sut.CanTransitionTo("CANCELADO", "PENDIENTE_TRAMITE", out var reason);
+
         result.Should().BeFalse();
-        reason.Should().Be("Un trámite cancelado no puede reactivarse");
+        reason.Should().Contain("cancelado no puede reactivarse");
     }
 
-    [Fact]
-    public void CanTransitionTo_Anything_ToCancelado_ReturnsTrue()
+    [Theory]
+    [InlineData("PENDIENTE_TRAMITE")]
+    [InlineData("ROJO_DESADUANADO")]
+    [InlineData("ENTREGADO_AL_CLIENTE")]
+    public void CanTransitionTo_Anything_ToCancelado_ReturnsTrue(string current)
     {
-        var result = _sut.CanTransitionTo("PENDIENTE", "CANCELADO", out var reason);
-        
+        var result = _sut.CanTransitionTo(current, "CANCELADO", out var reason);
+
         result.Should().BeTrue();
         reason.Should().BeNull();
     }
 
-    [Theory]
-    [InlineData("RECEPCION_EN_YARDA", "PENDIENTE")] // Backward
-    [InlineData("LIBERADO", "SEMAFORO_VERDE")] // Backward
-    public void CanTransitionTo_ValidReverseTransitions_ReturnsFalseWithReason(string current, string next)
+    [Fact]
+    public void CanTransitionTo_MismoEstado_ReturnsFalse()
     {
-        var result = _sut.CanTransitionTo(current, next, out var reason);
-        
+        var result = _sut.CanTransitionTo("ROJO_DESADUANADO", "ROJO_DESADUANADO", out var reason);
+
         result.Should().BeFalse();
-        reason.Should().Contain("requiere rol ADMIN");
+        reason.Should().Contain("ya está en ese estado");
     }
 
     [Fact]
-    public void RequiereAdmin_BackwardTransition_ReturnsTrue()
+    public void CanTransitionTo_EstadoDestinoDesconocido_ReturnsFalse()
     {
-        var result = _sut.RequiereAdmin("RECEPCION_EN_YARDA", "PENDIENTE");
-        
-        result.Should().BeTrue();
+        var result = _sut.CanTransitionTo("PENDIENTE_TRAMITE", "ESTADO_INEXISTENTE_123", out var reason);
+
+        result.Should().BeFalse();
+        reason.Should().Contain("Estado destino desconocido");
     }
 
     [Fact]
-    public void RequiereAdmin_ForwardTransition_ReturnsFalse()
+    public void GetTransicionesPermitidas_Pendiente_IncluyeOtrosEstadosYCancelado_SinSiMismo()
     {
-        var result = _sut.RequiereAdmin("PENDIENTE", "RECEPCION_EN_YARDA");
-        
-        result.Should().BeFalse();
-    }
+        var result = _sut.GetTransicionesPermitidas("PENDIENTE_TRAMITE");
 
-    [Theory]
-    [InlineData("PENDIENTE", "ENTREGADO_AL_CLIENTE")]
-    [InlineData("PENDIENTE", "VERDE_ENTREGADO")]
-    public void GetTransicionesPermitidas_Pendiente_IncluyeSiguienteYCancelado(string current, string delivered)
-    {
-        var result = _sut.GetTransicionesPermitidas(current);
-
-        result.Should().Contain("RECEPCION_EN_YARDA");
+        result.Should().Contain("ROJO_DESADUANADO");
         result.Should().Contain("CANCELADO");
-        result.Should().NotContain(delivered);
+        result.Should().NotContain("PENDIENTE_TRAMITE");
     }
 
-    [Theory]
-    [InlineData("ENTREGADO_AL_CLIENTE")]
-    [InlineData("VERDE_ENTREGADO")]
-    public void GetTransicionesPermitidas_Entregado_DevuelveVacio(string estado)
+    [Fact]
+    public void GetTransicionesPermitidas_Entregado_SiguePermitiendoCambios()
     {
-        var result = _sut.GetTransicionesPermitidas(estado);
+        // Modelo permisivo: tras entregar todavía se puede marcar COBRADO o cancelar.
+        var result = _sut.GetTransicionesPermitidas("ENTREGADO_AL_CLIENTE");
 
-        result.Should().BeEmpty();
+        result.Should().Contain("COBRADO");
+        result.Should().Contain("CANCELADO");
+        result.Should().NotContain("ENTREGADO_AL_CLIENTE");
     }
 
     [Fact]
@@ -103,34 +92,10 @@ public class TramiteStateServiceTests
     }
 
     [Theory]
-    [InlineData("VERDE_ENTREGADO", "CANCELADO")]
-    [InlineData("ENTREGADO_AL_CLIENTE", "CANCELADO")]
-    public void CanTransitionTo_VerdeEntregado_AliasFunciona(string actual, string siguiente)
+    [InlineData("PENDIENTE_TRAMITE", "COBRADO")]
+    [InlineData("ROJO_DESADUANADO", "PENDIENTE_TRAMITE")]
+    public void RequiereAdmin_SiempreFalse(string current, string next)
     {
-        var result = _sut.CanTransitionTo(actual, siguiente, out var reason);
-
-        result.Should().BeFalse();
-        reason.Should().Contain("ya fue entregado");
-    }
-
-    [Theory]
-    [InlineData("MODULACION_EN_CRUCE", "SEMAFORO_VERDE")]
-    [InlineData("MODULACION_EN_CRUCE", "SEMAFORO_ROJO")]
-    public void CanTransitionTo_Modulacion_AmbosSemaforosPermitidos(string actual, string siguiente)
-    {
-        var result = _sut.CanTransitionTo(actual, siguiente, out var reason);
-
-        result.Should().BeTrue();
-        reason.Should().BeNull();
-    }
-
-    [Theory]
-    [InlineData("ESTADO_INEXISTENTE_123", "PENDIENTE")]
-    public void CanTransitionTo_EstadoDesconocido_DevuelveFalsoConRazon(string actual, string siguiente)
-    {
-        var result = _sut.CanTransitionTo(actual, siguiente, out var reason);
-
-        result.Should().BeFalse();
-        reason.Should().Contain("Estado actual desconocido");
+        _sut.RequiereAdmin(current, next).Should().BeFalse();
     }
 }

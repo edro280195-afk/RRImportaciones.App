@@ -318,6 +318,29 @@ class TramitePagoDto {
   }
 }
 
+class TipoGastoDto {
+  const TipoGastoDto({
+    required this.id,
+    required this.categoria,
+    required this.nombre,
+    this.activo = true,
+  });
+
+  final String id;
+  final String categoria;
+  final String nombre;
+  final bool activo;
+
+  factory TipoGastoDto.fromJson(Map<String, dynamic> json) {
+    return TipoGastoDto(
+      id: json['id']?.toString() ?? '',
+      categoria: json['categoria']?.toString() ?? '',
+      nombre: json['nombre']?.toString() ?? '',
+      activo: json['activo'] as bool? ?? true,
+    );
+  }
+}
+
 class TramiteGastoDto {
   const TramiteGastoDto({
     required this.id,
@@ -607,10 +630,15 @@ class TramiteDetailDto {
       fechaCreacion: json['fechaCreacion']?.toString() ?? '',
       fechaModificacion: json['fechaModificacion']?.toString(),
       eventos: (json['eventos'] as List? ?? [])
-          .map((item) => TramiteEventoDto.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => TramiteEventoDto.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       pedimentos: (json['pedimentos'] as List? ?? [])
-          .map((item) => TramitePedimentoDto.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                TramitePedimentoDto.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       pagos: (json['pagos'] as List? ?? [])
           .map((item) => TramitePagoDto.fromJson(item as Map<String, dynamic>))
@@ -619,13 +647,21 @@ class TramiteDetailDto {
           .map((item) => TramiteGastoDto.fromJson(item as Map<String, dynamic>))
           .toList(),
       entregas: (json['entregas'] as List? ?? [])
-          .map((item) => TramiteEntregaDto.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => TramiteEntregaDto.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       documentos: (json['documentos'] as List? ?? [])
-          .map((item) => TramiteDocumentoDto.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                TramiteDocumentoDto.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       tareasCampo: (json['tareasCampo'] as List? ?? [])
-          .map((item) => TramiteTareaCampoDto.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                TramiteTareaCampoDto.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
     );
   }
@@ -651,7 +687,9 @@ class CotizacionDashboardDto {
       pendientesRespuesta: json['pendientesRespuesta'] as int? ?? 0,
       porExpirar: json['porExpirar'] as int? ?? 0,
       aceptadasListas: (json['aceptadasListas'] as List? ?? [])
-          .map((item) => CotizacionListDto.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => CotizacionListDto.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
     );
   }
@@ -1065,7 +1103,8 @@ class VehicleDecodedDto {
       vehicleType: json['vehicleType']?.toString(),
       bodyClass: json['bodyClass']?.toString(),
       engineCylinders: json['engineCylinders'] as int?,
-      displacementCC: (json['displacementCC'] as num?)?.toDouble() ??
+      displacementCC:
+          (json['displacementCC'] as num?)?.toDouble() ??
           (json['displacementCc'] as num?)?.toDouble(),
       fuelTypePrimary: json['fuelTypePrimary']?.toString(),
       plantCountry: json['plantCountry']?.toString(),

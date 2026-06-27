@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/domain/auth_models.dart';
 import '../api/api_client.dart';
-import '../biometric/biometric_service.dart';
 
 final sessionControllerProvider =
     AsyncNotifierProvider<SessionController, SessionState>(
@@ -104,6 +103,13 @@ class SessionController extends AsyncNotifier<SessionState> {
     state = AsyncData(current.copyWith(status: SessionStatus.authenticated));
   }
 
+  /// Bloquea la aplicación conservando la cuenta y los tokens del dispositivo.
+  void lock() {
+    final current = state.asData?.value;
+    if (current == null || !current.isAuthenticated) return;
+    state = AsyncData(current.copyWith(status: SessionStatus.locked));
+  }
+
   /// Guardar sesión tras login exitoso (PIN o contraseña).
   Future<void> save(LoginResponse response) async {
     final storage = ref.read(secureStorageProvider);
@@ -120,14 +126,13 @@ class SessionController extends AsyncNotifier<SessionState> {
     );
   }
 
-  /// Cerrar sesión y limpiar todo.
+  /// Cambiar de usuario: elimina la sesión, pero conserva la configuración
+  /// biométrica del dispositivo para futuros accesos.
   Future<void> logout() async {
     final storage = ref.read(secureStorageProvider);
-    final biometric = ref.read(biometricServiceProvider);
     await storage.delete(key: 'token');
     await storage.delete(key: 'refreshToken');
     await storage.delete(key: 'user');
-    await biometric.clear();
     state = const AsyncData(SessionState.empty());
   }
 }

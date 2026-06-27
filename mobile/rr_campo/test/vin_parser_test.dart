@@ -28,5 +28,34 @@ void main() {
 
       expect(vin, '1HGCM82633A004352');
     });
+
+    test('no convierte texto descriptivo de una etiqueta en VIN', () {
+      expect(
+        extractVinFromOcrLine(
+          'THIS VEHICLE CONFORMS TO ALL APPLICABLE FEDERAL MOTOR',
+        ),
+        isNull,
+      );
+      expect(extractVinFromOcrLine('OCCUPANTS 5 TOTAL 2 FRONT 3 REAR'), isNull);
+    });
+
+    test('acepta VIN impreso en un solo renglon', () {
+      expect(extractVinFromOcrLine('3FA6P0LU7HR105186'), '3FA6P0LU7HR105186');
+      expect(hasValidVinCheckDigit('3FA6P0LU7HR105186'), isTrue);
+    });
+
+    test('acepta VIN separado por espacios cuando ocupa todo el renglon', () {
+      expect(
+        extractVinFromOcrLine('3 F A 6 P 0 L U 7 H R 1 0 5 1 8 6'),
+        '3FA6P0LU7HR105186',
+      );
+    });
+
+    test('extrae VIN de payload de codigo con identificador de simbologia', () {
+      expect(
+        extractVinFromBarcode(']C03FA6P0LU7HR105186'),
+        '3FA6P0LU7HR105186',
+      );
+    });
   });
 }

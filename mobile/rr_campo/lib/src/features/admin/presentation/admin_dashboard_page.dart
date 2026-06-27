@@ -7,13 +7,15 @@ import '../data/admin_api.dart';
 import '../domain/admin_models.dart';
 import 'cotizacion_nueva_page.dart';
 
-final tramitesDashboardProvider = FutureProvider.autoDispose<TramiteDashboardDto>((ref) {
-  return ref.watch(adminApiProvider).getTramitesDashboard();
-});
+final tramitesDashboardProvider =
+    FutureProvider.autoDispose<TramiteDashboardDto>((ref) {
+      return ref.watch(adminApiProvider).getTramitesDashboard();
+    });
 
-final cotizacionesDashboardProvider = FutureProvider.autoDispose<CotizacionDashboardDto>((ref) {
-  return ref.watch(adminApiProvider).getCotizacionesDashboard();
-});
+final cotizacionesDashboardProvider =
+    FutureProvider.autoDispose<CotizacionDashboardDto>((ref) {
+      return ref.watch(adminApiProvider).getCotizacionesDashboard();
+    });
 
 class AdminDashboardPage extends ConsumerWidget {
   const AdminDashboardPage({super.key});
@@ -72,7 +74,11 @@ class AdminDashboardPage extends ConsumerWidget {
               // Quick Actions
               const Text(
                 'Acciones Rápidas',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.ink),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                ),
               ),
               const SizedBox(height: 12),
               Row(
@@ -100,7 +106,8 @@ class AdminDashboardPage extends ConsumerWidget {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const CotizacionNuevaPage(startWithScan: true),
+                            builder: (_) =>
+                                const CotizacionNuevaPage(startWithScan: true),
                           ),
                         );
                       },
@@ -113,7 +120,11 @@ class AdminDashboardPage extends ConsumerWidget {
               // Resumen Operativo (Trámites)
               const Text(
                 'Resumen Operativo (Trámites)',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.ink),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                ),
               ),
               const SizedBox(height: 12),
               tramitesAsync.when(
@@ -160,7 +171,8 @@ class AdminDashboardPage extends ConsumerWidget {
                           child: _KpiCard(
                             title: 'Por Cobrar',
                             value: currencyFormat.format(data.porCobrar),
-                            subtitle: '${data.amarillosPendientePago} pendientes de pago',
+                            subtitle:
+                                '${data.amarillosPendientePago} pendientes de pago',
                             icon: Icons.warning_amber_rounded,
                             color: AppColors.warning,
                             isCompact: true,
@@ -178,7 +190,11 @@ class AdminDashboardPage extends ConsumerWidget {
               // Resumen Cotizaciones
               const Text(
                 'Cotizaciones',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.ink),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink,
+                ),
               ),
               const SizedBox(height: 12),
               cotizacionesAsync.when(
@@ -220,7 +236,11 @@ class AdminDashboardPage extends ConsumerWidget {
                               color: AppColors.success,
                             ),
                           ),
-                          const Icon(Icons.arrow_forward, size: 16, color: AppColors.success),
+                          const Icon(
+                            Icons.arrow_forward,
+                            size: 16,
+                            color: AppColors.success,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -235,12 +255,16 @@ class AdminDashboardPage extends ConsumerWidget {
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(AppRadius.md),
-                              side: BorderSide(color: AppColors.success.withValues(alpha: 0.3)),
+                              side: BorderSide(
+                                color: AppColors.success.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: ListTile(
                               title: Text(
                                 item.vehiculo ?? 'Vehículo sin especificar',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               subtitle: Text(
                                 'Cliente: ${item.clienteNombre ?? 'N/A'}\nFolio: ${item.folio ?? 'Sin folio'}',
@@ -259,7 +283,10 @@ class AdminDashboardPage extends ConsumerWidget {
                                   ),
                                   const SizedBox(height: 4),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: AppColors.successSoft,
                                       borderRadius: BorderRadius.circular(4),
@@ -322,10 +349,7 @@ class _QuickActionCard extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               child: Icon(icon, color: Colors.white, size: 24),
             ),
             const SizedBox(height: 12),

@@ -110,17 +110,22 @@ class AjustesPage extends ConsumerWidget {
             SwitchListTile.adaptive(
               title: Text(
                 'Usar ${ref.watch(biometricLabelProvider).value ?? 'Biometría'}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
               subtitle: const Text(
                 'Desbloquea la sesión de forma rápida y segura.',
                 style: TextStyle(fontSize: 12),
               ),
               contentPadding: EdgeInsets.zero,
-              value: ref.watch(biometricEnabledStateProvider).value ?? false,
-              onChanged: (val) {
-                ref.read(biometricEnabledStateProvider.notifier).toggle(val);
-              },
+              value:
+                  ref.watch(biometricEnabledStateProvider).asData?.value ??
+                  false,
+              onChanged: ref.watch(biometricEnabledStateProvider).isLoading
+                  ? null
+                  : (value) => _toggleBiometric(context, ref, value),
               activeTrackColor: AppColors.red,
             ),
             const SizedBox(height: 8),
@@ -128,9 +133,9 @@ class AjustesPage extends ConsumerWidget {
             const SizedBox(height: 16),
           ],
           OutlinedButton.icon(
-            onPressed: () => _confirmLogout(context, ref),
+            onPressed: () => _lockApp(context, ref),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.danger,
+              foregroundColor: AppColors.ink,
               minimumSize: const Size.fromHeight(52),
               side: const BorderSide(color: AppColors.border),
               shape: RoundedRectangleBorder(
@@ -138,8 +143,15 @@ class AjustesPage extends ConsumerWidget {
               ),
               textStyle: const TextStyle(fontWeight: FontWeight.w800),
             ),
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.lock_outline),
             label: const Text('Cerrar sesión'),
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _confirmLogout(context, ref),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            icon: const Icon(Icons.switch_account_outlined),
+            label: const Text('Cambiar de usuario'),
           ),
           const SizedBox(height: 24),
           Center(
@@ -153,12 +165,38 @@ class AjustesPage extends ConsumerWidget {
     );
   }
 
+  Future<void> _toggleBiometric(
+    BuildContext context,
+    WidgetRef ref,
+    bool enabled,
+  ) async {
+    final updated = await ref
+        .read(biometricEnabledStateProvider.notifier)
+        .toggle(enabled);
+    if (!context.mounted || updated || !enabled) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'No se pudo activar la biometría. Confirma tu huella o rostro e inténtalo de nuevo.',
+        ),
+      ),
+    );
+  }
+
+  void _lockApp(BuildContext context, WidgetRef ref) {
+    ref.read(sessionControllerProvider.notifier).lock();
+    context.go('/login');
+  }
+
   Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cerrar sesión'),
-        content: const Text('¿Seguro que quieres salir de tu cuenta?'),
+        title: const Text('Cambiar de usuario'),
+        content: const Text(
+          'Se quitará la cuenta guardada de este dispositivo. Para volver a entrar tendrás que usar PIN o contraseña.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -166,7 +204,7 @@ class AjustesPage extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Salir'),
+            child: const Text('Cambiar usuario'),
           ),
         ],
       ),
