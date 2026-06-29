@@ -22,6 +22,7 @@ class CotizacionNuevaPage extends ConsumerStatefulWidget {
 class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
   int _currentStep = 0;
   int _wizardEpoch = 0;
+  int _clientSearchEpoch = 0;
   bool _loading = false;
   String? _errorMessage;
   late final PageController _pageController;
@@ -38,7 +39,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
   // ── Step 2: Fiscal & Type of Change ──
   String _selectedTipoTramite = 'NORMAL';
   String? _selectedCategoriaAmparo = 'NORMAL';
-  final _tcMargenController = TextEditingController(text: '0.00');
+  final _tipoCambioAplicadoController = TextEditingController();
   final _honorariosController = TextEditingController();
   TipoCambioDto? _tipoCambio;
   String _selectedTcContexto = 'FIX';
@@ -65,6 +66,53 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     };
   }
 
+  double? get _tipoCambioAplicadoValue {
+    final raw = _tipoCambioAplicadoController.text
+        .replaceAll(',', '')
+        .replaceAll('\$', '')
+        .trim();
+    if (raw.isEmpty) return null;
+    return double.tryParse(raw);
+  }
+
+  bool get _tipoCambioInputInvalido {
+    final raw = _tipoCambioAplicadoController.text.trim();
+    final value = _tipoCambioAplicadoValue;
+    return raw.isNotEmpty && (value == null || value <= 0);
+  }
+
+  double get _tcMargenCalculado {
+    final referencia = _tipoCambio?.tipoCambio;
+    final aplicado = _tipoCambioAplicadoValue;
+    if (referencia == null || aplicado == null) return 0;
+    return aplicado - referencia;
+  }
+
+  CotizacionInput _buildCotizacionInput(VehicleDecodedDto vehicle) {
+    return CotizacionInput(
+      vin: vehicle.vin,
+      marca: vehicle.make,
+      modelo: vehicle.model,
+      anno: vehicle.modelYear,
+      cilindradaCm3: vehicle.displacementCC?.toInt(),
+      tipoVehiculo: vehicle.vehicleType,
+      valorAduanaUsdOverride: _selectedCandidate == null
+          ? double.tryParse(_valorAduanaController.text)
+          : null,
+      precioEstimadoIdOverride: _selectedCandidate?.precioEstimadoId,
+      categoriaAmparoOverride: _detectedFiscalRegime == 'AMPARO'
+          ? _selectedCategoriaAmparo
+          : null,
+      tcMargen: _tcMargenCalculado,
+      tipoCambioOverride: _tipoCambioAplicadoValue,
+      tipoCambioContexto: _selectedTcContexto,
+      tipoTramite: _selectedTipoTramite,
+      honorariosOverride: _honorariosController.text.trim().isEmpty
+          ? null
+          : double.tryParse(_honorariosController.text),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -89,21 +137,63 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     _pageController.dispose();
     _vinController.dispose();
     _valorAduanaController.dispose();
-    _tcMargenController.dispose();
+    _tipoCambioAplicadoController.dispose();
     _honorariosController.dispose();
     _notasController.dispose();
     super.dispose();
   }
 
   Future<void> _scanVin() async {
+    VehicleDecodedDto? decodedFromScan;
     final scannedVin = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const MlkitVinScannerPage()),
+      MaterialPageRoute(
+        builder: (_) => MlkitVinScannerPage(
+          onValidateVin: (vin) async {
+            try {
+              final decoded = await ref.read(adminApiProvider).decodeVin(vin);
+              decodedFromScan = decoded;
+              final vehicleLabel = [
+                if ((decoded.make ?? '').trim().isNotEmpty)
+                  decoded.make!.trim(),
+                if ((decoded.model ?? '').trim().isNotEmpty)
+                  decoded.model!.trim(),
+                if (decoded.modelYear != null) '${decoded.modelYear}',
+              ].join(' ');
+
+              return VinScannerValidationResult.success(
+                title: 'Vehículo encontrado',
+                subtitle: vehicleLabel.isEmpty
+                    ? 'VIN validado correctamente.'
+                    : vehicleLabel,
+              );
+            } catch (_) {
+              decodedFromScan = null;
+              return const VinScannerValidationResult.failure(
+                title: 'VIN no validado',
+                subtitle:
+                    'No encontramos un vehículo con ese VIN. Escanéalo nuevamente.',
+              );
+            }
+          },
+        ),
+      ),
     );
     if (scannedVin != null && scannedVin.isNotEmpty) {
+      final decoded = decodedFromScan;
       setState(() {
         _vinController.text = scannedVin;
+        _decodedVehicle = decoded;
+        _candidatesOutput = null;
+        _selectedCandidate = null;
+        _calculatedOutput = null;
+        _errorMessage = null;
       });
-      _decodeVin();
+      if (decoded != null) {
+        _goToPage(1);
+        _fetchCandidates();
+      } else {
+        _decodeVin();
+      }
     }
   }
 
@@ -151,16 +241,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     });
 
     try {
-      final input = CotizacionInput(
-        vin: vehicle.vin,
-        marca: vehicle.make,
-        modelo: vehicle.model,
-        anno: vehicle.modelYear,
-        cilindradaCm3: vehicle.displacementCC?.toInt(),
-        tipoVehiculo: vehicle.vehicleType,
-        tcMargen: double.tryParse(_tcMargenController.text) ?? 0.0,
-        tipoTramite: _selectedTipoTramite,
-      );
+      final input = _buildCotizacionInput(vehicle);
 
       final candidates = await ref
           .read(adminApiProvider)
@@ -198,6 +279,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
           .getTipoCambio(_selectedTcContexto);
       setState(() {
         _tipoCambio = tc;
+        _tipoCambioAplicadoController.text = tc.tipoCambio.toStringAsFixed(4);
       });
     } catch (e) {
       setState(
@@ -211,6 +293,12 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
   Future<void> _calculateTaxes() async {
     final vehicle = _decodedVehicle;
     if (vehicle == null) return;
+    if (_tipoCambioInputInvalido) {
+      setState(
+        () => _errorMessage = 'Ingresa un tipo de cambio válido mayor a cero.',
+      );
+      return;
+    }
 
     setState(() {
       _loading = true;
@@ -218,26 +306,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     });
 
     try {
-      final input = CotizacionInput(
-        vin: vehicle.vin,
-        marca: vehicle.make,
-        modelo: vehicle.model,
-        anno: vehicle.modelYear,
-        cilindradaCm3: vehicle.displacementCC?.toInt(),
-        tipoVehiculo: vehicle.vehicleType,
-        valorAduanaUsdOverride: _selectedCandidate == null
-            ? double.tryParse(_valorAduanaController.text)
-            : null,
-        precioEstimadoIdOverride: _selectedCandidate?.precioEstimadoId,
-        categoriaAmparoOverride: _detectedFiscalRegime == 'AMPARO'
-            ? _selectedCategoriaAmparo
-            : null,
-        tcMargen: double.tryParse(_tcMargenController.text) ?? 0.0,
-        tipoTramite: _selectedTipoTramite,
-        honorariosOverride: _honorariosController.text.trim().isEmpty
-            ? null
-            : double.tryParse(_honorariosController.text),
-      );
+      final input = _buildCotizacionInput(vehicle);
 
       final output = await ref.read(adminApiProvider).calcularCotizacion(input);
       setState(() {
@@ -267,26 +336,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     });
 
     try {
-      final input = CotizacionInput(
-        vin: vehicle.vin,
-        marca: vehicle.make,
-        modelo: vehicle.model,
-        anno: vehicle.modelYear,
-        cilindradaCm3: vehicle.displacementCC?.toInt(),
-        tipoVehiculo: vehicle.vehicleType,
-        valorAduanaUsdOverride: _selectedCandidate == null
-            ? double.tryParse(_valorAduanaController.text)
-            : null,
-        precioEstimadoIdOverride: _selectedCandidate?.precioEstimadoId,
-        categoriaAmparoOverride: _detectedFiscalRegime == 'AMPARO'
-            ? _selectedCategoriaAmparo
-            : null,
-        tcMargen: double.tryParse(_tcMargenController.text) ?? 0.0,
-        tipoTramite: _selectedTipoTramite,
-        honorariosOverride: _honorariosController.text.trim().isEmpty
-            ? null
-            : double.tryParse(_honorariosController.text),
-      );
+      final input = _buildCotizacionInput(vehicle);
 
       final request = GuardarCotizacionRequest(
         input: input,
@@ -430,7 +480,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
       _valorAduanaController.clear();
       _selectedTipoTramite = 'NORMAL';
       _selectedCategoriaAmparo = 'NORMAL';
-      _tcMargenController.text = '0.00';
+      _tipoCambioAplicadoController.clear();
       _honorariosController.clear();
       _tipoCambio = null;
       _selectedTcContexto = 'FIX';
@@ -905,14 +955,14 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
           ),
         ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
+        FilledButton.icon(
           onPressed: _scanVin,
           icon: const Icon(Icons.document_scanner_outlined),
-          label: const Text('Escanear VIN con la cámara'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.ink,
+          label: const Text('Escanear VIN'),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.red,
+            foregroundColor: Colors.white,
             minimumSize: const Size.fromHeight(54),
-            side: const BorderSide(color: AppColors.border),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
@@ -1380,7 +1430,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Tipo de cambio hoy',
+                    'Referencia oficial',
                     style: TextStyle(color: AppColors.ink2, fontSize: 13),
                   ),
                   Text(
@@ -1395,6 +1445,43 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _tipoCambioAplicadoController,
+                onChanged: (_) => setState(() => _calculatedOutput = null),
+                decoration: InputDecoration(
+                  labelText: 'Tipo de cambio aplicado',
+                  hintText: 'Ej. 18.5000',
+                  prefixText: '\$ ',
+                  suffixText: ' MXN',
+                  helperText: 'Puedes escribir el tipo de cambio que usarás.',
+                  filled: true,
+                  fillColor: AppColors.background,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: const BorderSide(
+                      color: AppColors.red,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
               ),
             ],
           ),
@@ -1419,37 +1506,6 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
         ),
         if (_showFiscalOptions) ...[
           const SizedBox(height: 8),
-          TextField(
-            controller: _tcMargenController,
-            onChanged: (_) => setState(() => _calculatedOutput = null),
-            decoration: InputDecoration(
-              labelText: 'Margen sobre tipo de cambio',
-              hintText: '0.00',
-              prefixText: '+ \$ ',
-              suffixText: ' MXN',
-              filled: true,
-              fillColor: AppColors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                borderSide: const BorderSide(color: AppColors.red, width: 2),
-              ),
-            ),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
-              fontFeatures: [FontFeature.tabularFigures()],
-            ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          ),
-          const SizedBox(height: 14),
           TextField(
             controller: _honorariosController,
             onChanged: (_) => setState(() => _calculatedOutput = null),
@@ -1660,6 +1716,163 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     );
   }
 
+  Widget _buildClientSelector() {
+    final selected = _selectedCliente;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fieldWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth.clamp(280.0, 520.0).toDouble()
+            : 520.0;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'CLIENTE',
+              style: TextStyle(
+                color: AppColors.ink2,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Autocomplete<ClienteListDto>(
+              key: ValueKey('cliente-$_wizardEpoch-$_clientSearchEpoch'),
+              optionsBuilder: (TextEditingValue textEditingValue) async {
+                final query = textEditingValue.text.trim();
+                if (query.length < 2) {
+                  return const Iterable<ClienteListDto>.empty();
+                }
+                try {
+                  return await ref
+                      .read(adminApiProvider)
+                      .searchClientesAutocomplete(query);
+                } catch (_) {
+                  return const Iterable<ClienteListDto>.empty();
+                }
+              },
+              displayStringForOption: _clientDisplayName,
+              onSelected: (option) {
+                FocusScope.of(context).unfocus();
+                setState(() => _selectedCliente = option);
+              },
+              fieldViewBuilder:
+                  (context, controller, focusNode, onFieldSubmitted) {
+                    return TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      onChanged: (_) {
+                        if (_selectedCliente != null) {
+                          setState(() => _selectedCliente = null);
+                        }
+                      },
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        labelText: 'Buscar cliente',
+                        hintText: 'Nombre, apodo, teléfono o email',
+                        helperText: 'Escribe al menos 2 caracteres.',
+                        prefixIcon: const Icon(Icons.person_search_outlined),
+                        suffixIcon: selected == null
+                            ? null
+                            : IconButton(
+                                tooltip: 'Cambiar cliente',
+                                onPressed: () {
+                                  controller.clear();
+                                  focusNode.requestFocus();
+                                  setState(() => _selectedCliente = null);
+                                },
+                                icon: const Icon(Icons.close),
+                              ),
+                        filled: true,
+                        fillColor: AppColors.surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          borderSide: const BorderSide(
+                            color: AppColors.red,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+              optionsViewBuilder: (context, onSelected, options) {
+                final items = options.toList();
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    color: AppColors.surface,
+                    elevation: 10,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    clipBehavior: Clip.antiAlias,
+                    child: SizedBox(
+                      width: fieldWidth,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 320),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          shrinkWrap: true,
+                          itemCount: items.length,
+                          separatorBuilder: (_, _) =>
+                              const Divider(height: 1, color: AppColors.border),
+                          itemBuilder: (context, index) {
+                            final option = items[index];
+                            final highlighted =
+                                AutocompleteHighlightedOption.of(context) ==
+                                index;
+                            return _ClientOptionTile(
+                              client: option,
+                              highlighted: highlighted,
+                              onTap: () => onSelected(option),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: selected == null
+                  ? const SizedBox(height: 12)
+                  : Padding(
+                      key: ValueKey(selected.id),
+                      padding: const EdgeInsets.only(top: 12),
+                      child: _SelectedClientPanel(
+                        client: selected,
+                        onClear: () {
+                          setState(() {
+                            _selectedCliente = null;
+                            _clientSearchEpoch++;
+                          });
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _clientDisplayName(ClienteListDto client) {
+    final name = client.nombreCompleto?.trim();
+    if (name == null || name.isEmpty || name == client.apodo) {
+      return client.apodo;
+    }
+    return '$name (${client.apodo})';
+  }
+
   Widget _buildStep3() {
     final calc = _calculatedOutput;
     if (calc == null) return const SizedBox();
@@ -1683,92 +1896,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
         const SizedBox(height: 16),
         _TaxBreakdown(calc: calc),
         const SizedBox(height: 24),
-        const Text(
-          '¿A qué cliente corresponde?',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 14,
-            color: AppColors.ink2,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Autocomplete<ClienteListDto>(
-          key: ValueKey('cliente-$_wizardEpoch'),
-          optionsBuilder: (TextEditingValue textEditingValue) async {
-            if (textEditingValue.text.isEmpty) {
-              return const Iterable<ClienteListDto>.empty();
-            }
-            try {
-              return await ref
-                  .read(adminApiProvider)
-                  .searchClientesAutocomplete(textEditingValue.text);
-            } catch (_) {
-              return const Iterable<ClienteListDto>.empty();
-            }
-          },
-          displayStringForOption: (option) =>
-              '${option.nombreCompleto ?? option.apodo} (${option.apodo})',
-          onSelected: (option) {
-            setState(() => _selectedCliente = option);
-          },
-          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-            return TextField(
-              controller: controller,
-              focusNode: focusNode,
-              decoration: InputDecoration(
-                hintText: 'Buscar por nombre o apodo...',
-                prefixIcon: const Icon(Icons.person_search_outlined),
-                filled: true,
-                fillColor: AppColors.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: const BorderSide(color: AppColors.red, width: 2),
-                ),
-              ),
-            );
-          },
-        ),
-        if (_selectedCliente != null) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.successSoft,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(
-                color: AppColors.success.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.check_circle,
-                  color: AppColors.success,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '${_selectedCliente!.nombreCompleto ?? _selectedCliente!.apodo} (${_selectedCliente!.apodo})',
-                    style: const TextStyle(
-                      color: AppColors.success,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        _buildClientSelector(),
         const SizedBox(height: 24),
         TextField(
           controller: _notasController,
@@ -1921,6 +2049,254 @@ class _FlowStepItem extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ClientOptionTile extends StatelessWidget {
+  const _ClientOptionTile({
+    required this.client,
+    required this.highlighted,
+    required this.onTap,
+  });
+
+  final ClienteListDto client;
+  final bool highlighted;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _clientName(client);
+    final contact = _clientContact(client);
+
+    return InkWell(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        color: highlighted ? AppColors.redSoft : AppColors.surface,
+        child: Row(
+          children: [
+            _ClientAvatar(label: client.apodo),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    client.apodo,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.ink2,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (contact != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      contact,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.ink3,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${client.totalTramites} trámites',
+                  style: const TextStyle(
+                    color: AppColors.ink2,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${client.totalVehiculos} vehículos',
+                  style: const TextStyle(
+                    color: AppColors.ink3,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedClientPanel extends StatelessWidget {
+  const _SelectedClientPanel({required this.client, required this.onClear});
+
+  final ClienteListDto client;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final contact = _clientContact(client) ?? 'Sin contacto registrado';
+    final totalFormat = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.successSoft,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle, color: AppColors.success, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  client.apodo,
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _clientName(client),
+                  style: const TextStyle(
+                    color: AppColors.ink2,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _ClientMetaChip(icon: Icons.phone_outlined, label: contact),
+                    _ClientMetaChip(
+                      icon: Icons.directions_car_outlined,
+                      label: '${client.totalVehiculos} vehículos',
+                    ),
+                    _ClientMetaChip(
+                      icon: Icons.receipt_long_outlined,
+                      label: totalFormat.format(client.totalFacturado),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Cambiar cliente',
+            onPressed: onClear,
+            icon: const Icon(Icons.close, color: AppColors.ink2),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClientAvatar extends StatelessWidget {
+  const _ClientAvatar({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = label.trim();
+    final initial = trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: AppColors.redSoft,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: AppColors.red,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _ClientMetaChip extends StatelessWidget {
+  const _ClientMetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.ink2),
+          const SizedBox(width: 5),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.ink2,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _clientName(ClienteListDto client) {
+  final name = client.nombreCompleto?.trim();
+  if (name == null || name.isEmpty) return client.apodo;
+  return name;
+}
+
+String? _clientContact(ClienteListDto client) {
+  final phone = client.telefono?.trim();
+  if (phone != null && phone.isNotEmpty) return phone;
+  final email = client.email?.trim();
+  if (email != null && email.isNotEmpty) return email;
+  return null;
 }
 
 class _TaxBreakdown extends StatelessWidget {

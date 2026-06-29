@@ -25,6 +25,8 @@ public class CotizacionInput
     public string? CategoriaAmparoOverride { get; set; }
 
     public decimal TcMargen { get; set; } = 0.30m;
+    public decimal? TipoCambioOverride { get; set; }
+    public string? TipoCambioContexto { get; set; }
     public string TipoTramite { get; set; } = "NORMAL";
     public decimal? HonorariosOverride { get; set; }
 }

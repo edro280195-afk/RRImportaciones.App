@@ -193,28 +193,20 @@ class _AdminMorePage extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             const Divider(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
           ],
-          OutlinedButton.icon(
-            onPressed: () => _lockApp(context, ref),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.ink,
+          FilledButton.icon(
+            onPressed: () => _logout(context, ref),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.red,
+              foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(52),
-              side: const BorderSide(color: AppColors.border),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
-              textStyle: const TextStyle(fontWeight: FontWeight.w800),
             ),
-            icon: const Icon(Icons.lock_outline),
+            icon: const Icon(Icons.logout_rounded, size: 18),
             label: const Text('Cerrar sesión'),
-          ),
-          const SizedBox(height: 6),
-          TextButton.icon(
-            onPressed: () => _confirmLogout(context, ref),
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            icon: const Icon(Icons.switch_account_outlined),
-            label: const Text('Cambiar de usuario'),
           ),
           const SizedBox(height: 24),
           Center(
@@ -247,35 +239,9 @@ class _AdminMorePage extends ConsumerWidget {
     );
   }
 
-  void _lockApp(BuildContext context, WidgetRef ref) {
+  void _logout(BuildContext context, WidgetRef ref) {
     ref.read(sessionControllerProvider.notifier).lock();
     context.go('/login');
-  }
-
-  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cambiar de usuario'),
-        content: const Text(
-          'Se quitará la cuenta guardada de este dispositivo. Para volver a entrar tendrás que usar PIN o contraseña.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Cambiar usuario'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-    await ref.read(sessionControllerProvider.notifier).logout();
-    if (context.mounted) context.go('/login');
   }
 }
 

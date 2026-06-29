@@ -755,6 +755,8 @@ class CotizacionInput {
     this.precioEstimadoIdOverride,
     this.categoriaAmparoOverride,
     required this.tcMargen,
+    this.tipoCambioOverride,
+    this.tipoCambioContexto,
     required this.tipoTramite,
     this.honorariosOverride,
   });
@@ -770,6 +772,8 @@ class CotizacionInput {
   final String? precioEstimadoIdOverride;
   final String? categoriaAmparoOverride;
   final double tcMargen;
+  final double? tipoCambioOverride;
+  final String? tipoCambioContexto;
   final String tipoTramite;
   final double? honorariosOverride;
 
@@ -786,6 +790,8 @@ class CotizacionInput {
       'precioEstimadoIdOverride': precioEstimadoIdOverride,
       'categoriaAmparoOverride': categoriaAmparoOverride,
       'tcMargen': tcMargen,
+      'tipoCambioOverride': tipoCambioOverride,
+      'tipoCambioContexto': tipoCambioContexto,
       'tipoTramite': tipoTramite,
       'honorariosOverride': honorariosOverride,
     };

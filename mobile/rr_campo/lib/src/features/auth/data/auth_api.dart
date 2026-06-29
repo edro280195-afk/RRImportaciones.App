@@ -12,15 +12,6 @@ class AuthApi {
 
   final ApiClient _api;
 
-  /// Lista de usuarios activos que YA tienen PIN configurado.
-  Future<List<CampoUser>> getCampoUsers() async {
-    final result = await _api.getJson('/api/auth/campo-users') as List<dynamic>;
-    return result
-        .map((item) => CampoUser.fromJson(item as Map<String, dynamic>))
-        .where((user) => user.tienePin) // ← SEGURIDAD: solo los que tienen PIN
-        .toList();
-  }
-
   /// Login con PIN (campo / choferes).
   Future<LoginResponse> pinLogin({
     required String username,

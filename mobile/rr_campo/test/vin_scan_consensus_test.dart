@@ -92,4 +92,16 @@ void main() {
     expect(delayed, isNull);
     expect(lock.votesFor(vinA), 1);
   });
+
+  test('permite ajustar votos fuertes para barcode', () {
+    final lock = VinStabilityLock(
+      window: const Duration(milliseconds: 900),
+      minVotes: 2,
+      strongVotes: 1,
+    );
+
+    final strong = lock.offer(vin: vinA, strong: true, now: start);
+
+    expect(strong, vinA);
+  });
 }

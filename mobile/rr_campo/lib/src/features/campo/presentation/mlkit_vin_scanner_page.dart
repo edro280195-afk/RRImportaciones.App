@@ -13,17 +13,39 @@ import '../domain/vin_scan_consensus.dart';
 
 enum _ScannerMode { barcode, text }
 
+typedef VinScannerValidator =
+    Future<VinScannerValidationResult> Function(String vin);
+
+class VinScannerValidationResult {
+  const VinScannerValidationResult.success({required this.title, this.subtitle})
+    : isValid = true;
+
+  const VinScannerValidationResult.failure({required this.title, this.subtitle})
+    : isValid = false;
+
+  final bool isValid;
+  final String title;
+  final String? subtitle;
+}
+
 class MlkitVinScannerPage extends StatefulWidget {
-  const MlkitVinScannerPage({super.key});
+  const MlkitVinScannerPage({super.key, this.onValidateVin});
+
+  final VinScannerValidator? onValidateVin;
 
   @override
   State<MlkitVinScannerPage> createState() => _MlkitVinScannerPageState();
 }
 
+enum _VinValidationState { idle, validating, success, failure }
+
 class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     with WidgetsBindingObserver {
   static const _brandRed = Color(0xFFC61D26);
   static const _surfaceDark = Color(0xFF0D1017);
+  static const _scanAmber = Color(0xFFF59E0B);
+  static const _scanBlue = Color(0xFF38BDF8);
+  static const _scanGreen = Color(0xFF32D583);
   static const _orientations = {
     DeviceOrientation.portraitUp: 0,
     DeviceOrientation.landscapeLeft: 90,
@@ -53,6 +75,11 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
   DateTime _lastAutoZoomAt = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastDetectionAt = DateTime.fromMillisecondsSinceEpoch(0);
   final _stabilityLock = VinStabilityLock();
+  final _barcodeLock = VinStabilityLock(
+    window: const Duration(milliseconds: 900),
+    minVotes: 2,
+    strongVotes: 1,
+  );
   _ScannerMode _mode = _ScannerMode.barcode;
   bool _cameraReady = false;
   bool _processingFrame = false;
@@ -61,6 +88,9 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
   String _status = 'Preparando cámara...';
   String? _detectedVin;
   String? _confirmedSource;
+  _VinValidationState _validationState = _VinValidationState.idle;
+  String? _validationTitle;
+  String? _validationSubtitle;
   Offset? _focusPoint;
   Timer? _focusTimer;
   Timer? _detectionTimer;
@@ -149,7 +179,6 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
                 _ScannerOverlay(
                   detection: _activeDetection,
                   viewportSize: viewportSize,
-                  mode: _mode,
                 ),
                 SafeArea(
                   child: Padding(
@@ -189,7 +218,7 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
                           const SizedBox(height: 10),
                           _ScannerStatus(
                             status: _status,
-                            detecting: _activeDetection != null,
+                            detection: _activeDetection,
                           ),
                         ],
                       ],
@@ -343,12 +372,14 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
       _activeDetection = null;
       _status = _statusForMode(mode);
     });
+    _stabilityLock.reset();
+    _barcodeLock.reset();
   }
 
   String _statusForMode(_ScannerMode mode) {
     return mode == _ScannerMode.barcode
-        ? 'Centra el código que contiene el VIN'
-        : 'Centra únicamente el VIN impreso';
+        ? 'Apunta al código de barras del VIN'
+        : 'Apunta únicamente al VIN impreso';
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
@@ -410,12 +441,25 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
         isPotential: vin == null,
       );
 
-      // El código de barras trae corrección de errores: en cuanto entrega un
-      // VIN legible lo aceptamos en la primera lectura, como en PMMovil.
       if (vin != null) {
-        _showDetection(detection);
+        final strong = hasValidVinCheckDigit(vin);
+        final locked = _barcodeLock.offer(
+          vin: vin,
+          strong: strong,
+          now: DateTime.now(),
+        );
+        final verifyingDetection = strong
+            ? detection.copyWith(label: 'Leyendo código')
+            : detection.copyWith(label: 'Validando código');
+        _showDetection(verifyingDetection);
         unawaited(_focusDetection(detection));
-        await _onVinDetected(vin, detection);
+
+        if (locked != null) {
+          await _onVinDetected(locked, detection);
+          return;
+        }
+
+        _setStatus('Mantén el código estable...');
         return;
       }
 
@@ -436,7 +480,7 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
       _showDetection(potential);
       unawaited(_focusDetection(potential));
       _maybeProgressiveZoom(potentialBox, prepared.imageSize);
-      _setStatus('Código localizado. Acercando y enfocando...');
+      _setStatus('Código localizado. Ajustando enfoque...');
     } else {
       _maybeZoomOutWhenIdle();
       _setStatus(_statusForMode(_mode));
@@ -527,10 +571,7 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
         final longestSide = coordinateSize.longestSide;
         final distance =
             (line.boundingBox.center -
-                    Offset(
-                      coordinateSize.width / 2,
-                      coordinateSize.height / 2,
-                    ))
+                    Offset(coordinateSize.width / 2, coordinateSize.height / 2))
                 .distance;
         final centerScore = longestSide == 0
             ? 0.0
@@ -644,14 +685,65 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
       _confirmedSource = detection.source == VinScanSource.barcode
           ? 'Verificado desde código de barras'
           : 'Verificado con OCR (lectura estable)';
-      _activeDetection = detection.copyWith(locked: true);
+      _activeDetection = null;
+      _validationState = _VinValidationState.idle;
+      _validationTitle = null;
+      _validationSubtitle = null;
       _status = 'VIN confirmado';
     });
   }
 
   Future<void> _confirmVin() async {
     final vin = _detectedVin;
-    if (vin == null || _finishing) return;
+    if (vin == null ||
+        _finishing ||
+        _validationState == _VinValidationState.validating) {
+      return;
+    }
+
+    final validator = widget.onValidateVin;
+    if (validator != null) {
+      setState(() {
+        _validationState = _VinValidationState.validating;
+        _validationTitle = 'Validando VIN';
+        _validationSubtitle = 'Buscando el vehículo antes de continuar.';
+      });
+
+      try {
+        final result = await validator(vin);
+        if (!mounted) return;
+
+        if (!result.isValid) {
+          HapticFeedback.heavyImpact();
+          setState(() {
+            _validationState = _VinValidationState.failure;
+            _validationTitle = result.title;
+            _validationSubtitle = result.subtitle;
+          });
+          return;
+        }
+
+        await HapticFeedback.mediumImpact();
+        setState(() {
+          _validationState = _VinValidationState.success;
+          _validationTitle = result.title;
+          _validationSubtitle = result.subtitle;
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 650));
+        if (!mounted) return;
+      } catch (e) {
+        if (!mounted) return;
+        HapticFeedback.heavyImpact();
+        setState(() {
+          _validationState = _VinValidationState.failure;
+          _validationTitle = 'No se pudo validar';
+          _validationSubtitle =
+              'Revisa la conexión o escanea el VIN nuevamente.';
+        });
+        return;
+      }
+    }
+
     _finishing = true;
 
     await _disposeCamera();
@@ -667,10 +759,14 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
       _detectedVin = null;
       _confirmedSource = null;
       _activeDetection = null;
+      _validationState = _VinValidationState.idle;
+      _validationTitle = null;
+      _validationSubtitle = null;
       _finishing = false;
       _status = _statusForMode(_mode);
     });
     _stabilityLock.reset();
+    _barcodeLock.reset();
 
     try {
       if (!controller.value.isStreamingImages) {
@@ -709,6 +805,18 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
 
   Widget _buildConfirmationPanel() {
     final vin = _detectedVin!;
+    final validating = _validationState == _VinValidationState.validating;
+    final success = _validationState == _VinValidationState.success;
+    final failure = _validationState == _VinValidationState.failure;
+    final title =
+        _validationTitle ??
+        (success
+            ? 'Vehículo encontrado'
+            : failure
+            ? 'No se pudo validar'
+            : 'VIN detectado');
+    final subtitle = _validationSubtitle ?? _confirmedSource;
+
     return Positioned(
       left: 0,
       right: 0,
@@ -724,27 +832,38 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.check_circle, color: Color(0xFF32D583)),
-                    SizedBox(width: 9),
-                    Text(
-                      'VIN detectado',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 15,
+                    _VinValidationAnimation(state: _validationState),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                            ),
+                          ),
+                          if (subtitle != null && subtitle.trim().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Text(
+                                subtitle,
+                                style: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                if (_confirmedSource != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    _confirmedSource!,
-                    style: const TextStyle(color: Colors.white60, fontSize: 12),
-                  ),
-                ],
                 const SizedBox(height: 12),
                 FittedBox(
                   fit: BoxFit.scaleDown,
@@ -761,41 +880,62 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
                   ),
                 ),
                 const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _resumeScan,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(50),
-                          side: const BorderSide(color: Colors.white24),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                if (validating)
+                  const SizedBox(
+                    height: 50,
+                    child: Center(
+                      child: Text(
+                        'Espera un momento...',
+                        style: TextStyle(
+                          color: Colors.white60,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
                         ),
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Reintentar'),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _confirmVin,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _brandRed,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: failure ? _confirmVin : _resumeScan,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(50),
+                            side: const BorderSide(color: Colors.white24),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.refresh),
+                          label: Text(
+                            failure ? 'Validar otra vez' : 'Reintentar',
                           ),
                         ),
-                        icon: const Icon(Icons.check),
-                        label: const Text('Usar VIN'),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: failure ? _resumeScan : _confirmVin,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _brandRed,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: Icon(
+                            failure ? Icons.qr_code_scanner : Icons.check,
+                          ),
+                          label: Text(
+                            failure ? 'Escanear de nuevo' : 'Usar VIN',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -859,6 +999,145 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
   void _setStatus(String value) {
     if (!mounted || _status == value) return;
     setState(() => _status = value);
+  }
+}
+
+class _VinValidationAnimation extends StatefulWidget {
+  const _VinValidationAnimation({required this.state});
+
+  final _VinValidationState state;
+
+  @override
+  State<_VinValidationAnimation> createState() =>
+      _VinValidationAnimationState();
+}
+
+class _VinValidationAnimationState extends State<_VinValidationAnimation>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _syncAnimation();
+  }
+
+  @override
+  void didUpdateWidget(covariant _VinValidationAnimation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state != widget.state) _syncAnimation();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _syncAnimation() {
+    if (widget.state == _VinValidationState.validating) {
+      _controller.repeat();
+    } else {
+      _controller.stop();
+      _controller.value = 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final color = switch (state) {
+      _VinValidationState.validating => _MlkitVinScannerPageState._scanBlue,
+      _VinValidationState.success => _MlkitVinScannerPageState._scanGreen,
+      _VinValidationState.failure => _MlkitVinScannerPageState._brandRed,
+      _ => _MlkitVinScannerPageState._scanGreen,
+    };
+    final icon = switch (state) {
+      _VinValidationState.failure => Icons.error_outline,
+      _VinValidationState.validating => Icons.directions_car_filled_outlined,
+      _ => Icons.check,
+    };
+
+    return SizedBox(
+      width: 42,
+      height: 42,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: _ValidationRingPainter(
+              color: color,
+              progress: _controller.value,
+              spinning: state == _VinValidationState.validating,
+            ),
+            child: Center(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                child: Icon(icon, key: ValueKey(state), size: 19, color: color),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ValidationRingPainter extends CustomPainter {
+  const _ValidationRingPainter({
+    required this.color,
+    required this.progress,
+    required this.spinning,
+  });
+
+  final Color color;
+  final double progress;
+  final bool spinning;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final ringRect = rect.deflate(3);
+    canvas.drawOval(
+      ringRect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = color.withValues(alpha: 0.20),
+    );
+
+    if (spinning) {
+      canvas.drawArc(
+        ringRect,
+        -math.pi / 2 + (progress * math.pi * 2),
+        math.pi * 1.35,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 2.8
+          ..color = color,
+      );
+    } else {
+      canvas.drawOval(
+        ringRect,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.8
+          ..color = color,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ValidationRingPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.progress != progress ||
+        oldDelegate.spinning != spinning;
   }
 }
 
@@ -1166,13 +1445,17 @@ class _ZoomControl extends StatelessWidget {
 }
 
 class _ScannerStatus extends StatelessWidget {
-  const _ScannerStatus({required this.status, required this.detecting});
+  const _ScannerStatus({required this.status, required this.detection});
 
   final String status;
-  final bool detecting;
+  final _ScanDetection? detection;
 
   @override
   Widget build(BuildContext context) {
+    final dotColor = detection == null
+        ? Colors.white54
+        : _scannerToneForDetection(detection!);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
@@ -1187,12 +1470,7 @@ class _ScannerStatus extends StatelessWidget {
             duration: const Duration(milliseconds: 180),
             width: 9,
             height: 9,
-            decoration: BoxDecoration(
-              color: detecting
-                  ? _MlkitVinScannerPageState._brandRed
-                  : Colors.white54,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1211,92 +1489,122 @@ class _ScannerStatus extends StatelessWidget {
   }
 }
 
-class _ScannerOverlay extends StatelessWidget {
-  const _ScannerOverlay({
-    required this.detection,
-    required this.viewportSize,
-    required this.mode,
-  });
+class _ScannerOverlay extends StatefulWidget {
+  const _ScannerOverlay({required this.detection, required this.viewportSize});
 
   final _ScanDetection? detection;
   final Size viewportSize;
-  final _ScannerMode mode;
+
+  @override
+  State<_ScannerOverlay> createState() => _ScannerOverlayState();
+}
+
+class _ScannerOverlayState extends State<_ScannerOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  _ScanDetection? _fromDetection;
+  _ScanDetection? _toDetection;
+
+  @override
+  void initState() {
+    super.initState();
+    _toDetection = widget.detection;
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+      value: 1,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _ScannerOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detection == widget.detection &&
+        oldWidget.viewportSize == widget.viewportSize) {
+      return;
+    }
+
+    _fromDetection = _currentDetection;
+    _toDetection = widget.detection;
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  _ScanDetection? get _currentDetection {
+    final t = Curves.easeOutCubic.transform(_controller.value);
+    final from = _fromDetection;
+    final to = _toDetection;
+    if (from == null && to == null) return null;
+    if (from == null) return to;
+    if (to == null) return from;
+    return to.copyWith(bounds: Rect.lerp(from.bounds, to.bounds, t));
+  }
 
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      child: CustomPaint(
-        painter: _ScannerOverlayPainter(
-          detection: detection,
-          viewportSize: viewportSize,
-          mode: mode,
+      child: RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            final appearing = _toDetection != null;
+            final animationValue = Curves.easeOutCubic.transform(
+              _controller.value,
+            );
+            return CustomPaint(
+              painter: _ScannerOverlayPainter(
+                detection: _currentDetection,
+                viewportSize: widget.viewportSize,
+                progress: animationValue,
+                detectionOpacity: appearing
+                    ? animationValue.clamp(0.0, 1.0)
+                    : (1 - animationValue).clamp(0.0, 1.0),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 }
 
-Rect _scannerGuideRect(Size size, _ScannerMode mode) {
-  final maxHeight = mode == _ScannerMode.barcode ? 180.0 : 118.0;
-  final heightRatio = mode == _ScannerMode.barcode ? 0.22 : 0.15;
-  final guideHeight = math.min(maxHeight, size.height * heightRatio);
-  return Rect.fromCenter(
-    center: Offset(size.width / 2, size.height * 0.45),
-    width: size.width * 0.88,
-    height: guideHeight,
-  );
+Color _scannerToneForDetection(_ScanDetection detection) {
+  if (detection.locked) return _MlkitVinScannerPageState._scanGreen;
+  if (detection.vin != null) return _MlkitVinScannerPageState._scanBlue;
+  if (detection.isPotential) return _MlkitVinScannerPageState._scanAmber;
+  return Colors.white;
 }
 
 class _ScannerOverlayPainter extends CustomPainter {
   const _ScannerOverlayPainter({
     required this.detection,
     required this.viewportSize,
-    required this.mode,
+    required this.progress,
+    required this.detectionOpacity,
   });
 
   final _ScanDetection? detection;
   final Size viewportSize;
-  final _ScannerMode mode;
+  final double progress;
+  final double detectionOpacity;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final guideRect = _scannerGuideRect(size, mode);
-    final guideRRect = RRect.fromRectAndRadius(
-      guideRect,
-      const Radius.circular(10),
-    );
-
-    final maskPath = Path()
-      ..fillType = PathFillType.evenOdd
-      ..addRect(Offset.zero & size)
-      ..addRRect(guideRRect);
-    canvas.drawPath(
-      maskPath,
-      Paint()..color = Colors.black.withValues(alpha: 0.24),
-    );
-    canvas.drawRRect(
-      guideRRect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = Colors.white.withValues(alpha: 0.46),
-    );
-
     final currentDetection = detection;
     if (currentDetection == null) return;
+    final opacity = detectionOpacity.clamp(0.0, 1.0).toDouble();
+    if (opacity <= 0.01) return;
 
     var detectedRect = currentDetection.mapToViewport(viewportSize).inflate(8);
-    detectedRect = Rect.fromLTRB(
-      detectedRect.left.clamp(8, size.width - 8),
-      detectedRect.top.clamp(72, size.height - 8),
-      detectedRect.right.clamp(8, size.width - 8),
-      detectedRect.bottom.clamp(72, size.height - 8),
-    );
+    detectedRect = _clampDetectionRect(detectedRect, size);
     if (detectedRect.isEmpty) return;
 
-    final color = currentDetection.locked
-        ? const Color(0xFF32D583)
-        : _MlkitVinScannerPageState._brandRed;
+    final color = _scannerToneForDetection(currentDetection);
     final detectedRRect = RRect.fromRectAndRadius(
       detectedRect,
       const Radius.circular(8),
@@ -1304,9 +1612,27 @@ class _ScannerOverlayPainter extends CustomPainter {
     canvas.drawRRect(
       detectedRRect,
       Paint()
+        ..style = PaintingStyle.fill
+        ..color = color.withValues(
+          alpha: (currentDetection.locked ? 0.14 : 0.09) * opacity,
+        ),
+    );
+    canvas.drawRRect(
+      detectedRRect,
+      Paint()
         ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = color.withValues(alpha: 0.32 * opacity),
+    );
+    _drawCornerBrackets(
+      canvas,
+      detectedRect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
         ..strokeWidth = currentDetection.locked ? 3 : 2.4
-        ..color = color,
+        ..color = color.withValues(alpha: 0.96 * opacity),
+      math.min(34, detectedRect.shortestSide * 0.32),
     );
 
     final label = currentDetection.locked
@@ -1323,24 +1649,74 @@ class _ScannerOverlayPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
+    final labelWidth = math.min(textPainter.width + 16, size.width - 16);
+    final labelLeft = detectedRect.left.clamp(8.0, size.width - labelWidth - 8);
     final labelRect = Rect.fromLTWH(
-      detectedRect.left,
+      labelLeft.toDouble(),
       math.max(76, detectedRect.top - 27),
-      textPainter.width + 16,
+      labelWidth,
       24,
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(labelRect, const Radius.circular(5)),
-      Paint()..color = color,
+      Paint()..color = color.withValues(alpha: 0.88 * opacity),
     );
     textPainter.paint(canvas, Offset(labelRect.left + 8, labelRect.top + 5));
+  }
+
+  Rect _clampDetectionRect(Rect rect, Size size) {
+    final left = rect.left.clamp(8.0, size.width - 8.0).toDouble();
+    final right = rect.right.clamp(8.0, size.width - 8.0).toDouble();
+    final top = rect.top.clamp(72.0, size.height - 8.0).toDouble();
+    final bottom = rect.bottom.clamp(72.0, size.height - 8.0).toDouble();
+    return Rect.fromLTRB(
+      math.min(left, right),
+      math.min(top, bottom),
+      math.max(left, right),
+      math.max(top, bottom),
+    );
+  }
+
+  void _drawCornerBrackets(
+    Canvas canvas,
+    Rect rect,
+    Paint paint,
+    double length,
+  ) {
+    final cornerLength = math.max(10.0, length);
+    canvas
+      ..drawLine(rect.topLeft, rect.topLeft + Offset(cornerLength, 0), paint)
+      ..drawLine(rect.topLeft, rect.topLeft + Offset(0, cornerLength), paint)
+      ..drawLine(rect.topRight, rect.topRight - Offset(cornerLength, 0), paint)
+      ..drawLine(rect.topRight, rect.topRight + Offset(0, cornerLength), paint)
+      ..drawLine(
+        rect.bottomLeft,
+        rect.bottomLeft + Offset(cornerLength, 0),
+        paint,
+      )
+      ..drawLine(
+        rect.bottomLeft,
+        rect.bottomLeft - Offset(0, cornerLength),
+        paint,
+      )
+      ..drawLine(
+        rect.bottomRight,
+        rect.bottomRight - Offset(cornerLength, 0),
+        paint,
+      )
+      ..drawLine(
+        rect.bottomRight,
+        rect.bottomRight - Offset(0, cornerLength),
+        paint,
+      );
   }
 
   @override
   bool shouldRepaint(covariant _ScannerOverlayPainter oldDelegate) {
     return oldDelegate.detection != detection ||
         oldDelegate.viewportSize != viewportSize ||
-        oldDelegate.mode != mode;
+        oldDelegate.progress != progress ||
+        oldDelegate.detectionOpacity != detectionOpacity;
   }
 }
 

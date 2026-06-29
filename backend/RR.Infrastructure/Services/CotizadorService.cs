@@ -125,12 +125,19 @@ public partial class CotizadorService : ICotizadorService
             if (valorUsd is null || precioLookup is null)
                 throw new InvalidOperationException("No se pudo determinar precio estimado");
 
-            var tipoCambio = await _banxico.GetTipoCambioDofAsync();
+            var tipoCambioContexto = input.TipoCambioContexto?.ToUpperInvariant() == "FIX"
+                ? "FIX"
+                : "DOF";
+            var tipoCambio = tipoCambioContexto == "FIX"
+                ? await _banxico.GetTipoCambioFixAsync()
+                : await _banxico.GetTipoCambioDofAsync();
             if (tipoCambio is null)
                 throw new InvalidOperationException("No se pudo obtener tipo de cambio de Banxico y no hay cache disponible");
 
             tcReferencia = tipoCambio.TipoCambio;
-            tcAplicado = tipoCambio.TipoCambio + input.TcMargen;
+            tcAplicado = input.TipoCambioOverride.HasValue && input.TipoCambioOverride.Value > 0
+                ? input.TipoCambioOverride.Value
+                : tipoCambio.TipoCambio + input.TcMargen;
             tcStale = tipoCambio.IsStale;
             valorPesos = decimal.Round(valorUsd.Value * tcAplicado.Value, 2);
 

@@ -9,8 +9,9 @@ enum VinScanSource { barcode, ocr }
 /// Aquí contamos las apariciones de cada candidato dentro de [window] y fijamos
 /// el que gana por [lead] votos de margen, una vez que alcanza el mínimo.
 ///
-/// El código de barras no pasa por aquí: trae corrección de errores y se acepta
-/// en la primera lectura legible. Esta clase es para el OCR.
+/// Tambien sirve para barcodes dudosos: una lectura con check digit valido puede
+/// entrar con [strongVotes] bajo, mientras que una lectura sin check digit valido
+/// exige mas votos antes de fijarse.
 class VinStabilityLock {
   VinStabilityLock({
     this.window = const Duration(milliseconds: 1500),

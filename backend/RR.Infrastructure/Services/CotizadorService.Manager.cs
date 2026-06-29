@@ -148,6 +148,8 @@ public partial class CotizadorService
             TcMargen = (entity.TipoCambioAplicado.HasValue && entity.TipoCambioReferencia.HasValue)
                 ? entity.TipoCambioAplicado.Value - entity.TipoCambioReferencia.Value
                 : 0.30m,
+            TipoCambioOverride = entity.TipoCambioAplicado,
+            TipoCambioContexto = entity.TipoCambioContexto,
             TipoTramite = (entity.CargoExpress ?? 0m) > 0m ? "EXPRESS" : "NORMAL",
             HonorariosOverride = entity.TotalHonorarios,
             CategoriaAmparoOverride = entity.CategoriaAmparoSeleccionada,
