@@ -79,6 +79,25 @@ class ApiClient {
 
   Future<bool> refreshSession() => _tryTokenRefresh();
 
+  /// Revoca un refresh token sin pasar por el interceptor de autenticación.
+  ///
+  /// Cerrar sesión debe funcionar aunque el access token ya haya expirado.
+  Future<void> revokeRefreshToken(String refreshToken) async {
+    if (refreshToken.isEmpty) return;
+
+    try {
+      await httpClient
+          .post(
+            uri('/api/auth/logout'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'refreshToken': refreshToken}),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // La sesión local se elimina aunque el servidor no esté disponible.
+    }
+  }
+
   /// Ejecutor centralizado de peticiones HTTP con lógica de auto-refresh y reintento.
   Future<dynamic> _runRequest(
     String method,

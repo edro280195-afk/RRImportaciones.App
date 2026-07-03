@@ -60,7 +60,7 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Se permite guardar evidencia fotografica tomada en campo.</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Se utiliza Face ID para iniciar sesión de forma segura y rápida en la aplicación.</string>
+	<string>Se utiliza Face ID para desbloquear de forma segura una sesión guardada en la aplicación.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

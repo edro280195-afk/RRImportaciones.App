@@ -10,18 +10,20 @@ import 'shared/session/session_controller.dart';
 import 'shared/theme/app_theme.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final session = ref.watch(sessionControllerProvider);
-  final status =
-      session.asData?.value.status ?? SessionStatus.unauthenticated;
-  final isAdmin = session.asData?.value.isAdmin ?? false;
+  final refreshNotifier = ValueNotifier<int>(0);
+  ref.listen(sessionControllerProvider, (_, _) {
+    refreshNotifier.value++;
+  });
+  ref.onDispose(refreshNotifier.dispose);
 
   return GoRouter(
-    initialLocation: switch (status) {
-      SessionStatus.unauthenticated => '/login',
-      SessionStatus.locked => '/login', // Login page handles locked state
-      SessionStatus.authenticated => isAdmin ? '/admin' : '/campo',
-    },
+    initialLocation: '/login',
+    refreshListenable: refreshNotifier,
     redirect: (context, state) {
+      final session = ref.read(sessionControllerProvider);
+      final status =
+          session.asData?.value.status ?? SessionStatus.unauthenticated;
+      final usesAdminShell = session.asData?.value.usesAdminShell ?? false;
       final location = state.uri.path;
 
       if (status == SessionStatus.unauthenticated ||
@@ -33,15 +35,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Autenticado — redirigir de /login al shell correcto
       if (location == '/login') {
-        return isAdmin ? '/admin' : '/campo';
+        return usesAdminShell ? '/admin' : '/campo';
       }
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginPage(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
 
       // ── Shell Campo (yarderos, choferes) ──
       GoRoute(

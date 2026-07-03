@@ -3,24 +3,23 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../api/api_client.dart';
+import '../session/session_controller.dart';
 
 final biometricServiceProvider = Provider<BiometricService>((ref) {
   return BiometricService(ref.watch(secureStorageProvider));
 });
 
-/// Servicio de autenticación biométrica (Face ID / Touch ID / Fingerprint).
-///
-/// La biometría no reemplaza el login real: desbloquea la sesión JWT
-/// guardada en SecureStorage después de un login previo exitoso.
+/// La biometría protege una sesión ya creada; nunca sustituye al login remoto.
 class BiometricService {
   BiometricService(this._storage);
 
   final _auth = LocalAuthentication();
   final FlutterSecureStorage _storage;
 
-  static const _enabledKey = 'biometric_enabled';
+  static const _enabledUserKey = 'biometric_enabled_user_id';
+  static const _legacyEnabledKey = 'biometric_enabled';
+  static const _promptedPrefix = 'biometric_prompted_';
 
-  /// ¿El dispositivo soporta algún tipo de biometría?
   Future<bool> isAvailable() async {
     try {
       final canCheck = await _auth.canCheckBiometrics;
@@ -31,7 +30,6 @@ class BiometricService {
     }
   }
 
-  /// Obtiene los tipos de biometría disponibles (face, fingerprint, etc.)
   Future<List<BiometricType>> getAvailableTypes() async {
     try {
       return await _auth.getAvailableBiometrics();
@@ -40,7 +38,6 @@ class BiometricService {
     }
   }
 
-  /// Etiqueta legible: "Face ID", "Huella digital", o "Biometría".
   Future<String> getBiometricLabel() async {
     final types = await getAvailableTypes();
     if (types.contains(BiometricType.face)) return 'Face ID';
@@ -48,7 +45,6 @@ class BiometricService {
     return 'Biometría';
   }
 
-  /// Intentar autenticación biométrica del sistema operativo.
   Future<bool> authenticate({
     String localizedReason = 'Confirma tu identidad para entrar a R&R',
   }) async {
@@ -65,19 +61,22 @@ class BiometricService {
     }
   }
 
-  /// ¿El usuario activó la biometría en esta app?
-  Future<bool> isEnabled() async {
-    final value = await _storage.read(key: _enabledKey);
-    return value == 'true';
+  /// La habilitación se asocia a la cuenta para no heredarla al cambiar usuario.
+  Future<bool> isEnabledFor(String userId) async {
+    // La versión anterior guardaba solamente "true"; no se puede saber quién
+    // autorizó esa preferencia, así que se descarta de forma segura.
+    await _storage.delete(key: _legacyEnabledKey);
+    final enabledUserId = await _storage.read(key: _enabledUserKey);
+    return enabledUserId == userId;
   }
 
-  /// Activar/desactivar biometría para esta app.
-  Future<void> setEnabled(bool enabled) async {
-    await _storage.write(key: _enabledKey, value: enabled ? 'true' : 'false');
+  Future<void> disableFor(String userId) async {
+    if (await isEnabledFor(userId)) {
+      await _storage.delete(key: _enabledUserKey);
+    }
   }
 
-  /// Valida la biometría antes de activarla en este dispositivo.
-  Future<bool> enable() async {
+  Future<bool> enableFor(String userId) async {
     if (!await isAvailable()) return false;
 
     final authenticated = await authenticate(
@@ -85,13 +84,17 @@ class BiometricService {
     );
     if (!authenticated) return false;
 
-    await setEnabled(true);
+    await _storage.write(key: _enabledUserKey, value: userId);
+    await markOfferedFor(userId);
     return true;
   }
 
-  /// Elimina la preferencia biométrica del dispositivo.
-  Future<void> clear() async {
-    await _storage.delete(key: _enabledKey);
+  Future<bool> wasOfferedFor(String userId) async {
+    return await _storage.read(key: '$_promptedPrefix$userId') == 'true';
+  }
+
+  Future<void> markOfferedFor(String userId) async {
+    await _storage.write(key: '$_promptedPrefix$userId', value: 'true');
   }
 }
 
@@ -103,19 +106,25 @@ final biometricEnabledStateProvider =
 class BiometricEnabledStateNotifier extends AsyncNotifier<bool> {
   @override
   Future<bool> build() async {
-    final biometric = ref.watch(biometricServiceProvider);
-    return biometric.isEnabled();
+    final session = ref.watch(sessionControllerProvider);
+    final userId = session.asData?.value.user?.id;
+    if (userId == null) return false;
+
+    return ref.watch(biometricServiceProvider).isEnabledFor(userId);
   }
 
   Future<bool> toggle(bool enabled) async {
+    final userId = ref.read(sessionControllerProvider).asData?.value.user?.id;
+    if (userId == null) return false;
+
     final biometric = ref.read(biometricServiceProvider);
     if (!enabled) {
-      await biometric.setEnabled(false);
+      await biometric.disableFor(userId);
       state = const AsyncData(false);
       return true;
     }
 
-    final activated = await biometric.enable();
+    final activated = await biometric.enableFor(userId);
     state = AsyncData(activated);
     return activated;
   }

@@ -2,9 +2,21 @@
 
 Aplicacion nativa inicial para el modulo Campo de R&R Importaciones.
 
-## Flujo incluido
+## Flujo de autenticación
 
-- Login por usuario de campo + PIN usando `/api/auth/campo-users`, `/api/auth/pin-login` e `/api/auth/initial-campo-pin`.
+- La contraseña crea la primera sesión del dispositivo.
+- El PIN de seis dígitos es una credencial rápida para crear una sesión nueva;
+  se configura únicamente después de autenticar la contraseña.
+- La biometría no solicita tokens ni reemplaza al PIN: desbloquea una sesión
+  guardada y, solo después de validar la huella o el rostro, permite renovarla.
+- Al abrir de nuevo la app, una sesión guardada comienza bloqueada. Se intenta
+  biometría si el usuario la activó; de lo contrario se ofrece PIN o contraseña.
+- `Cerrar sesión` revoca el refresh token en el servidor y limpia la sesión
+  segura del dispositivo. `Bloquear aplicación` conserva la sesión.
+
+## Funcionalidad incluida
+
+- Login rápido por PIN mediante `/api/auth/pin-login`.
 - Lista de tareas desde `/api/campo/tareas`.
 - Captura de tarea con camara nativa mediante `image_picker`.
 - Subida de fotos a `/api/campo/tareas/{id}/fotos`.

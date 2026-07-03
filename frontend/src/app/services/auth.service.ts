@@ -23,6 +23,7 @@ export interface UserInfo {
   role: string;
   tenantId: string;
   permisos: string[];
+  hasPin: boolean;
 }
 
 export interface LoginResponse {
@@ -97,14 +98,16 @@ export class AuthService {
   }
 
   setPin(newPin: string, currentPin?: string): Observable<void> {
-    return this.http.post<void>(`${this.apiUrl}/set-pin`, { newPin, currentPin });
+    return this.http
+      .post<void>(`${this.apiUrl}/set-pin`, { newPin, currentPin })
+      .pipe(tap(() => this.markPinConfigured()));
   }
 
-  setInitialCampoPin(username: string, newPin: string): Observable<LoginResponse> {
+  setInitialCampoPin(username: string, newPin: string): Observable<void> {
     return this.http
-      .post<LoginResponse>(`${this.apiUrl}/initial-campo-pin`, { username, newPin })
+      .post<void>(`${this.apiUrl}/initial-campo-pin`, { username, newPin })
       .pipe(
-        tap(res => this.setSession(res)),
+        tap(() => this.markPinConfigured()),
         catchError(err => {
           const msg = err.error?.message || 'Error al guardar el PIN';
           return throwError(() => new Error(msg));
@@ -159,12 +162,22 @@ export class AuthService {
       try {
         const parsed: UserInfo = JSON.parse(userData);
         if (!parsed.permisos) parsed.permisos = [];
+        if (typeof parsed.hasPin !== 'boolean') parsed.hasPin = false;
         this.user.set(parsed);
         this.isAuthenticated.set(true);
       } catch {
         this.clearSession();
       }
     }
+  }
+
+  private markPinConfigured(): void {
+    const current = this.user();
+    if (!current) return;
+
+    const updated = { ...current, hasPin: true };
+    localStorage.setItem('user', JSON.stringify(updated));
+    this.user.set(updated);
   }
 
   clearSession(): void {

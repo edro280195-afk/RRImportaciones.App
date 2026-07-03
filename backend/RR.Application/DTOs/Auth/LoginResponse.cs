@@ -19,4 +19,5 @@ public class UserInfo
     public string Role { get; set; } = string.Empty;
     public Guid TenantId { get; set; }
     public List<string> Permisos { get; set; } = [];
+    public bool HasPin { get; set; }
 }

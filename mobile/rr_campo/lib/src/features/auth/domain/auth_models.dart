@@ -40,6 +40,7 @@ class UserInfo {
     required this.role,
     required this.tenantId,
     required this.permisos,
+    required this.hasPin,
   });
 
   final String id;
@@ -49,6 +50,14 @@ class UserInfo {
   final String role;
   final String tenantId;
   final List<String> permisos;
+  final bool hasPin;
+
+  bool get usesCampoShell {
+    final normalizedRole = role.toUpperCase();
+    return normalizedRole == 'YARDERO' ||
+        normalizedRole == 'CHOFER' ||
+        normalizedRole == 'CAMPO';
+  }
 
   bool can(String permission) {
     return role == 'ADMIN' || role == 'DUEÑO' || permisos.contains(permission);
@@ -63,7 +72,21 @@ class UserInfo {
       'role': role,
       'tenantId': tenantId,
       'permisos': permisos,
+      'hasPin': hasPin,
     };
+  }
+
+  UserInfo copyWith({bool? hasPin}) {
+    return UserInfo(
+      id: id,
+      username: username,
+      nombre: nombre,
+      apellidos: apellidos,
+      role: role,
+      tenantId: tenantId,
+      permisos: permisos,
+      hasPin: hasPin ?? this.hasPin,
+    );
   }
 
   String encode() => jsonEncode(toJson());
@@ -79,6 +102,7 @@ class UserInfo {
       permisos: (json['permisos'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())
           .toList(),
+      hasPin: json['hasPin'] == true,
     );
   }
 

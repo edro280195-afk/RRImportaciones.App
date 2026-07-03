@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using RR.Application.DTOs.Auth;
 using RR.Application.Interfaces;
 
@@ -18,6 +19,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("Auth")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         try
@@ -55,6 +57,7 @@ public class AuthController : ControllerBase
     /// <summary>Login rápido con PIN para personal de campo.</summary>
     [HttpPost("pin-login")]
     [AllowAnonymous]
+    [EnableRateLimiting("Auth")]
     public async Task<IActionResult> PinLogin([FromBody] PinLoginRequest request)
     {
         try
@@ -68,21 +71,35 @@ public class AuthController : ControllerBase
         }
     }
 
-    /// <summary>Configura el PIN inicial de un usuario de campo y abre sesion.</summary>
+    /// <summary>Configura el PIN inicial del usuario autenticado.</summary>
     [HttpPost("initial-campo-pin")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<IActionResult> InitialCampoPin([FromBody] InitialSetPinRequest request)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub")
+            ?? User.FindFirstValue("id");
+        var username = User.FindFirstValue(ClaimTypes.Name)
+            ?? User.FindFirstValue("unique_name");
+
+        if (!Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized(new { message = "Token inválido" });
+
+        if (string.IsNullOrWhiteSpace(request.Username)
+            || !string.Equals(username, request.Username.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
         try
         {
-            var result = await _authService.SetInitialCampoPinAsync(request);
-            return Ok(result);
+            await _authService.SetPinAsync(userId, new SetPinRequest
+            {
+                NewPin = request.NewPin,
+            });
+            return Ok(new { message = "PIN configurado correctamente" });
         }
         catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
         }
@@ -131,6 +148,7 @@ public class AuthController : ControllerBase
     /// <summary>Solicita el restablecimiento de PIN para un usuario de campo.</summary>
     [HttpPost("forgot-pin")]
     [AllowAnonymous]
+    [EnableRateLimiting("Auth")]
     public async Task<IActionResult> ForgotPin([FromBody] ForgotPinRequest request)
     {
         try

@@ -55,19 +55,14 @@ class SessionState {
   bool get isLocked => status == SessionStatus.locked;
   bool get isUnauthenticated => status == SessionStatus.unauthenticated;
 
-  /// El usuario tiene rol de administracion.
-  bool get isAdmin {
-    final role = user?.role.toUpperCase();
-    return role == 'ADMIN' || role == 'DUEÑO' || role == 'DUENO';
+  /// Los usuarios de oficina usan el shell administrativo de la app.
+  bool get usesAdminShell {
+    return user != null && !user!.usesCampoShell;
   }
 
   /// El usuario es de campo/chofer.
   bool get isCampo {
-    if (user == null) return false;
-    final role = user!.role.toUpperCase();
-    return role.contains('CAMPO') ||
-        role.contains('YARD') ||
-        role.contains('CHOFER');
+    return user?.usesCampoShell ?? false;
   }
 
   SessionState copyWith({
@@ -89,6 +84,8 @@ class SessionState {
 
 class SessionController extends AsyncNotifier<SessionState> {
   static const _refreshSkew = Duration(minutes: 2);
+  static const _profilesVersionKey = 'saved_profiles_version';
+  static const _profilesVersion = '2';
 
   @override
   Future<SessionState> build() async {
@@ -113,14 +110,8 @@ class SessionController extends AsyncNotifier<SessionState> {
       return const SessionState.empty();
     }
 
-    if (_shouldRefreshToken(token, expiresAt)) {
-      final refreshed = await _refreshStoredSession(
-        fallbackUser: user,
-        status: SessionStatus.locked,
-      );
-      return refreshed ?? const SessionState.empty();
-    }
-
+    // Nunca renovar tokens durante el arranque. Primero se confirma la
+    // identidad local (biometría) o se inicia una sesión nueva con PIN.
     return SessionState.locked(
       token: token,
       refreshToken: refreshToken,
@@ -154,36 +145,71 @@ class SessionController extends AsyncNotifier<SessionState> {
   }
 
   /// Guardar sesion tras login exitoso.
-  Future<void> save(LoginResponse response) async {
+  Future<void> save(LoginResponse response, {bool activate = true}) async {
+    final previousRefreshToken = state.asData?.value.refreshToken;
     final storage = ref.read(secureStorageProvider);
     await storage.write(key: 'token', value: response.token);
     await storage.write(key: 'refreshToken', value: response.refreshToken);
     await storage.write(key: 'expiresAt', value: response.expiresAt);
     await storage.write(key: 'user', value: response.user.encode());
 
-    await saveProfile(response.user);
+    await syncProfile(response.user);
 
     state = AsyncData(
       SessionState(
-        status: SessionStatus.authenticated,
+        status: activate ? SessionStatus.authenticated : SessionStatus.locked,
         token: response.token,
         refreshToken: response.refreshToken,
         expiresAt: response.expiresAt,
         user: response.user,
       ),
     );
+
+    if (previousRefreshToken != null &&
+        previousRefreshToken.isNotEmpty &&
+        previousRefreshToken != response.refreshToken) {
+      await ref
+          .read(apiClientProvider)
+          .revokeRefreshToken(previousRefreshToken);
+    }
   }
 
-  /// Cambiar de usuario: elimina la sesion, pero conserva perfiles locales.
+  /// Activa una sesión recién creada después de completar los pasos locales.
+  void activateSavedSession() {
+    final current = state.asData?.value;
+    if (current == null || current.isUnauthenticated) return;
+    state = AsyncData(current.copyWith(status: SessionStatus.authenticated));
+  }
+
+  /// Cierra la sesión en el dispositivo y revoca el refresh token del servidor.
   Future<void> logout() async {
+    final refreshToken = state.asData?.value.refreshToken;
     await _clearActiveSession();
     state = const AsyncData(SessionState.empty());
+
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await ref.read(apiClientProvider).revokeRefreshToken(refreshToken);
+    }
   }
 
   /// Callback para cuando el refresh token expira definitivamente.
   Future<void> onSessionExpired() async {
     await _clearActiveSession();
     state = const AsyncData(SessionState.empty());
+  }
+
+  /// Sincroniza el estado local después de configurar el primer PIN.
+  Future<void> markPinConfigured() async {
+    final current = state.asData?.value;
+    final user = current?.user;
+    if (current == null || user == null) return;
+
+    final updatedUser = user.copyWith(hasPin: true);
+    await ref
+        .read(secureStorageProvider)
+        .write(key: 'user', value: updatedUser.encode());
+    await syncProfile(updatedUser);
+    state = AsyncData(current.copyWith(user: updatedUser));
   }
 
   Future<bool> ensureFreshSession() async {
@@ -320,6 +346,13 @@ class SessionController extends AsyncNotifier<SessionState> {
 
   Future<List<CampoUser>> getSavedProfiles() async {
     final storage = ref.read(secureStorageProvider);
+    final storedVersion = await storage.read(key: _profilesVersionKey);
+    if (storedVersion != _profilesVersion) {
+      await storage.delete(key: 'saved_profiles');
+      await storage.write(key: _profilesVersionKey, value: _profilesVersion);
+      return [];
+    }
+
     final savedProfilesRaw = await storage.read(key: 'saved_profiles');
     if (savedProfilesRaw == null) return [];
     try {
@@ -332,7 +365,7 @@ class SessionController extends AsyncNotifier<SessionState> {
     }
   }
 
-  Future<void> saveProfile(UserInfo user) async {
+  Future<void> syncProfile(UserInfo user) async {
     final storage = ref.read(secureStorageProvider);
     final savedProfilesRaw = await storage.read(key: 'saved_profiles');
     List<dynamic> list = [];
@@ -344,15 +377,18 @@ class SessionController extends AsyncNotifier<SessionState> {
 
     list.removeWhere((item) => item['username'] == user.username);
 
-    list.insert(0, {
-      'id': user.id,
-      'username': user.username,
-      'nombre': user.nombre,
-      'apellidos': user.apellidos,
-      'tienePin': true,
-    });
+    if (user.hasPin) {
+      list.insert(0, {
+        'id': user.id,
+        'username': user.username,
+        'nombre': user.nombre,
+        'apellidos': user.apellidos,
+        'tienePin': true,
+      });
+    }
 
     await storage.write(key: 'saved_profiles', value: jsonEncode(list));
+    await storage.write(key: _profilesVersionKey, value: _profilesVersion);
   }
 
   Future<void> removeProfile(String username) async {

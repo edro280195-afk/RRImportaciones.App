@@ -14,9 +14,6 @@ public interface IAuthService
     /// <summary>Configura o cambia el PIN del usuario autenticado.</summary>
     Task SetPinAsync(Guid userId, SetPinRequest request);
 
-    /// <summary>Configura el PIN inicial de un usuario de campo y devuelve sesion activa.</summary>
-    Task<LoginResponse> SetInitialCampoPinAsync(InitialSetPinRequest request);
-
     /// <summary>Lista usuarios activos con PIN para la pantalla de seleccion.</summary>
     Task<List<CampoUserDto>> GetCampoUsersAsync();
 

@@ -40,6 +40,11 @@ class AuthApi {
     return LoginResponse.fromJson(result);
   }
 
+  /// Configura el PIN del usuario que ya inició sesión con contraseña.
+  Future<void> setPin(String newPin) async {
+    await _api.postJson('/api/auth/set-pin', {'newPin': newPin});
+  }
+
   /// Solicitar reset de PIN al administrador.
   Future<void> requestPinReset(String username) async {
     await _api.postJson('/api/auth/forgot-pin', {'username': username});

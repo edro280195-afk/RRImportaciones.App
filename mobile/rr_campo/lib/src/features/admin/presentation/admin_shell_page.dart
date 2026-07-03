@@ -239,9 +239,9 @@ class _AdminMorePage extends ConsumerWidget {
     );
   }
 
-  void _logout(BuildContext context, WidgetRef ref) {
-    ref.read(sessionControllerProvider.notifier).lock();
-    context.go('/login');
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    await ref.read(sessionControllerProvider.notifier).logout();
+    if (context.mounted) context.go('/login');
   }
 }
 

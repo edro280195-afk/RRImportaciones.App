@@ -12,6 +12,7 @@ import '../data/auth_api.dart';
 import '../domain/auth_models.dart';
 import 'login_unlock_screen.dart';
 import 'login_widgets.dart';
+import 'pin_setup_sheet.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -40,6 +41,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _obscurePass = true;
   String _adminError = '';
   bool _adminSaving = false;
+  bool _completingLogin = false;
 
   // ── Biometric (Desbloqueo) ──
   bool _biometricAttempted = false;
@@ -129,29 +131,30 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _tryBiometric({bool force = false}) async {
     final session = ref.read(sessionControllerProvider).asData?.value;
-    if (session == null || !session.isLocked) return;
+    final user = session?.user;
+    if (session == null || user == null || !session.isLocked) return;
     if (_biometricAttempted && !force) return;
+    if (_biometricLoading) return;
     _biometricAttempted = true;
+    setState(() => _biometricLoading = true);
 
     final biometric = ref.read(biometricServiceProvider);
     final available = await biometric.isAvailable();
-    final enabled = await biometric.isEnabled();
+    final enabled = await biometric.isEnabledFor(user.id);
 
     if (!mounted) return;
     if (!available || !enabled) {
       setState(() {
-        _showLockedPin = true;
-        _lockedPinError = enabled
-            ? 'Usa tu PIN. La biometría no está disponible en este dispositivo.'
-            : 'Usa tu PIN esta vez. Después podrás activar biometría.';
+        _biometricLoading = false;
+        _showLockedPin = user.hasPin;
+        _lockedPinError = user.hasPin
+            ? 'Ingresa tu PIN para iniciar una sesión nueva.'
+            : 'Vuelve a iniciar sesión con tu contraseña.';
       });
       return;
     }
 
-    setState(() {
-      _biometricLoading = true;
-      _lockedPinError = '';
-    });
+    setState(() => _lockedPinError = '');
     final success = await biometric.authenticate();
     if (!mounted) return;
 
@@ -170,24 +173,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       } else {
         HapticFeedback.heavyImpact();
         setState(() {
-          _showLockedPin = true;
+          _showLockedPin = user.hasPin;
           _lockedPin = '';
-          _lockedPinError =
-              'No se pudo renovar tu sesión. Ingresa tu PIN para continuar.';
+          _lockedPinError = user.hasPin
+              ? 'La sesión expiró. Ingresa tu PIN para iniciar otra.'
+              : 'La sesión expiró. Ingresa de nuevo con tu contraseña.';
         });
       }
     } else {
       setState(() => _biometricLoading = false);
       setState(() {
-        _showLockedPin = true;
+        _showLockedPin = user.hasPin;
         _lockedPin = '';
-        _lockedPinError = 'No se pudo confirmar con biometría. Usa tu PIN.';
+        _lockedPinError = user.hasPin
+            ? 'No se pudo confirmar con biometría. Usa tu PIN.'
+            : 'No se pudo confirmar con biometría. Usa tu contraseña.';
       });
     }
   }
 
   void _navigateToShell(SessionState session) {
-    if (session.isAdmin) {
+    if (session.usesAdminShell) {
       context.go('/admin');
     } else {
       context.go('/campo');
@@ -195,11 +201,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   void _navigateToShellForUser(UserInfo user) {
-    final role = user.role.toUpperCase();
-    if (role == 'ADMIN' || role == 'DUEÑO' || role == 'DUENO') {
-      context.go('/admin');
-    } else {
+    if (user.usesCampoShell) {
       context.go('/campo');
+    } else {
+      context.go('/admin');
     }
   }
 
@@ -234,8 +239,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           .read(authApiProvider)
           .pinLogin(username: user.username, pin: _lockedPin);
       await ref.read(sessionControllerProvider.notifier).save(response);
-      if (!mounted) return;
-      await _offerBiometric();
       if (!mounted) return;
       _navigateToShellForUser(response.user);
     } on ApiException catch (error) {
@@ -301,11 +304,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final response = await ref
           .read(authApiProvider)
           .pinLogin(username: user.username, pin: _pin);
-      await ref.read(sessionControllerProvider.notifier).save(response);
-      if (!mounted) return;
-      await _offerBiometric();
-      if (!mounted) return;
-      _navigateToShellForUser(response.user);
+      await _completeNewLogin(response);
     } on ApiException catch (error) {
       HapticFeedback.heavyImpact();
       setState(() {
@@ -352,11 +351,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final response = await ref
           .read(authApiProvider)
           .login(username: username, password: password);
-      await ref.read(sessionControllerProvider.notifier).save(response);
-      if (!mounted) return;
-      await _offerBiometric();
-      if (!mounted) return;
-      _navigateToShellForUser(response.user);
+      await _completeNewLogin(response);
     } on ApiException catch (error) {
       setState(() => _adminError = error.message);
     } finally {
@@ -364,13 +359,73 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
-  Future<void> _offerBiometric() async {
+  Future<void> _completeNewLogin(LoginResponse response) async {
+    if (mounted) {
+      setState(() => _completingLogin = true);
+    }
+
+    final sessionController = ref.read(sessionControllerProvider.notifier);
+    await sessionController.save(response, activate: false);
+    if (!mounted) return;
+
+    if (response.needsSetPin) {
+      await _configureInitialPin();
+      if (!mounted) return;
+    }
+
+    final currentUser =
+        ref.read(sessionControllerProvider).asData?.value.user ?? response.user;
+    await _offerBiometric(currentUser);
+    if (!mounted) return;
+
+    sessionController.activateSavedSession();
+    _navigateToShellForUser(currentUser);
+  }
+
+  Future<void> _configureInitialPin() async {
+    while (mounted) {
+      if (!mounted) return;
+      final pin = await showPinSetupSheet(context);
+      if (pin == null || !mounted) return;
+
+      try {
+        await ref.read(authApiProvider).setPin(pin);
+        await ref.read(sessionControllerProvider.notifier).markPinConfigured();
+        return;
+      } on ApiException catch (error) {
+        if (!mounted) return;
+        final retry = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('No se pudo guardar el PIN'),
+            content: Text(error.message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Ahora no'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        );
+        if (retry != true) return;
+      }
+    }
+  }
+
+  Future<void> _offerBiometric(UserInfo user) async {
     final biometric = ref.read(biometricServiceProvider);
     final available = await biometric.isAvailable();
-    final alreadyEnabled = await biometric.isEnabled();
-    if (!available || alreadyEnabled || !mounted) return;
+    final alreadyEnabled = await biometric.isEnabledFor(user.id);
+    final alreadyOffered = await biometric.wasOfferedFor(user.id);
+    if (!available || alreadyEnabled || alreadyOffered || !mounted) return;
 
     final label = await biometric.getBiometricLabel();
+    if (!mounted) return;
+    await biometric.markOfferedFor(user.id);
     if (!mounted) return;
     final accepted = await showDialog<bool>(
       context: context,
@@ -378,8 +433,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       builder: (context) => AlertDialog(
         title: Text('¿Activar $label?'),
         content: Text(
-          'La próxima vez que abras la app podrás '
-          'entrar con $label en vez de escribir tu PIN.',
+          'La próxima vez que abras la app podrás desbloquear '
+          'esta sesión con $label sin volver a escribir tus credenciales.',
         ),
         actions: [
           TextButton(
@@ -394,7 +449,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       ),
     );
     if (accepted == true) {
-      final activated = await biometric.enable();
+      final activated = await biometric.enableFor(user.id);
       if (!activated && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -413,9 +468,40 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     // Si la sesión está bloqueada, mostrar pantalla de desbloqueo
     final session = ref.watch(sessionControllerProvider).asData?.value;
-    if (session != null && session.isLocked) {
+    if (_completingLogin && session != null && session.isLocked) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  'Preparando tu acceso...',
+                  style: TextStyle(
+                    color: AppColors.ink,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (session != null && session.isLocked && session.user != null) {
+      if (!_biometricAttempted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_tryBiometric());
+        });
+      }
+
       return LoginUnlockScreen(
         user: session.user!,
+        canUsePin: session.user!.hasPin,
         biometricLoading: _biometricLoading,
         biometricReady: _showLockedPin,
         pin: _lockedPin,
@@ -424,8 +510,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         onUnlockWithBiometric: () => _tryBiometric(force: true),
         onDigit: _pressLockedDigit,
         onBackspace: _backspaceLockedPin,
+        onUsePassword: () {
+          unawaited(ref.read(sessionControllerProvider.notifier).logout());
+        },
         onUseAnotherAccount: () {
-          ref.read(sessionControllerProvider.notifier).logout();
+          unawaited(ref.read(sessionControllerProvider.notifier).logout());
         },
       );
     }
@@ -467,14 +556,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       fontSize: 15,
                     ),
                     tabs: [
-                      Tab(text: 'PIN Rápido'),
                       Tab(text: 'Contraseña'),
+                      Tab(text: 'PIN rápido'),
                     ],
                   ),
                 ),
               ),
             ],
-            body: TabBarView(children: [_buildPinTab(), _buildPasswordTab()]),
+            body: TabBarView(children: [_buildPasswordTab(), _buildPinTab()]),
           ),
         ),
       ),

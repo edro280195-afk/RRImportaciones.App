@@ -50,12 +50,13 @@ public class AuthService : IAuthService
     private static string HashPin(string pin, string salt)
     {
         // PBKDF2-SHA256: 100k iteraciones — suficiente para un PIN corto
-        using var pbkdf2 = new Rfc2898DeriveBytes(
+        var hash = Rfc2898DeriveBytes.Pbkdf2(
             Encoding.UTF8.GetBytes(pin),
             Convert.FromBase64String(salt),
             100_000,
-            HashAlgorithmName.SHA256);
-        return Convert.ToBase64String(pbkdf2.GetBytes(32));
+            HashAlgorithmName.SHA256,
+            32);
+        return Convert.ToBase64String(hash);
     }
 
     private static bool VerifyPin(string pin, string storedHash, string salt)
@@ -97,6 +98,7 @@ public class AuthService : IAuthService
                 Apellidos = user.Apellidos,
                 Role = user.Role?.Nombre ?? "",
                 TenantId = user.TenantId,
+                HasPin = !string.IsNullOrEmpty(user.PinHash),
                 Permisos = user.Role?.RolePermissions
                     .Where(rp => rp.Permission != null)
                     .Select(rp => rp.Permission!.Codigo)
@@ -128,8 +130,10 @@ public class AuthService : IAuthService
         user.UltimoAcceso = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
-        // Si el usuario no tiene PIN todavía, pedir que lo configure en el primer acceso
-        bool needsSetPin = string.IsNullOrEmpty(user.PinHash);
+        // El PIN rápido solo es parte del flujo de los usuarios de campo.
+        var roleName = user.Role?.Nombre.ToUpperInvariant();
+        var isCampoUser = roleName is "YARDERO" or "CHOFER" or "CAMPO";
+        var needsSetPin = isCampoUser && string.IsNullOrEmpty(user.PinHash);
 
         return await BuildResponseAsync(user, needsSetPin);
     }
@@ -174,29 +178,15 @@ public class AuthService : IAuthService
         await _db.SaveChangesAsync();
     }
 
-    public async Task<LoginResponse> SetInitialCampoPinAsync(InitialSetPinRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(request.NewPin) || request.NewPin.Length != 6 || !request.NewPin.All(char.IsDigit))
-            throw new ArgumentException("El PIN debe ser de exactamente 6 digitos numericos");
-
-        var user = await LoadUserWithRoleAsync(u => u.Username == request.Username && u.Activo);
-
-        if (!string.IsNullOrEmpty(user.PinHash) && !string.IsNullOrEmpty(user.PinSalt))
-            throw new InvalidOperationException("Este usuario ya tiene PIN configurado");
-
-        var salt = GenerateSalt();
-        user.PinHash = HashPin(request.NewPin, salt);
-        user.PinSalt = salt;
-        user.UltimoAcceso = DateTime.UtcNow;
-
-        return await BuildResponseAsync(user);
-    }
-
     public async Task<List<CampoUserDto>> GetCampoUsersAsync()
     {
         return await _db.Usuarios
             .IgnoreQueryFilters()
-            .Where(u => u.Activo && u.PinHash != null)
+            .Where(u => u.Activo
+                        && u.PinHash != null
+                        && (u.Role.Nombre == "YARDERO"
+                            || u.Role.Nombre == "CHOFER"
+                            || u.Role.Nombre == "CAMPO"))
             .OrderBy(u => u.Nombre)
             .Select(u => new CampoUserDto
             {
@@ -221,7 +211,7 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(t => t.TokenHash == tokenHash && !t.Revoked && t.ExpiresAt > DateTime.UtcNow);
 
         var user = storedToken?.User;
-        if (storedToken == null || user == null)
+        if (storedToken == null || user == null || !user.Activo)
             throw new UnauthorizedAccessException("Refresh token inválido o expirado");
 
         storedToken.Revoked = true;

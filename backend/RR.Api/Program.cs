@@ -171,6 +171,15 @@ builder.Services.AddSwaggerGen();
 // Rate limiting
 builder.Services.AddRateLimiter(options =>
 {
+    options.AddPolicy("Auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
     options.AddFixedWindowLimiter("Portal", config =>
     {
         config.PermitLimit = 10;
@@ -178,6 +187,13 @@ builder.Services.AddRateLimiter(options =>
         config.QueueLimit = 0;
     });
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { message = "Demasiados intentos. Espera un minuto e intenta de nuevo." },
+            cancellationToken);
+    };
 });
 
 // Controllers
