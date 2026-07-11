@@ -38,7 +38,13 @@ public class CatalogoPreciosService(AppDbContext db) : ICatalogoPreciosService
             query = query.Where(x => x.MarcaId == marcaId);
 
         if (!string.IsNullOrWhiteSpace(tipoVehiculo))
-            query = query.Where(x => x.Fraccion.TipoVehiculo == tipoVehiculo);
+        {
+            // La categoría vive en la entrada (CAMIONETA/PICKUP/etc. dentro de fracciones 8703.xx
+            // marcadas como AUTOMOVIL), por eso se filtra por ambas: entrada O fracción.
+            query = query.Where(x =>
+                x.Categoria == tipoVehiculo ||
+                x.Fraccion.TipoVehiculo == tipoVehiculo);
+        }
 
         if (esGenerico.HasValue)
             query = query.Where(x => x.EsGenerico == esGenerico.Value);

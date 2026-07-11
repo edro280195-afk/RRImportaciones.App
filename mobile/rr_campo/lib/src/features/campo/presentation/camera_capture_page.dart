@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../shared/theme/app_tokens.dart';
 import '../domain/campo_constants.dart';
@@ -126,6 +127,16 @@ class _CameraCapturePageState extends State<CameraCapturePage>
     }
   }
 
+  Future<void> _pickFromGallery() async {
+    try {
+      final picked = await ImagePicker().pickMultiImage(imageQuality: 85);
+      if (!mounted || picked.isEmpty) return;
+      setState(() => _captured.addAll(picked));
+    } catch (_) {
+      _showSnack('No se pudieron cargar las fotos de la galería.');
+    }
+  }
+
   Future<void> _cycleFlash() async {
     final controller = _camera;
     if (controller == null || !_ready) return;
@@ -200,7 +211,11 @@ class _CameraCapturePageState extends State<CameraCapturePage>
             if (_ready && controller != null)
               _FullPreview(controller: controller)
             else if (_error.isNotEmpty)
-              _CameraErrorView(message: _error, onRetry: _initCamera)
+              _CameraErrorView(
+                message: _error,
+                onRetry: _initCamera,
+                onPickGallery: _pickFromGallery,
+              )
             else
               const Center(
                 child: CircularProgressIndicator(color: Colors.white),
@@ -219,6 +234,11 @@ class _CameraCapturePageState extends State<CameraCapturePage>
                       children: [
                         _CircleButton(icon: Icons.close, onTap: _finish),
                         const Spacer(),
+                        _CircleButton(
+                          icon: Icons.photo_library_outlined,
+                          onTap: _pickFromGallery,
+                        ),
+                        const SizedBox(width: 10),
                         _CircleButton(
                           icon: flashIcon,
                           active: _flash != _FlashSetting.off,
@@ -494,10 +514,15 @@ class _DoneButton extends StatelessWidget {
 }
 
 class _CameraErrorView extends StatelessWidget {
-  const _CameraErrorView({required this.message, required this.onRetry});
+  const _CameraErrorView({
+    required this.message,
+    required this.onRetry,
+    required this.onPickGallery,
+  });
 
   final String message;
   final VoidCallback onRetry;
+  final VoidCallback onPickGallery;
 
   @override
   Widget build(BuildContext context) {
@@ -536,6 +561,13 @@ class _CameraErrorView extends StatelessWidget {
                   side: const BorderSide(color: Colors.white54),
                 ),
                 child: const Text('Reintentar'),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: onPickGallery,
+                style: TextButton.styleFrom(foregroundColor: Colors.white70),
+                icon: const Icon(Icons.photo_library_outlined, size: 18),
+                label: const Text('Elegir de la galería'),
               ),
             ],
           ),

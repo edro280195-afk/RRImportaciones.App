@@ -197,7 +197,9 @@ static async Task<int> ImportAnexo2Async(string[] args)
             var fraccionInLine = line.Words.Select(x => x.Text).FirstOrDefault(IsFraccion);
             if (!string.IsNullOrWhiteSpace(fraccionInLine))
             {
-                currentFraccion = fraccionInLine;
+                // El PDF trae la fracción con punto final ("8703.40.03."); sin este trim se
+                // crean fracciones duplicadas que el cotizador nunca encuentra.
+                currentFraccion = fraccionInLine.TrimEnd('.');
                 currentCategoria = CategoriaFromFraccion(currentFraccion);
                 currentInciso = null;
             }

@@ -16,15 +16,22 @@ import { NotificationService } from '../../services/notification.service';
 
 const FRACCIONES = [
   { value: '', label: 'Todas las fracciones' },
+  { value: '8703.21.01', label: '8703.21.01 — Hasta 1.0 L' },
   { value: '8703.22.02', label: '8703.22.02 — 1.0–1.5 L' },
   { value: '8703.23.02', label: '8703.23.02 — 1.6–3.0 L' },
   { value: '8703.24.02', label: '8703.24.02 — 3.1+ L' },
-  { value: '8703.32.02', label: '8703.32.02 — Híbrido diésel' },
+  { value: '8703.32.02', label: '8703.32.02 — Diésel' },
   { value: '8703.33.02', label: '8703.33.02 — Eléctrico' },
   { value: '8703.40.02', label: '8703.40.02 — Híbrido enchufable' },
+  { value: '8703.40.03', label: '8703.40.03 — Híbrido (Anexo 2)' },
   { value: '8703.60.02', label: '8703.60.02 — Otros híbridos' },
+  { value: '8703.60.03', label: '8703.60.03 — Otros híbridos (Anexo 2)' },
+  { value: '8704.21.01', label: '8704.21.01 — Camión ligero' },
   { value: '8704.21.04', label: '8704.21.04 — Camión <5 ton' },
+  { value: '8704.22.01', label: '8704.22.01 — Camión mediano' },
+  { value: '8704.23.01', label: '8704.23.01 — Camión pesado' },
   { value: '8704.31.05', label: '8704.31.05 — Pick-up' },
+  { value: '8704.32.01', label: '8704.32.01 — Pick-up pesada' },
   { value: '8701.21.01', label: '8701.21.01 — Tractor carretera' },
 ];
 

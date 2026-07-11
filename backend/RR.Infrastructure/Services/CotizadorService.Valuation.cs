@@ -12,10 +12,14 @@ public partial class CotizadorService
         if (!string.IsNullOrWhiteSpace(input.Vin) && input.Vin.Trim().Length == 17)
             decoded = await _nhtsa.DecodeVinAsync(input.Vin);
 
-        var make = decoded?.Make ?? input.Marca;
-        var model = decoded?.Model ?? input.Modelo;
-        var year = decoded?.ModelYear ?? input.Anno;
-        var cc = decoded?.DisplacementCC is not null ? (int?)decimal.ToInt32(decoded.DisplacementCC.Value) : input.CilindradaCm3;
+        // La captura manual gana sobre NHTSA: el wizard pre-llena estos campos con el decode
+        // y el operador puede corregirlos; si el backend re-decodifica y pisa la corrección,
+        // el ajuste del operador nunca surte efecto.
+        var make = !string.IsNullOrWhiteSpace(input.Marca) ? input.Marca : decoded?.Make;
+        var model = !string.IsNullOrWhiteSpace(input.Modelo) ? input.Modelo : decoded?.Model;
+        var year = input.Anno ?? decoded?.ModelYear;
+        var cc = input.CilindradaCm3
+            ?? (decoded?.DisplacementCC is not null ? (int?)decimal.ToInt32(decoded.DisplacementCC.Value) : null);
 
         var marca = input.MarcaId.HasValue ? await _db.Marcas.FindAsync(input.MarcaId.Value) : null;
         if (marca is null && !string.IsNullOrWhiteSpace(make))
@@ -58,16 +62,32 @@ public partial class CotizadorService
             && Normalize(precio.MarcaTexto) == normalizedMarca;
     }
 
-    private static readonly string[] _fraccionesGasolina = ["8703.22.02", "8703.23.02", "8703.24.02"];
+    private static readonly string[] _fraccionesGasolina = ["8703.21.01", "8703.22.02", "8703.23.02", "8703.24.02"];
+    private static readonly string[] _fraccionesHibridas = ["8703.40.02", "8703.40.03", "8703.60.02", "8703.60.03"];
+    private static readonly string[] _fraccionesDiesel = ["8703.32.02", "8703.22.02", "8703.23.02", "8703.24.02"];
+
+    /// <summary>
+    /// El catálogo Anexo 2 lista el mismo modelo bajo fracciones hermanas (p.ej. híbridos en
+    /// 8703.40.03 cuando la cc-calculada es 8703.40.02), por eso la búsqueda se hace por grupo
+    /// y no solo por la fracción primaria.
+    /// </summary>
+    private static string[] GetFraccionesBusqueda(string fraccionPrimaria)
+    {
+        if (_fraccionesGasolina.Contains(fraccionPrimaria))
+            return _fraccionesGasolina;
+        if (_fraccionesHibridas.Contains(fraccionPrimaria))
+            return _fraccionesHibridas;
+        if (fraccionPrimaria == "8703.32.02")
+            return _fraccionesDiesel;
+        return [fraccionPrimaria];
+    }
 
     private async Task<PriceLookupResult?> FindPrecioEstimadoAsync(string fraccionPrimaria, Guid? marcaId, string? marcaTexto, string? modelo, int anno, int? engineCylinders, string categoria)
     {
         var antiguedad = Math.Clamp(DateTime.Today.Year - anno, 1, 12);
         var hasModel = !string.IsNullOrWhiteSpace(modelo);
 
-        var fraccionesABuscar = _fraccionesGasolina.Contains(fraccionPrimaria)
-            ? _fraccionesGasolina
-            : new[] { fraccionPrimaria };
+        var fraccionesABuscar = GetFraccionesBusqueda(fraccionPrimaria);
 
         var fraccionEntities = await _db.FraccionesArancelarias
             .Where(x => fraccionesABuscar.Contains(x.Fraccion))
@@ -150,9 +170,7 @@ public partial class CotizadorService
 
     private async Task<PriceLookupResult?> FindGenericPrecioEstimadoAsync(string fraccionPrimaria, string categoria, int antiguedad, string warning)
     {
-        var fraccionesABuscar = _fraccionesGasolina.Contains(fraccionPrimaria)
-            ? _fraccionesGasolina
-            : new[] { fraccionPrimaria };
+        var fraccionesABuscar = GetFraccionesBusqueda(fraccionPrimaria);
 
         var fraccionEntities = await _db.FraccionesArancelarias
             .Where(x => fraccionesABuscar.Contains(x.Fraccion))
@@ -375,21 +393,29 @@ public partial class CotizadorService
         var text = $"{tipoVehiculo} {vehicleType} {bodyClass}".ToUpperInvariant();
         var fuel = (fuelType ?? "").ToUpperInvariant();
 
+        // NHTSA reporta SUVs y camionetas como "MULTIPURPOSE PASSENGER VEHICLE (MPV)" o
+        // "Sport Utility Vehicle"; nunca contiene "TRUCK", por eso se listan esos términos.
+        var esCamioneta = text.Contains("TRUCK") || text.Contains("CAMIONETA") || text.Contains("SUV")
+            || text.Contains("SPORT UTILITY") || text.Contains("MPV") || text.Contains("MULTIPURPOSE")
+            || text.Contains("VAN");
+
         if (fuel.Contains("ELECTRIC"))
             return ("8703.33.02", "ELECTRICO");
         if (fuel.Contains("HYBRID") || fuel.Contains("HÍBRIDO") || fuel.Contains("HIBRIDO"))
             return ("8703.40.02", "HIBRIDO");
-        if (text.Contains("TRACTOR") || text.Contains("TRUCK-TRACTOR"))
+        if (text.Contains("TRACTOR") || text.Contains("TRUCK-TRACTOR") || text.Contains("TRACTOCAMION"))
             return ("8701.21.01", "TRACTOCAMION");
         if (text.Contains("PICKUP") || text.Contains("PICK-UP") || text.Contains("PICK UP"))
             return ("8704.31.05", "PICKUP");
+        if (fuel.Contains("DIESEL") || fuel.Contains("DIÉSEL"))
+            return ("8703.32.02", esCamioneta ? "CAMIONETA" : "AUTOMOVIL");
 
         var cc = cilindradaCm3 ?? 0;
         if (cc <= 1500)
-            return ("8703.22.02", "AUTOMOVIL");
+            return ("8703.22.02", esCamioneta ? "CAMIONETA" : "AUTOMOVIL");
         if (cc <= 3000)
-            return ("8703.23.02", text.Contains("TRUCK") || text.Contains("CAMIONETA") ? "CAMIONETA" : "AUTOMOVIL");
-        return ("8703.24.02", text.Contains("TRUCK") || text.Contains("CAMIONETA") ? "CAMIONETA" : "AUTOMOVIL");
+            return ("8703.23.02", esCamioneta ? "CAMIONETA" : "AUTOMOVIL");
+        return ("8703.24.02", esCamioneta ? "CAMIONETA" : "AUTOMOVIL");
     }
 
     private static string DetermineCategoriaAmparo(string categoria, int? cylinders)

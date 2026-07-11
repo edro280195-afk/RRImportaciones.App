@@ -169,9 +169,7 @@ public partial class CotizadorService : ICotizadorService
         var clasificacion = DetermineFraccion(resolved.CilindradaCm3, input.TipoVehiculo, resolved.VehicleType, resolved.BodyClass, resolved.FuelType);
         var antiguedad = Math.Clamp(DateTime.Today.Year - resolved.Anno.Value, 1, 12);
         var hasModel = !string.IsNullOrWhiteSpace(resolved.Modelo);
-        var fraccionesABuscar = _fraccionesGasolina.Contains(clasificacion.Fraccion)
-            ? _fraccionesGasolina
-            : new[] { clasificacion.Fraccion };
+        var fraccionesABuscar = GetFraccionesBusqueda(clasificacion.Fraccion);
 
         var fraccionEntities = await _db.FraccionesArancelarias
             .Where(x => fraccionesABuscar.Contains(x.Fraccion))
