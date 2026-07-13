@@ -101,11 +101,29 @@ static async Task<int> ImportTabuladoresAsync(string[] args)
 
     using var workbook = new XLWorkbook(file);
 
-    var oldPrices = await db.PreciosEstimados.Include(x => x.PreciosPorAntiguedad).ToListAsync();
+    // Solo se reemplazan las fracciones que el Excel realmente cubre; los híbridos,
+    // eléctricos y camiones que únicamente existen en el PDF Anexo 2 se conservan.
+    var fraccionesDelExcel = workbook.Worksheets
+        .Select(ws => SheetInfo.FromName(ws.Name))
+        .Where(x => x is not null)
+        .Select(x => x!.Fraccion)
+        .Distinct()
+        .ToList();
+
+    var fraccionIdsAReemplazar = await db.FraccionesArancelarias
+        .Where(f => fraccionesDelExcel.Contains(f.Fraccion))
+        .Select(f => f.Id)
+        .ToListAsync();
+
+    var oldPrices = await db.PreciosEstimados
+        .Include(x => x.PreciosPorAntiguedad)
+        .Where(x => fraccionIdsAReemplazar.Contains(x.FraccionId))
+        .ToListAsync();
     db.PreciosPorAntiguedad.RemoveRange(oldPrices.SelectMany(x => x.PreciosPorAntiguedad));
     db.PreciosEstimados.RemoveRange(oldPrices);
     db.TabuladoresAmparo.RemoveRange(await db.TabuladoresAmparo.ToListAsync());
     await db.SaveChangesAsync();
+    Console.WriteLine($"Fracciones reemplazadas desde el Excel: {string.Join(", ", fraccionesDelExcel)} ({oldPrices.Count} entradas previas eliminadas).");
 
     var insertedModels = 0;
     var insertedPrices = 0;
@@ -185,6 +203,9 @@ static async Task<int> ImportAnexo2Async(string[] args)
     var currentCategoria = "";
     var currentInciso = (string?)null;
     var currentBrand = "";
+    var genericosDetectados = new Dictionary<
+        (Guid FraccionId, string? Inciso, string Modelo),
+        (string Categoria, List<(int Age, decimal Value)> Prices, int Page)>();
 
     using var document = PdfDocument.Open(file);
     for (var pageNumber = 1; pageNumber <= document.NumberOfPages; pageNumber++)
@@ -236,7 +257,7 @@ static async Task<int> ImportAnexo2Async(string[] args)
                 continue;
             }
 
-            var isGeneric = IsGenericPriceLine(line);
+            var isGeneric = line.EsGenerico || IsGenericPriceLine(line);
 
             if (genericsOnly && !isGeneric)
                 continue;
@@ -263,82 +284,35 @@ static async Task<int> ImportAnexo2Async(string[] args)
             var categoria = string.IsNullOrWhiteSpace(currentCategoria) ? CategoriaFromFraccion(currentFraccion) : currentCategoria;
             var fraccion = await GetOrCreateFraccionAsync(db, currentFraccion, categoria);
             var cleanBrandText = string.IsNullOrWhiteSpace(brandText) ? string.Empty : CleanText(brandText);
-            var cleanModelText = CleanText(modelText);
+            var cleanModelText = FixOcrZeros(CleanText(modelText));
+
+            if (genericsOnly)
+            {
+                // El bloque genérico se repite en varias páginas de la misma sección del PDF.
+                // Se acumula con dedupe y se aplica UNA sola vez al final del recorrido:
+                // re-consultar y mutar las mismas entidades en cada aparición dejaba el
+                // ChangeTracker en estados inconsistentes (DbUpdateConcurrencyException).
+                genericosDetectados.TryAdd(
+                    (fraccion.Id, currentInciso, cleanModelText),
+                    (categoria, prices, pageNumber));
+                continue;
+            }
 
             if (dryRun)
             {
-                if (genericsOnly && isGeneric)
-                {
-                    var exists = await db.PreciosEstimados.AnyAsync(x =>
-                        x.EsGenerico &&
-                        x.FraccionId == fraccion.Id &&
-                        x.Inciso == currentInciso &&
-                        x.Modelo == cleanModelText);
-
-                    if (exists)
-                        updatedModels++;
-                    else
-                        insertedModels++;
-                }
-                else
-                {
-                    insertedModels++;
-                }
-
+                insertedModels++;
                 insertedPrices += prices.Count;
                 continue;
             }
 
-            PrecioEstimado precio;
-            if (genericsOnly && isGeneric)
+            var precio = new PrecioEstimado
             {
-                var existing = await db.PreciosEstimados
-                    .Include(x => x.PreciosPorAntiguedad)
-                    .Where(x =>
-                        x.EsGenerico &&
-                        x.FraccionId == fraccion.Id &&
-                        x.Inciso == currentInciso &&
-                        x.Modelo == cleanModelText)
-                    .ToListAsync();
-
-                precio = existing.FirstOrDefault() ?? new PrecioEstimado
-                {
-                    Id = Guid.NewGuid(),
-                    FraccionId = fraccion.Id,
-                    EsGenerico = true,
-                };
-
-                if (existing.Count == 0)
-                {
-                    db.PreciosEstimados.Add(precio);
-                    insertedModels++;
-                }
-                else
-                {
-                    updatedModels++;
-                }
-
-                foreach (var duplicate in existing.Skip(1))
-                {
-                    db.PreciosPorAntiguedad.RemoveRange(duplicate.PreciosPorAntiguedad);
-                    db.PreciosEstimados.Remove(duplicate);
-                    removedDuplicateModels++;
-                }
-
-                db.PreciosPorAntiguedad.RemoveRange(precio.PreciosPorAntiguedad);
-                precio.PreciosPorAntiguedad.Clear();
-            }
-            else
-            {
-                precio = new PrecioEstimado
-                {
-                    Id = Guid.NewGuid(),
-                    FraccionId = fraccion.Id,
-                    EsGenerico = isGeneric,
-                };
-                db.PreciosEstimados.Add(precio);
-                insertedModels++;
-            }
+                Id = Guid.NewGuid(),
+                FraccionId = fraccion.Id,
+                EsGenerico = isGeneric,
+            };
+            db.PreciosEstimados.Add(precio);
+            insertedModels++;
 
             precio.FraccionId = fraccion.Id;
             precio.MarcaId = marca?.Id;
@@ -362,15 +336,106 @@ static async Task<int> ImportAnexo2Async(string[] args)
             }
         }
 
-        if (!dryRun && pageNumber % 10 == 0)
+        if (!dryRun && !genericsOnly && pageNumber % 10 == 0)
         {
             await db.SaveChangesAsync();
             Console.WriteLine($"Páginas procesadas: {pageNumber}/{document.NumberOfPages}");
         }
     }
 
+    // Aplicación de genéricos acumulados: cada (fracción, inciso, modelo) se procesa
+    // exactamente una vez, con reemplazo completo de sus precios por antigüedad.
+    foreach (var kvp in genericosDetectados)
+    {
+        var (fraccionId, inciso, modelo) = kvp.Key;
+        var (categoriaGen, pricesGen, pageGen) = kvp.Value;
+
+        if (dryRun)
+        {
+            var exists = await db.PreciosEstimados.AnyAsync(x =>
+                x.EsGenerico && x.FraccionId == fraccionId && x.Inciso == inciso && x.Modelo == modelo);
+
+            if (exists)
+                updatedModels++;
+            else
+                insertedModels++;
+
+            insertedPrices += pricesGen.Count;
+            continue;
+        }
+
+        var existing = await db.PreciosEstimados
+            .Include(x => x.PreciosPorAntiguedad)
+            .Where(x => x.EsGenerico && x.FraccionId == fraccionId && x.Inciso == inciso && x.Modelo == modelo)
+            .ToListAsync();
+
+        var generico = existing.FirstOrDefault();
+        if (generico is null)
+        {
+            generico = new PrecioEstimado
+            {
+                Id = Guid.NewGuid(),
+                FraccionId = fraccionId,
+                EsGenerico = true,
+            };
+            db.PreciosEstimados.Add(generico);
+            insertedModels++;
+        }
+        else
+        {
+            updatedModels++;
+        }
+
+        foreach (var duplicate in existing.Skip(1))
+        {
+            db.PreciosPorAntiguedad.RemoveRange(duplicate.PreciosPorAntiguedad);
+            db.PreciosEstimados.Remove(duplicate);
+            removedDuplicateModels++;
+        }
+
+        db.PreciosPorAntiguedad.RemoveRange(generico.PreciosPorAntiguedad);
+        generico.PreciosPorAntiguedad.Clear();
+
+        generico.MarcaId = null;
+        generico.Categoria = categoriaGen;
+        generico.Inciso = inciso;
+        generico.MarcaTexto = "GENERICO";
+        generico.Modelo = modelo;
+        generico.EsGenerico = true;
+        generico.HojaOrigen = $"ANEXO2 PDF p{pageGen}";
+
+        foreach (var price in pricesGen)
+        {
+            // Add por el DbSet, NO por la navegación: al colgar del genérico ya rastreado
+            // una entidad con Guid asignado, EF la marca Modified (UPDATE a fila inexistente)
+            // en lugar de Added, y SaveChanges truena con DbUpdateConcurrencyException.
+            db.PreciosPorAntiguedad.Add(new PrecioPorAntiguedad
+            {
+                Id = Guid.NewGuid(),
+                PrecioEstimadoId = generico.Id,
+                AntiguedadAnios = price.Age,
+                PrecioUsd = price.Value,
+            });
+            insertedPrices++;
+        }
+    }
+
     if (!dryRun)
-        await db.SaveChangesAsync();
+    {
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            foreach (var entry in ex.Entries)
+            {
+                var pk = entry.Properties.FirstOrDefault(p => p.Metadata.IsPrimaryKey())?.CurrentValue;
+                Console.WriteLine($"CONFLICTO: {entry.State} {entry.Metadata.ClrType.Name} pk={pk}");
+            }
+            throw;
+        }
+    }
 
     Console.WriteLine($"Modelos insertados desde Anexo 2: {insertedModels}");
     Console.WriteLine($"Modelos actualizados desde Anexo 2: {updatedModels}");
@@ -405,7 +470,11 @@ static async Task<(int Models, int Prices)> ImportPriceSheetAsync(AppDbContext d
 
         if (rowPrices.Count == 0)
         {
-            currentBrand = CleanText(name);
+            // Las filas de texto legal de genéricos vienen sin precios en el Excel;
+            // sin este guard se tomaban como encabezado de marca y contaminaban
+            // la marca de todas las filas siguientes.
+            if (!name.Contains("PRECIOS ESTIMADOS", StringComparison.OrdinalIgnoreCase))
+                currentBrand = CleanText(name);
             continue;
         }
 
@@ -421,7 +490,7 @@ static async Task<(int Models, int Prices)> ImportPriceSheetAsync(AppDbContext d
             Categoria = info.Categoria,
             Inciso = info.Inciso,
             MarcaTexto = brand,
-            Modelo = CleanText(name),
+            Modelo = FixOcrZeros(CleanText(name)),
             EsGenerico = isGeneric,
             HojaOrigen = ws.Name,
         };
@@ -667,6 +736,14 @@ static string CleanText(string text)
     return string.Join(" ", text.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries));
 }
 
+// Los archivos fuente (PDF y Excel) traen ceros en lugar de la letra O dentro de
+// nombres de modelo ("CHER0KEE", "METR0"); se corrige solo entre letras para no
+// tocar números legítimos como "3500" o "V8".
+static string FixOcrZeros(string text)
+{
+    return Regex.Replace(text, @"(?<=[A-Za-z])0(?=[A-Za-z])", "O", RegexOptions.CultureInvariant);
+}
+
 static string Normalize(string value)
 {
     return new string(value.Trim().ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
@@ -745,7 +822,7 @@ static List<PdfLine> BuildPdfLines(Page page, HashSet<string> knownBrands)
         foreach (var lower in lowerLines)
             words.AddRange(lower.Words);
 
-        rowLines.Add(new PdfLine(line.Y, words.OrderBy(w => w.BoundingBox.Left).ThenByDescending(w => w.BoundingBox.Bottom).ToList()));
+        rowLines.Add(new PdfLine(line.Y, words.OrderBy(w => w.BoundingBox.Left).ThenByDescending(w => w.BoundingBox.Bottom).ToList(), isGenericRow));
     }
 
     return rowLines;
@@ -777,9 +854,14 @@ static bool IsGenericPriceLine(PdfLine line)
 
 static bool IsGenericLegalLine(PdfLine line)
 {
+    // El texto legal se parte en 4+ renglones visuales en el PDF; cada fragmento
+    // debe reconocerse por separado o CollectGenericUpperLines corta la recolección
+    // y el renglón Pza del genérico se procesa como si fuera un modelo normal.
     var normalized = NormalizeForSearch(PdfLineText(line));
     return normalized.Contains("PRECIOSESTIMADOS") ||
-           normalized.Contains("VEHICULOSENCUYOANOMODELO") ||
+           normalized.Contains("ENCUYOANOMODELO") ||
+           normalized.Contains("SEESTABLECEDICHOPRECIO") ||
+           (normalized.Contains("ASICOMOPARA") && normalized.Contains("OTROSMODELOS")) ||
            (normalized.Contains("NOLISTADOS") && normalized.Contains("FRACCION"));
 }
 
@@ -870,13 +952,15 @@ static string? GetBrandCandidate(PdfLine line)
 
 static string ExtractPdfModelText(PdfLine line)
 {
+    // OJO: no filtrar palabras numéricas aquí. El número de fila del catálogo vive
+    // fuera de la zona X [140,215) y el regex final quita residuos al inicio; filtrar
+    // enteros mutilaba modelos como "RAM 3500" → "RAM" (bug de cotizaciones genéricas).
     var words = line.Words
         .Where(w => w.BoundingBox.Left >= 140 && w.BoundingBox.Left < 215)
         .Select(w => w.Text.Trim())
         .Where(w => !string.IsNullOrWhiteSpace(w))
         .Where(w => !w.Equals("Pza", StringComparison.OrdinalIgnoreCase))
         .Where(w => !IsFraccion(w))
-        .Where(w => !int.TryParse(w, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
         .ToList();
 
     var text = CleanText(string.Join(" ", words));
@@ -1011,13 +1095,22 @@ static void PrintUsage()
     Console.WriteLine("  dotnet run --project RR.DataImporter -- import-anexo2 --file \"ruta/al/anexo2_catalogo.pdf\" [--generics-only] [--dry-run] [--connection-string \"...\"]");
 }
 
-file sealed record PdfLine(double Y, IReadOnlyList<Word> Words);
+// EsGenerico se marca al fusionar el renglón Pza con el texto legal de arriba: la fusión
+// intercala las palabras por posición X y el texto resultante queda revuelto, así que
+// re-detectar la frase legal sobre el texto fusionado NO funciona.
+file sealed record PdfLine(double Y, IReadOnlyList<Word> Words, bool EsGenerico = false);
 
 file sealed record SheetInfo(string Fraccion, string Categoria, string? Inciso)
 {
     public static SheetInfo? FromName(string sheetName)
     {
         var name = sheetName.Trim().ToUpperInvariant();
+
+        // Las hojas marcadas "-IGNORAR" por el operador no se importan; sus fracciones
+        // tampoco se borran (se conserva lo que exista de otras fuentes, p.ej. el PDF).
+        if (name.Contains("IGNORAR"))
+            return null;
+
         return name switch
         {
             "AUT 1.0 A 1.5" => new SheetInfo("8703.22.02", "AUTOMOVIL", "A"),

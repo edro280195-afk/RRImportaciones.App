@@ -2195,7 +2195,10 @@ export class CotizacionNuevaComponent {
     this.cotizacionService.obtenerCandidatos(this.form).subscribe({
       next: res => {
         this.buscandoCandidatos.set(false);
-        if (res.candidatos.length === 0) {
+        if (res.regimenFiscal === 'AMPARO') {
+          // Vehículo 2019-2021: el precio sale del tabulador de amparo, no del Anexo 2.
+          this.calcular();
+        } else if (res.candidatos.length === 0) {
           // Sin candidatos — mostrar UI explicativa con opciones (captura manual / editar datos)
           this.candidatos.set(res);
         } else if (res.requiereSeleccion) {

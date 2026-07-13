@@ -64,11 +64,11 @@ public class CotizadorServiceMatchingTests
     }
 
     [Fact]
-    public void GetFraccionesBusqueda_PickupSoloUsaSuFraccion()
+    public void GetFraccionesBusqueda_PickupIncluyeFraccionDelPdfYDelExcel()
     {
         var fracciones = GetFraccionesBusqueda("8704.31.05");
 
-        fracciones.Should().BeEquivalentTo(["8704.31.05"]);
+        fracciones.Should().BeEquivalentTo(["8704.31.05", "8704.31.01"]);
     }
 
     private static int ScoreModelMatch(string input, string candidate, int? cylinders, string categoria)

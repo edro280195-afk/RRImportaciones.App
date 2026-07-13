@@ -166,6 +166,24 @@ public partial class CotizadorService : ICotizadorService
         if (resolved.Anno is null)
             throw new InvalidOperationException("El año modelo es obligatorio");
 
+        var regimen = DetermineRegimen(resolved.Anno.Value);
+
+        // AMPARO (2019-2021): el precio sale del tabulador de amparo, no del Anexo 2.
+        // Sin este corte el wizard mostraba candidatos del catálogo que jamás se usarían.
+        if (regimen == "AMPARO")
+        {
+            return new CandidatosPrecioOutput
+            {
+                Marca = resolved.Marca,
+                Modelo = resolved.Modelo,
+                Anno = resolved.Anno,
+                AntiguedadAnios = Math.Clamp(DateTime.Today.Year - resolved.Anno.Value, 1, 12),
+                RegimenFiscal = regimen,
+                RequiereSeleccion = false,
+                Candidatos = [],
+            };
+        }
+
         var clasificacion = DetermineFraccion(resolved.CilindradaCm3, input.TipoVehiculo, resolved.VehicleType, resolved.BodyClass, resolved.FuelType);
         var antiguedad = Math.Clamp(DateTime.Today.Year - resolved.Anno.Value, 1, 12);
         var hasModel = !string.IsNullOrWhiteSpace(resolved.Modelo);
@@ -276,6 +294,7 @@ public partial class CotizadorService : ICotizadorService
             Modelo = resolved.Modelo,
             Anno = resolved.Anno,
             AntiguedadAnios = antiguedad,
+            RegimenFiscal = regimen,
             RequiereSeleccion = requiereSeleccion,
             Candidatos = candidatos,
         };

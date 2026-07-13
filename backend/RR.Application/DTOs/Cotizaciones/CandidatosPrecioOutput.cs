@@ -51,6 +51,13 @@ public class CandidatosPrecioOutput
     public int AntiguedadAnios { get; set; }
 
     /// <summary>
+    /// Régimen que aplicará al vehículo (AMPARO | POST_2017 | PRE_2016).
+    /// Cuando es AMPARO el precio sale del tabulador y NO se usa el catálogo Anexo 2:
+    /// la lista de candidatos viene vacía y el cliente debe ir directo a calcular.
+    /// </summary>
+    public string RegimenFiscal { get; set; } = string.Empty;
+
+    /// <summary>
     /// True cuando no hay un ganador claro y el admin debe elegir.
     /// False cuando hay un único ESPECIFICO con año exacto.
     /// </summary>

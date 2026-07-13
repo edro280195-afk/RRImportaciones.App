@@ -42,6 +42,8 @@ export interface CandidatosPrecioOutput {
   modelo: string | null;
   anno: number | null;
   antiguedadAnios: number;
+  /** AMPARO | POST_2017 | PRE_2016 — con AMPARO no aplica el catálogo Anexo 2. */
+  regimenFiscal: string;
   requiereSeleccion: boolean;
   candidatos: CandidatoPrecio[];
 }

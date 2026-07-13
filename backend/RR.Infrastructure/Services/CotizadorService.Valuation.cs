@@ -49,6 +49,14 @@ public partial class CotizadorService
             m.Aliases.Any(a => Normalize(a) == normalized));
     }
 
+    // El Anexo 2 lista los pickups RAM bajo su marca histórica DODGE, pero NHTSA
+    // decodifica Make=RAM (marca independiente desde 2011). Sin esta equivalencia
+    // ningún RAM matchea su entrada del catálogo y todo cae al precio genérico.
+    private static readonly string[][] _marcasEquivalentes = [["RAM", "DODGE"]];
+
+    private static bool SonMarcasEquivalentes(string normalizadaA, string normalizadaB)
+        => _marcasEquivalentes.Any(grupo => grupo.Contains(normalizadaA) && grupo.Contains(normalizadaB));
+
     private static bool MarcaMatches(PrecioEstimado precio, Guid? marcaId, string? marcaTexto)
     {
         var normalizedMarca = Normalize(marcaTexto ?? "");
@@ -58,13 +66,20 @@ public partial class CotizadorService
         if (marcaId.HasValue && precio.MarcaId == marcaId)
             return true;
 
-        return !string.IsNullOrWhiteSpace(normalizedMarca)
-            && Normalize(precio.MarcaTexto) == normalizedMarca;
+        if (string.IsNullOrWhiteSpace(normalizedMarca))
+            return false;
+
+        var normalizedCandidata = Normalize(precio.MarcaTexto);
+        return normalizedCandidata == normalizedMarca
+            || SonMarcasEquivalentes(normalizedCandidata, normalizedMarca);
     }
 
     private static readonly string[] _fraccionesGasolina = ["8703.21.01", "8703.22.02", "8703.23.02", "8703.24.02"];
     private static readonly string[] _fraccionesHibridas = ["8703.40.02", "8703.40.03", "8703.60.02", "8703.60.03"];
     private static readonly string[] _fraccionesDiesel = ["8703.32.02", "8703.22.02", "8703.23.02", "8703.24.02"];
+    // 8704.31.01 es la fracción que declara el PDF Anexo 2 en la sección de pickups
+    // (ahí vive su precio genérico); 8704.31.05 es la del catálogo/Excel con los específicos.
+    private static readonly string[] _fraccionesPickup = ["8704.31.05", "8704.31.01"];
 
     /// <summary>
     /// El catálogo Anexo 2 lista el mismo modelo bajo fracciones hermanas (p.ej. híbridos en
@@ -79,6 +94,8 @@ public partial class CotizadorService
             return _fraccionesHibridas;
         if (fraccionPrimaria == "8703.32.02")
             return _fraccionesDiesel;
+        if (_fraccionesPickup.Contains(fraccionPrimaria))
+            return _fraccionesPickup;
         return [fraccionPrimaria];
     }
 
