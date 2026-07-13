@@ -193,12 +193,23 @@ export class LoteDetailComponent {
   actionLoading = signal(false);
   actionError = signal<string | null>(null);
 
+  // Angular reutiliza esta misma instancia al navegar entre /lotes/:id con distinto
+  // id (misma ruta); leer el parámetro solo en el constructor dejaba el detalle
+  // mostrando el lote anterior. Se sigue el patrón de TramiteDetailComponent.
+  private currentId = '';
+
   constructor() {
-    this.cargarLote();
+    this.route.paramMap.subscribe(params => {
+      const id = params.get('id');
+      if (id) {
+        this.currentId = id;
+        this.cargarLote();
+      }
+    });
   }
 
   cargarLote(): void {
-    const id = this.route.snapshot.paramMap.get('id');
+    const id = this.currentId;
     if (id) {
       this.loteService.getById(id).subscribe(lote => this.lote.set(lote));
     }

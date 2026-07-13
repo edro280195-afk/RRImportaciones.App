@@ -331,7 +331,7 @@ export class ExcelExportService {
       t.tramitadorNombre || '—',
       t.cobroTotal,
       t.saldoPendiente,
-      t.estatus,
+      t.estadoLogistico,
       t.diasEnEstado,
     ]);
 

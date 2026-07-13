@@ -230,8 +230,8 @@ import { CotizacionDashboardDto, CotizacionService } from '../../services/cotiza
                       t.vehiculoMarcaModelo || t.vehiculoVinCorto || 'Sin vehículo'
                     }}</span>
                   </span>
-                  <span class="hidden sm:inline-flex badge" [class]="statusBadgeClass(t.estatus)">{{
-                    t.estatus
+                  <span class="hidden sm:inline-flex badge" [class]="statusBadgeClass(t.estadoLogistico)">{{
+                    t.estadoLogistico
                   }}</span>
                   <span
                     class="font-mono-data text-[12.5px] font-semibold tabular-nums"
@@ -411,9 +411,9 @@ import { CotizacionDashboardDto, CotizacionService } from '../../services/cotiza
                     <td class="px-5 py-3">
                       <span
                         class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold"
-                        [class]="statusBadgeClass(t.estatus)"
+                        [class]="statusBadgeClass(t.estadoLogistico)"
                       >
-                        {{ t.estatus }}
+                        {{ t.estadoLogistico }}
                       </span>
                     </td>
                     <td class="px-5 py-3 text-center">
@@ -671,7 +671,7 @@ export class DashboardComponent implements OnInit {
         this.cotDash = res.cotDash;
         this.tramitesRecientes = res.tramites.items;
         this.tramitesAtrasados = res.atrasados.items
-          .filter(t => !this.estadosTerminales.has(t.estatus) && t.diasEnEstado >= 7)
+          .filter(t => !this.estadosTerminales.has(t.estadoLogistico) && t.diasEnEstado >= 7)
           .slice(0, 6);
         this.pagosPendientes = res.pagos.items;
         this.gastosRecientes = res.gastos.items;

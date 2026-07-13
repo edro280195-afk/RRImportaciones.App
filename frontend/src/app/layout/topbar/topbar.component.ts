@@ -700,7 +700,7 @@ export class TopbarComponent implements OnInit {
               })),
               ...tramites.items.map(t => ({
                 label: t.numeroConsecutivo,
-                detail: `Tramite · ${t.clienteApodo || t.clienteNombre || 'Sin cliente'} · ${t.vehiculoMarcaModelo || t.vehiculoVinCorto || t.estatus}`,
+                detail: `Tramite · ${t.clienteApodo || t.clienteNombre || 'Sin cliente'} · ${t.vehiculoMarcaModelo || t.vehiculoVinCorto || t.estadoLogistico}`,
                 route: `/tramites/${t.id}`,
               })),
               ...cotizaciones.items.map(c => ({

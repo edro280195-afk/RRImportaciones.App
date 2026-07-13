@@ -83,6 +83,7 @@ import { ExcelExportService } from '../../services/excel-export.service';
           <option value="BORRADOR">Borrador</option>
           <option value="ENVIADA">Enviada</option>
           <option value="ACEPTADA">Aceptada</option>
+          <option value="CONVERTIDA">Convertida</option>
           <option value="RECHAZADA">Rechazada</option>
           <option value="EXPIRADA">Expirada</option>
         </select>
@@ -307,6 +308,7 @@ export class CotizacionesListComponent {
       BORRADOR: 'background:#F3F4F6;color:#4B5162;',
       ENVIADA: 'background:#DBEAFE;color:#1E40AF;',
       ACEPTADA: 'background:#DCFCE7;color:#166534;',
+      CONVERTIDA: 'background:#EDE9FE;color:#6D28D9;',
       RECHAZADA: 'background:#FEE2E2;color:#991B1B;',
       EXPIRADA: 'background:#FEF3C7;color:#92400E;',
     };

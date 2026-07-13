@@ -5,7 +5,7 @@ import { Observable } from 'rxjs';
 export interface PortalTramiteDto {
   id: string;
   numeroConsecutivo: string;
-  estatus: string;
+  estadoLogistico: string;
   estatusCliente: string;
   estatusDescripcion: string;
   progreso: number;

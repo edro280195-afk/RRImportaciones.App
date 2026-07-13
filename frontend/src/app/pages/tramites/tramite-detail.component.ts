@@ -41,8 +41,8 @@ import { environment } from '../../../environments/environment';
               </h1>
               <span
                 class="px-3 py-1 rounded-lg text-[12px] font-semibold"
-                [style]="estadoPill(t.estatus)"
-                >{{ t.estatus }}</span
+                [style]="estadoPill(t.estadoLogistico)"
+                >{{ t.estadoLogistico }}</span
               >
               <span class="text-[12px] text-[#9EA3AE] font-mono-data"
                 >{{ t.diasEnEstado }} días en este estado</span
@@ -61,8 +61,8 @@ import { environment } from '../../../environments/environment';
             >
               Portal cliente
             </button>
-            @if (!esTerminal(t.estatus)) {
-              @if (auth.can('TRAMITES_EDITAR') && esFinalizable(t.estatus)) {
+            @if (!esTerminal(t.estadoLogistico)) {
+              @if (auth.can('TRAMITES_EDITAR') && esFinalizable(t.estadoLogistico)) {
                 <button
                   (click)="showFinalizarModal = true"
                   class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-[#16A34A] text-white hover:bg-[#15803D] transition-colors shadow-sm"
@@ -132,7 +132,7 @@ import { environment } from '../../../environments/environment';
         </div>
 
         <!-- Banner estado terminal -->
-        @if (t.estatus === 'ENTREGADO_AL_CLIENTE') {
+        @if (t.estadoLogistico === 'ENTREGADO_AL_CLIENTE') {
           <div
             class="card-elevated mb-6 rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
           >
@@ -183,7 +183,7 @@ import { environment } from '../../../environments/environment';
             }
           </div>
         }
-        @if (t.estatus === 'CANCELADO') {
+        @if (t.estadoLogistico === 'CANCELADO') {
           <div
             class="card-elevated mb-6 rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-4 flex items-center gap-3"
           >
@@ -715,7 +715,7 @@ import { environment } from '../../../environments/environment';
                 <div class="border-t border-[#F3F4F6] py-3 text-[13px]">
                   <div class="flex justify-between gap-3 mb-2">
                     <div>
-                      <p class="font-semibold">{{ tc.tipo }} · {{ tc.estatus }}</p>
+                      <p class="font-semibold">{{ tc.tipo }} · {{ tc.estadoLogistico }}</p>
                       <p class="text-[#6B717F]">
                         {{ tc.personalCampoNombre || 'Abierta' }} ·
                         {{ tc.ubicacion || 'Sin ubicación' }}
@@ -740,7 +740,9 @@ import { environment } from '../../../environments/environment';
                   </div>
                   <!-- Botones compartir: solo si la tarea está activa -->
                   @if (
-                    tc.estatus === 'ABIERTA' || tc.estatus === 'TOMADA' || tc.estatus === 'EN_YARDA'
+                    tc.estadoLogistico === 'ABIERTA' ||
+                    tc.estadoLogistico === 'TOMADA' ||
+                    tc.estadoLogistico === 'EN_YARDA'
                   ) {
                     <div class="flex gap-2 mt-2 mb-1">
                       <button
@@ -1689,7 +1691,7 @@ export class TramiteDetailComponent implements OnInit {
   loadTramite(id: string) {
     this.tramiteService.getById(id).subscribe(t => {
       this.tramite.set(t);
-      this.tramiteService.getEstadosPermitidos(t.estatus).subscribe(estados => {
+      this.tramiteService.getEstadosPermitidos(t.estadoLogistico).subscribe(estados => {
         this.estadosPermitidos = estados;
       });
     });
@@ -2023,7 +2025,7 @@ export class TramiteDetailComponent implements OnInit {
   }
 
   hasCampo(t: TramiteDetailDto): boolean {
-    return t.tareasCampo.some(x => x.estatus !== 'CANCELADA');
+    return t.tareasCampo.some(x => x.estadoLogistico !== 'CANCELADA');
   }
 
   copiarEnlaceCampo(tareaId: string): void {

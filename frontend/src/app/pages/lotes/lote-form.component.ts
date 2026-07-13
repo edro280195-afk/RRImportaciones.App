@@ -589,7 +589,9 @@ export class LoteFormComponent implements OnInit, OnDestroy {
           valorAduanaUsdOverride: null,
           precioEstimadoIdOverride: null,
           categoriaAmparoOverride: null,
-          tcMargen: 0,
+          // Mismo margen de protección cambiaria que usa el wizard de cotización individual
+          // (TcMargen=0 dejaba estos vehículos sin colchón ante variación del tipo de cambio).
+          tcMargen: 0.3,
           tipoTramite: this.tipoTramite,
           honorariosOverride: null
         };
@@ -681,7 +683,8 @@ export class LoteFormComponent implements OnInit, OnDestroy {
       valorAduanaUsdOverride: null,
       precioEstimadoIdOverride: null,
       categoriaAmparoOverride: null,
-      tcMargen: 0,
+      // Mismo margen de protección cambiaria que usa el wizard de cotización individual.
+      tcMargen: 0.3,
       tipoTramite: this.tipoTramite,
       honorariosOverride: null
     };

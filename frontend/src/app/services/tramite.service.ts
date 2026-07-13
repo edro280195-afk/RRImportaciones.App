@@ -14,7 +14,7 @@ export interface TramiteListDto {
   vehiculoMarcaModelo: string | null;
   aduanaNombre: string | null;
   tramitadorNombre: string | null;
-  estatus: string;
+  estadoLogistico: string;
   tipoTramite: string;
   cobroTotal: number;
   cargoExpress: number;
@@ -45,7 +45,7 @@ export interface TramitePedimentoDto {
   dta: number | null;
   iva: number | null;
   totalContribuciones: number | null;
-  estatus: string | null;
+  estadoLogistico: string | null;
   motivoRectificacion: string | null;
   responsableError: string | null;
   cobroAdicional: number;
@@ -108,7 +108,7 @@ export interface TramiteDocumentoDto {
 export interface TramiteTareaCampoDto {
   id: string;
   tipo: string;
-  estatus: string;
+  estadoLogistico: string;
   personalCampoNombre: string | null;
   ubicacion: string | null;
   vinConfirmado: string | null;
@@ -142,7 +142,7 @@ export interface TramiteDetailDto {
   cotizacionOrigenFolio: string | null;
   cotizacionFecha: string | null;
   tipoTramite: string;
-  estatus: string;
+  estadoLogistico: string;
   cobroTotal: number;
   honorarios: number;
   cargoExpress: number;

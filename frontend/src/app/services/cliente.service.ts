@@ -26,7 +26,7 @@ export interface VehiculoSimpleDto {
 export interface TramiteSimpleDto {
   id: string;
   numeroConsecutivo: string;
-  estatus: string;
+  estadoLogistico: string;
   fechaCreacion: string;
 }
 

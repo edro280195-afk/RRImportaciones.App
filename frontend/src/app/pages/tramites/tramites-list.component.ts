@@ -269,9 +269,9 @@ interface EstadoTab {
                     <td class="px-5 py-3.5 text-center">
                       <span
                         class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-semibold"
-                        [style]="estadoPill(t.estatus)"
+                        [style]="estadoPill(t.estadoLogistico)"
                       >
-                        {{ t.estatus }}
+                        {{ t.estadoLogistico }}
                       </span>
                     </td>
                     <td class="px-5 py-3.5 text-center text-[#6B717F] font-mono-data">

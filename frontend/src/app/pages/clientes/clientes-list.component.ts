@@ -246,7 +246,7 @@ export class ClientesListComponent {
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
   formatMoney(amount: number): string {
-    return `$${amount.toFixed(2)}`;
+    return `$${amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   pages = () => {

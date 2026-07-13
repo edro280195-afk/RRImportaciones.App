@@ -372,8 +372,8 @@ import { environment } from '../../../environments/environment';
                   </div>
                   <span
                     class="px-2.5 py-1 rounded-lg text-[11px] font-semibold"
-                    [style]="statusStyle(t.estatus)"
-                    >{{ t.estatus }}</span
+                    [style]="statusStyle(t.estadoLogistico)"
+                    >{{ t.estadoLogistico }}</span
                   >
                 </div>
               }

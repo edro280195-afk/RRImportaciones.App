@@ -40,7 +40,7 @@ export interface EstadoCuentaClienteDto {
     id: string;
     numeroConsecutivo: string;
     vehiculo: string;
-    estatus: string;
+    estadoLogistico: string;
     cobroTotal: number;
     totalPagado: number;
     saldo: number;

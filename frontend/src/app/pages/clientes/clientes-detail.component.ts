@@ -277,9 +277,9 @@ import { NotificationService } from '../../services/notification.service';
                         <td class="px-4 py-2.5">
                           <span
                             class="px-2 py-0.5 rounded-md text-[11px] font-semibold"
-                            [style]="statusStyle(t.estatus)"
+                            [style]="statusStyle(t.estadoLogistico)"
                           >
-                            {{ t.estatus }}
+                            {{ t.estadoLogistico }}
                           </span>
                         </td>
                         <td class="px-4 py-2.5 text-right font-mono-data text-[#374151]">
@@ -391,8 +391,8 @@ import { NotificationService } from '../../services/notification.service';
                     </div>
                     <span
                       class="px-2.5 py-1 rounded-lg text-[11px] font-semibold"
-                      [style]="statusStyle(t.estatus)"
-                      >{{ t.estatus }}</span
+                      [style]="statusStyle(t.estadoLogistico)"
+                      >{{ t.estadoLogistico }}</span
                     >
                   </div>
                 }
@@ -472,12 +472,24 @@ export class ClientesDetailComponent {
 
   infoItems: { label: string; value: string }[] = [];
 
+  // Angular reutiliza esta misma instancia al navegar entre /clientes/:id con
+  // distinto id (misma ruta); leer el parámetro solo en el constructor dejaba
+  // el detalle mostrando al cliente anterior. Se sigue el patrón ya usado en
+  // TramiteDetailComponent: suscribirse a paramMap para recargar en cada cambio.
+  private currentId = '';
+
   constructor() {
-    this.loadCliente();
+    this.route.paramMap.subscribe(params => {
+      const id = params.get('id');
+      if (id) {
+        this.currentId = id;
+        this.loadCliente();
+      }
+    });
   }
 
   loadCliente(): void {
-    const id = this.route.snapshot.paramMap.get('id');
+    const id = this.currentId;
     if (!id) {
       this.error.set('ID no válido');
       this.loading.set(false);
@@ -513,7 +525,7 @@ export class ClientesDetailComponent {
   }
 
   loadEstadoCuenta(): void {
-    const id = this.route.snapshot.paramMap.get('id');
+    const id = this.currentId;
     if (!id || this.loadingCuenta()) return;
     this.loadingCuenta.set(true);
     this.reporteService.estadoCuentaCliente(id).subscribe({

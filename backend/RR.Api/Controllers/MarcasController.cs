@@ -17,9 +17,9 @@ public class MarcasController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] bool soloActivas = true)
     {
-        var marcas = await _marcaService.GetAllAsync();
+        var marcas = await _marcaService.GetAllAsync(soloActivas);
         return Ok(marcas);
     }
 
@@ -37,5 +37,37 @@ public class MarcasController : ControllerBase
     {
         var results = await _marcaService.SearchAsync(q);
         return Ok(results);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] SaveMarcaRequest request)
+    {
+        try
+        {
+            var result = await _marcaService.CreateAsync(request);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] SaveMarcaRequest request)
+    {
+        try
+        {
+            var result = await _marcaService.UpdateAsync(id, request);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

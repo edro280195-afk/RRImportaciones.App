@@ -800,8 +800,19 @@ export class CotizacionDetailComponent {
     notasAdicionales: '',
   };
 
+  // Angular reutiliza esta misma instancia al navegar entre /cotizaciones/:id con
+  // distinto id (misma ruta); leer el parámetro solo en el constructor dejaba el
+  // detalle mostrando la cotización anterior. Se sigue el patrón de TramiteDetailComponent.
+  private currentId = '';
+
   constructor() {
-    this.reload();
+    this.route.paramMap.subscribe(params => {
+      const id = params.get('id');
+      if (id) {
+        this.currentId = id;
+        this.reload();
+      }
+    });
     this.aduanaService.getAll().subscribe(items => this.aduanas.set(items));
     this.tramitadorService.getAll(true).subscribe(items => this.tramitadores.set(items));
     this.plantillaService.getAll().subscribe(items => this.plantillas.set(items));
@@ -1019,13 +1030,15 @@ export class CotizacionDetailComponent {
       BORRADOR: 'background:#F3F4F6;color:#4B5162;',
       ENVIADA: 'background:#DBEAFE;color:#1E40AF;',
       ACEPTADA: 'background:#DCFCE7;color:#166534;',
+      CONVERTIDA: 'background:#EDE9FE;color:#6D28D9;',
       RECHAZADA: 'background:#FEE2E2;color:#991B1B;',
+      EXPIRADA: 'background:#FEF3C7;color:#92400E;',
     };
     return map[estado] || map['BORRADOR'];
   }
 
   private reload(afterLoad?: (cotizacion: CotizacionOutput) => void): void {
-    const id = this.route.snapshot.paramMap.get('id');
+    const id = this.currentId;
     if (!id) return;
     this.service.getById(id).subscribe(c => {
       this.cotizacion.set(c);
