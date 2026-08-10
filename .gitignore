@@ -68,3 +68,11 @@ nul
 
 # .NET codex / Claude
 .claude/
+
+# Credenciales de cuentas de servicio de Google/Firebase. Traen la llave
+# privada del proyecto: NUNCA deben viajar en el repo. En produccion van como
+# variable de entorno (Firebase__ServiceAccountJsonBase64).
+*firebase-adminsdk*.json
+*-service-account*.json
+serviceAccountKey*.json
+firebase-render-env.local.txt

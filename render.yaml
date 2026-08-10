@@ -32,6 +32,14 @@ services:
         generateValue: 128
       - key: Storage__Provider
         value: local
+      # Notificaciones push nativas (Firebase Cloud Messaging).
+      # El JSON de la cuenta de servicio va en base64 y se pega a mano en el
+      # dashboard (sync: false): trae la llave privada del proyecto y no debe
+      # quedar escrito en el repo. Si falta, el push cae solo al canal VAPID.
+      - key: Firebase__ProjectId
+        value: rrimportaciones-213d1
+      - key: Firebase__ServiceAccountJsonBase64
+        sync: false
       - key: Smtp__Host
         value: localhost
       - key: Smtp__Port

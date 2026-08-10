@@ -1,0 +1,56 @@
+using FluentAssertions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using RR.Application.Interfaces;
+using RR.Infrastructure.Services.Push;
+
+namespace RR.Tests.Services;
+
+public class FirebaseMessagingSenderTests
+{
+    /// <summary>
+    /// Sin credenciales de Firebase el emisor tiene que quedarse callado, no
+    /// tronar: es lo que permite que las notificaciones caigan al canal Web
+    /// Push VAPID cuando el despliegue todavía no tiene la variable puesta.
+    /// </summary>
+    [Fact]
+    public void SinCredenciales_QuedaDeshabilitado()
+    {
+        var sender = new FirebaseMessagingSender(
+            new ConfigurationBuilder().Build(),
+            NullLogger<FirebaseMessagingSender>.Instance);
+
+        sender.Enabled.Should().BeFalse();
+    }
+
+    /// <summary>Deshabilitado, enviar no hace nada ni devuelve tokens muertos.</summary>
+    [Fact]
+    public async Task SinCredenciales_EnviarNoHaceNada()
+    {
+        var sender = new FirebaseMessagingSender(
+            new ConfigurationBuilder().Build(),
+            NullLogger<FirebaseMessagingSender>.Instance);
+
+        var invalidos = await sender.SendAsync(
+            ["token-cualquiera"],
+            new PushPayload { Title = "Prueba", Body = "Prueba" });
+
+        invalidos.Should().BeEmpty();
+    }
+
+    /// <summary>Un JSON corrupto tampoco debe tumbar el arranque de la API.</summary>
+    [Fact]
+    public void CredencialesInvalidas_NoTruena()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Firebase:ServiceAccountJson"] = "{ esto no es un service account }",
+            })
+            .Build();
+
+        var sender = new FirebaseMessagingSender(config, NullLogger<FirebaseMessagingSender>.Instance);
+
+        sender.Enabled.Should().BeFalse();
+    }
+}
