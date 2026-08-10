@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../shared/theme/app_tokens.dart';
-import '../domain/auth_models.dart';
 
 class LoginBrandHeader extends StatelessWidget {
   const LoginBrandHeader({super.key, this.trailing});
@@ -82,146 +81,6 @@ class LoginAvatar extends StatelessWidget {
           fontWeight: FontWeight.w900,
         ),
       ),
-    );
-  }
-}
-
-class PinDots extends StatelessWidget {
-  const PinDots({super.key, required this.length});
-
-  final int length;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(6, (index) {
-        final filled = length > index;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(horizontal: 8),
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            color: filled ? AppColors.red : Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: filled ? AppColors.red : AppColors.border,
-              width: filled ? 1.0 : 1.8,
-            ),
-            boxShadow: filled
-                ? const [
-                    BoxShadow(
-                      color: Color(0x33C61D26),
-                      blurRadius: 6,
-                      offset: Offset(0, 2),
-                    )
-                  ]
-                : null,
-          ),
-        );
-      }),
-    );
-  }
-}
-
-class PinKeypad extends StatelessWidget {
-  const PinKeypad({
-    super.key,
-    required this.disabled,
-    required this.onDigit,
-    required this.onBackspace,
-    this.biometricIcon,
-    this.onBiometricTap,
-  });
-
-  final bool disabled;
-  final ValueChanged<String> onDigit;
-  final VoidCallback onBackspace;
-  final IconData? biometricIcon;
-  final VoidCallback? onBiometricTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 24,
-        childAspectRatio: 1.15,
-      ),
-      itemCount: 12,
-      itemBuilder: (context, index) {
-        if (index == 9) {
-          // Posición inferior izquierda: Biometría o vacío
-          if (biometricIcon != null && onBiometricTap != null) {
-            return Center(
-              child: SizedBox(
-                width: 68,
-                height: 68,
-                child: IconButton(
-                  onPressed: disabled ? null : onBiometricTap,
-                  icon: Icon(biometricIcon, color: AppColors.red, size: 28),
-                ),
-              ),
-            );
-          }
-          return const SizedBox.shrink();
-        }
-        
-        if (index == 11) {
-          // Posición inferior derecha: Retroceso
-          return Center(
-            child: SizedBox(
-              width: 68,
-              height: 68,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(34),
-                onTap: disabled ? null : onBackspace,
-                child: const Center(
-                  child: Icon(
-                    Icons.backspace_outlined,
-                    color: AppColors.ink2,
-                    size: 24,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-
-        final digit = index == 10 ? '0' : (index + 1).toString();
-        return Center(
-          child: SizedBox(
-            width: 68,
-            height: 68,
-            child: Material(
-              color: Colors.white,
-              shape: CircleBorder(
-                side: BorderSide(color: AppColors.border.withValues(alpha: 0.8)),
-              ),
-              elevation: 1,
-              shadowColor: Colors.black.withValues(alpha: 0.05),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: disabled ? null : () => onDigit(digit),
-                child: Center(
-                  child: Text(
-                    digit,
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -309,141 +168,6 @@ class LoginErrorState extends StatelessWidget {
   }
 }
 
-class UserTile extends StatelessWidget {
-  const UserTile({
-    super.key,
-    required this.user,
-    required this.onTap,
-    required this.onRemove,
-  });
-
-  final CampoUser user;
-  final VoidCallback onTap;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 10, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  LoginAvatar(initial: user.nombre, radius: 20),
-                  const Spacer(),
-                  // Botón discreto para eliminar perfil local
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 16),
-                    onPressed: onRemove,
-                    color: AppColors.ink3,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    style: IconButton.styleFrom(
-                      hoverColor: AppColors.background,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                user.nombre,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.ink,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15,
-                ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                '@${user.username}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.ink2,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class UserListSkeleton extends StatelessWidget {
-  const UserListSkeleton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 2,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 1.3,
-      ),
-      itemBuilder: (context, index) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.border),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF2F4F7),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                width: 80,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F4F7),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                width: 50,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F4F7),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
 class PasswordPanel extends StatelessWidget {
   const PasswordPanel({
     super.key,
@@ -477,7 +201,7 @@ class PasswordPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Acceso con contraseña',
+            'Inicia sesión',
             style: TextStyle(
               color: AppColors.ink,
               fontSize: 16,
@@ -486,7 +210,7 @@ class PasswordPanel extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           const Text(
-            'Úsalo en el primer acceso o para cambiar de cuenta.',
+            'Solo se pide una vez en este dispositivo. Después entrarás con biometría.',
             style: TextStyle(color: AppColors.ink2, fontSize: 12),
           ),
           const SizedBox(height: 16),

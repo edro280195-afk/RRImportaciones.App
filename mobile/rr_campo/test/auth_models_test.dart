@@ -3,12 +3,11 @@ import 'package:rr_campo/src/features/auth/domain/auth_models.dart';
 
 void main() {
   group('LoginResponse', () {
-    test('conserva la diferencia entre PIN requerido y PIN configurado', () {
+    test('parsea token, expiración y usuario desde la respuesta del login', () {
       final response = LoginResponse.fromJson({
         'token': 'access-token',
         'refreshToken': 'refresh-token',
         'expiresAt': '2026-07-03T18:00:00Z',
-        'needsSetPin': false,
         'user': {
           'id': 'user-1',
           'username': 'operador',
@@ -17,30 +16,17 @@ void main() {
           'role': 'YARDERO',
           'tenantId': 'tenant-1',
           'permisos': ['CAMPO_USAR'],
-          'hasPin': true,
         },
       });
 
-      expect(response.needsSetPin, isFalse);
-      expect(response.user.hasPin, isTrue);
-    });
-
-    test('trata sesiones antiguas sin hasPin como no configuradas', () {
-      final user = UserInfo.fromJson({
-        'id': 'user-1',
-        'username': 'admin',
-        'nombre': 'Admin',
-        'apellidos': null,
-        'role': 'ADMIN',
-        'tenantId': 'tenant-1',
-        'permisos': <String>[],
-      });
-
-      expect(user.hasPin, isFalse);
+      expect(response.token, 'access-token');
+      expect(response.refreshToken, 'refresh-token');
+      expect(response.user.username, 'operador');
+      expect(response.user.permisos, contains('CAMPO_USAR'));
     });
   });
 
-  test('UserInfo conserva hasPin al guardarse en almacenamiento seguro', () {
+  test('UserInfo conserva sus datos al guardarse en almacenamiento seguro', () {
     const original = UserInfo(
       id: 'user-1',
       username: 'operador',
@@ -49,13 +35,12 @@ void main() {
       role: 'YARDERO',
       tenantId: 'tenant-1',
       permisos: ['CAMPO_USAR'],
-      hasPin: true,
     );
 
     final restored = UserInfo.decode(original.encode());
 
     expect(restored.username, original.username);
-    expect(restored.hasPin, isTrue);
+    expect(restored.role, original.role);
     expect(restored.permisos, contains('CAMPO_USAR'));
   });
 
@@ -68,7 +53,6 @@ void main() {
       role: 'YARDERO',
       tenantId: 'tenant-1',
       permisos: ['CAMPO_USAR'],
-      hasPin: true,
     );
     const manager = UserInfo(
       id: 'manager',
@@ -78,10 +62,34 @@ void main() {
       role: 'GERENTE',
       tenantId: 'tenant-1',
       permisos: ['CAMPO_USAR'],
-      hasPin: false,
     );
 
     expect(fieldUser.usesCampoShell, isTrue);
     expect(manager.usesCampoShell, isFalse);
+  });
+
+  test('ADMIN y DUEÑO tienen todos los permisos aunque no estén listados', () {
+    const admin = UserInfo(
+      id: 'admin',
+      username: 'admin',
+      nombre: 'Admin',
+      apellidos: null,
+      role: 'ADMIN',
+      tenantId: 'tenant-1',
+      permisos: [],
+    );
+    const operador = UserInfo(
+      id: 'op',
+      username: 'operador',
+      nombre: 'Operador',
+      apellidos: null,
+      role: 'YARDERO',
+      tenantId: 'tenant-1',
+      permisos: ['CAMPO_USAR'],
+    );
+
+    expect(admin.can('CUALQUIER_COSA'), isTrue);
+    expect(operador.can('CAMPO_USAR'), isTrue);
+    expect(operador.can('OTRO_PERMISO'), isFalse);
   });
 }

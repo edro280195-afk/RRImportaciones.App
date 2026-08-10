@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -34,7 +35,7 @@ class _TramiteDetailPageState extends ConsumerState<TramiteDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -106,12 +107,12 @@ class _TramiteDetailPageState extends ConsumerState<TramiteDetailPage>
     try {
       estados = await ref
           .read(adminApiProvider)
-          .getTransicionesEstado(tramite.estatus);
+          .getTransicionesEstado(tramite.estadoLogistico);
     } catch (_) {
       // Respaldo: si el endpoint de transiciones no responde, ofrecemos todos
       // los estados válidos (menos el actual). El backend valida al confirmar.
       estados = tramiteEstadosTodos
-          .where((e) => e != tramite.estatus.toUpperCase())
+          .where((e) => e != tramite.estadoLogistico.toUpperCase())
           .toList();
     }
     if (!mounted) return;
@@ -146,9 +147,9 @@ class _TramiteDetailPageState extends ConsumerState<TramiteDetailPage>
                   ),
                   Expanded(
                     child: Text(
-                      tramiteEstatusLabel(tramite.estatus),
+                      tramiteEstatusLabel(tramite.estadoLogistico),
                       style: TextStyle(
-                        color: tramiteEstatusColor(tramite.estatus),
+                        color: tramiteEstatusColor(tramite.estadoLogistico),
                         fontWeight: FontWeight.w900,
                         fontSize: 13,
                       ),
@@ -391,6 +392,7 @@ class _TramiteDetailPageState extends ConsumerState<TramiteDetailPage>
                 Tab(text: 'Gastos'),
                 Tab(text: 'Timeline'),
                 Tab(text: 'Documentos'),
+                Tab(text: 'Entregas'),
               ],
             ),
           ),
@@ -402,6 +404,7 @@ class _TramiteDetailPageState extends ConsumerState<TramiteDetailPage>
               _buildGastosTab(tramite),
               _buildTimelineTab(tramite),
               _buildDocsTab(tramite),
+              _buildEntregasTab(tramite),
             ],
           ),
           bottomNavigationBar: Container(
@@ -498,14 +501,14 @@ class _TramiteDetailPageState extends ConsumerState<TramiteDetailPage>
                     ),
                     decoration: BoxDecoration(
                       color: tramiteEstatusColor(
-                        tramite.estatus,
+                        tramite.estadoLogistico,
                       ).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      tramiteEstatusLabel(tramite.estatus),
+                      tramiteEstatusLabel(tramite.estadoLogistico),
                       style: TextStyle(
-                        color: tramiteEstatusColor(tramite.estatus),
+                        color: tramiteEstatusColor(tramite.estadoLogistico),
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1183,6 +1186,118 @@ class _TramiteDetailPageState extends ConsumerState<TramiteDetailPage>
     );
   }
 
+  Widget _buildEntregasTab(TramiteDetailDto tramite) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: () => _showRegistrarEntregaDialog(tramite),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.red,
+              minimumSize: const Size.fromHeight(48),
+            ),
+            icon: const Icon(Icons.add),
+            label: const Text('Registrar entrega'),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (tramite.entregas.isEmpty)
+          _emptyState(
+            'Sin entregas registradas',
+            'Registra la evidencia física al entregar la unidad.',
+          )
+        else
+          ...tramite.entregas.map(_buildEntregaCard),
+      ],
+    );
+  }
+
+  Widget _buildEntregaCard(TramiteEntregaDto entrega) {
+    final fecha = DateTime.tryParse(entrega.fechaEntrega);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.verified_outlined,
+                  color: AppColors.success,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    fecha == null
+                        ? '—'
+                        : DateFormat('dd/MM/yyyy HH:mm').format(fecha),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Ubicación: ${entrega.ubicacionEntrega ?? 'Yarda'}',
+              style: const TextStyle(color: AppColors.ink2, fontSize: 12),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Entregado a: ${entrega.nombreRecibe ?? '—'}',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+            if (entrega.documentosEntregados.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: entrega.documentosEntregados
+                    .map((doc) => _miniBadge(doc, AppColors.ink2))
+                    .toList(),
+              ),
+            ],
+            if ((entrega.descripcion ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                entrega.descripcion!,
+                style: const TextStyle(
+                  color: AppColors.ink3,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+            if ((entrega.fotoEvidenciaUrl ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () =>
+                    launchUrl(Uri.parse(entrega.fotoEvidenciaUrl!)),
+                icon: const Icon(Icons.image_outlined, size: 16),
+                label: const Text(
+                  'Ver evidencia',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Diálogos de registro ───────────────────────────────────────────────
 
   Future<void> _showRegistrarPagoDialog(TramiteDetailDto tramite) async {
@@ -1609,6 +1724,257 @@ class _TramiteDetailPageState extends ConsumerState<TramiteDetailPage>
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Gasto registrado correctamente'),
+                              ),
+                            );
+                            _refresh();
+                          }
+                        } catch (e) {
+                          setLocalState(() => saving = false);
+                          if (dialogContext.mounted) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(content: Text('Error: $e')),
+                            );
+                          }
+                        }
+                      },
+                child: const Text('Registrar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showRegistrarEntregaDialog(TramiteDetailDto tramite) async {
+    final ubicacionController = TextEditingController();
+    final nombreRecibeController = TextEditingController();
+    final descripcionController = TextEditingController();
+    bool docVehiculo = true;
+    bool docPedimento = false;
+    bool docFactura = false;
+    bool docTitulo = false;
+    String? fotoUrl;
+    bool uploadingFoto = false;
+    bool saving = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setLocalState) {
+          Future<void> pickFoto(ImageSource source) async {
+            final picked = await ImagePicker().pickImage(
+              source: source,
+              imageQuality: 85,
+            );
+            if (picked == null) return;
+            setLocalState(() => uploadingFoto = true);
+            try {
+              final url = await ref
+                  .read(adminApiProvider)
+                  .uploadEvidenciaEntrega(picked);
+              setLocalState(() {
+                fotoUrl = url;
+                uploadingFoto = false;
+              });
+            } catch (e) {
+              setLocalState(() => uploadingFoto = false);
+              if (dialogContext.mounted) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  SnackBar(content: Text('Error al subir evidencia: $e')),
+                );
+              }
+            }
+          }
+
+          return AlertDialog(
+            title: const Text('Registrar entrega'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: ubicacionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Ubicación de entrega',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nombreRecibeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Entregado a (nombre completo)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'DOCUMENTACIÓN ENTREGADA',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.ink2,
+                      ),
+                    ),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: docVehiculo,
+                    onChanged: (v) =>
+                        setLocalState(() => docVehiculo = v ?? false),
+                    title: const Text('Vehículo / Llaves'),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: docPedimento,
+                    onChanged: (v) =>
+                        setLocalState(() => docPedimento = v ?? false),
+                    title: const Text('Pedimento'),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: docFactura,
+                    onChanged: (v) =>
+                        setLocalState(() => docFactura = v ?? false),
+                    title: const Text('Factura Comercial'),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: docTitulo,
+                    onChanged: (v) =>
+                        setLocalState(() => docTitulo = v ?? false),
+                    title: const Text('Título'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'EVIDENCIA (FOTO O FIRMA ESCANEADA)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.ink2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: uploadingFoto
+                              ? null
+                              : () => pickFoto(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt_outlined, size: 16),
+                          label: const Text('Cámara'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: uploadingFoto
+                              ? null
+                              : () => pickFoto(ImageSource.gallery),
+                          icon: const Icon(
+                            Icons.photo_library_outlined,
+                            size: 16,
+                          ),
+                          label: const Text('Galería'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (uploadingFoto) ...[
+                    const SizedBox(height: 10),
+                    const Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ] else if (fotoUrl != null) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      '✓ Archivo cargado correctamente',
+                      style: TextStyle(
+                        color: AppColors.success,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descripcionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas adicionales (opcional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final ubicacion = ubicacionController.text.trim();
+                        final nombreRecibe = nombreRecibeController.text
+                            .trim();
+                        if (ubicacion.isEmpty || nombreRecibe.isEmpty) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Ingresa la ubicación y el nombre de quien recibe.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        setLocalState(() => saving = true);
+                        final documentos = [
+                          if (docVehiculo) 'Vehículo/Llaves',
+                          if (docPedimento) 'Pedimento',
+                          if (docFactura) 'Factura Comercial',
+                          if (docTitulo) 'Título',
+                        ];
+                        try {
+                          await ref
+                              .read(adminApiProvider)
+                              .agregarEntrega(
+                                tramite.id,
+                                ubicacionEntrega: ubicacion,
+                                nombreRecibe: nombreRecibe,
+                                documentosEntregados: documentos,
+                                descripcion:
+                                    descripcionController.text.trim().isEmpty
+                                    ? null
+                                    : descripcionController.text.trim(),
+                                fotoEvidenciaUrl: fotoUrl,
+                              );
+                          if (dialogContext.mounted) {
+                            Navigator.of(dialogContext).pop();
+                          }
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Entrega registrada correctamente',
+                                ),
                               ),
                             );
                             _refresh();

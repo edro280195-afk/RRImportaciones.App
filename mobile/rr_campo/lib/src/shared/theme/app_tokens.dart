@@ -214,6 +214,42 @@ const List<String> tramiteEstadosTodos = [
   'CANCELADO',
 ];
 
+/// Etiqueta amigable del tipo de movimiento de un pago.
+String pagoTipoMovimientoLabel(String tipo) {
+  switch (tipo.toUpperCase()) {
+    case 'ANTICIPO_CLIENTE':
+      return 'Anticipo';
+    case 'PAGO_CLIENTE':
+      return 'Pago cliente';
+    case 'PAGO_RR':
+      return 'Pago R&R';
+    case 'PAGO_PEDIMENTO':
+      return 'Pedimento';
+    case 'AJUSTE':
+      return 'Ajuste';
+    case 'REEMBOLSO':
+      return 'Reembolso';
+    default:
+      return tipo;
+  }
+}
+
+/// Etiqueta amigable del método de pago.
+String pagoMetodoLabel(String metodo) {
+  switch (metodo.toUpperCase()) {
+    case 'TRANSFERENCIA':
+      return 'Transferencia';
+    case 'EFECTIVO':
+      return 'Efectivo';
+    case 'DEPOSITO':
+      return 'Depósito';
+    case 'CHEQUE':
+      return 'Cheque';
+    default:
+      return metodo;
+  }
+}
+
 /// Nombre amigable del rol para el subtítulo `rol en sesión`.
 String roleLabel(String? role) {
   if (role == null || role.isEmpty) return 'Campo';

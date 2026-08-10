@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Artefactos de Gradle de los paquetes que tenemos copiados en packages/
+packages/**/android/.gradle/
+packages/**/android/build/

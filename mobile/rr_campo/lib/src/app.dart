@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'features/admin/presentation/admin_shell_page.dart';
-import 'features/auth/presentation/pin_page.dart';
+import 'features/auth/presentation/login_page.dart';
 import 'features/campo/presentation/campo_capture_page.dart';
 import 'features/campo/presentation/campo_shell_page.dart';
 import 'shared/session/session_controller.dart';

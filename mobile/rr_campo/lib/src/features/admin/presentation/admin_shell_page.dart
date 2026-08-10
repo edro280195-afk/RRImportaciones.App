@@ -6,6 +6,9 @@ import '../../../shared/session/session_controller.dart';
 import '../../../shared/theme/app_tokens.dart';
 import '../../../shared/biometric/biometric_service.dart';
 import 'admin_dashboard_page.dart';
+import 'cliente_list_page.dart';
+import 'inventario_page.dart';
+import 'pagos_list_page.dart';
 import 'tramite_list_page.dart';
 import 'cotizacion_list_page.dart';
 
@@ -135,26 +138,44 @@ class _AdminMorePage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
-          // Coming soon modules
           _MoreTile(
             icon: Icons.people_outline,
             label: 'Clientes',
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ClienteListPage()),
+              );
+            },
           ),
           _MoreTile(
             icon: Icons.payments_outlined,
             label: 'Pagos',
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PagosListPage()),
+              );
+            },
           ),
           _MoreTile(
             icon: Icons.inventory_2_outlined,
             label: 'Inventario',
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const InventarioPage()),
+              );
+            },
           ),
           _MoreTile(
             icon: Icons.local_shipping_outlined,
             label: 'Entregas',
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const TramiteListPage(initialStatus: 'ROJO_DESADUANADO'),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 16),
           const Divider(),

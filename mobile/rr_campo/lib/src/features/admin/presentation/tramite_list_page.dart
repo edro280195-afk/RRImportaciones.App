@@ -9,7 +9,11 @@ import '../domain/admin_models.dart';
 import 'tramite_detail_page.dart';
 
 class TramiteListPage extends ConsumerStatefulWidget {
-  const TramiteListPage({super.key});
+  const TramiteListPage({super.key, this.initialStatus});
+
+  /// Preselecciona un chip de estatus al entrar (ej. desde "Más > Entregas",
+  /// que filtra a ROJO_DESADUANADO: los trámites listos para entregar).
+  final String? initialStatus;
 
   @override
   ConsumerState<TramiteListPage> createState() => _TramiteListPageState();
@@ -28,6 +32,7 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
   @override
   void initState() {
     super.initState();
+    _selectedStatus = widget.initialStatus;
     _pagingController.addPageRequestListener((pageKey) {
       _fetchPage(pageKey);
     });
@@ -173,7 +178,7 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
               padding: const EdgeInsets.all(16),
               builderDelegate: PagedChildBuilderDelegate<TramiteListDto>(
                 itemBuilder: (context, item, index) {
-                  final statusColor = tramiteEstatusColor(item.estatus);
+                  final statusColor = tramiteEstatusColor(item.estadoLogistico);
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     elevation: 0,
@@ -219,7 +224,7 @@ class _TramiteListPageState extends ConsumerState<TramiteListPage> {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    tramiteEstatusLabel(item.estatus),
+                                    tramiteEstatusLabel(item.estadoLogistico),
                                     style: TextStyle(
                                       color: statusColor,
                                       fontSize: 10,

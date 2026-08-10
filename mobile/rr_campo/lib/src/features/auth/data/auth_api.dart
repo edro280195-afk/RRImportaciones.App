@@ -12,21 +12,8 @@ class AuthApi {
 
   final ApiClient _api;
 
-  /// Login con PIN (campo / choferes).
-  Future<LoginResponse> pinLogin({
-    required String username,
-    required String pin,
-  }) async {
-    final result =
-        await _api.postJson('/api/auth/pin-login', {
-              'username': username,
-              'pin': pin,
-            })
-            as Map<String, dynamic>;
-    return LoginResponse.fromJson(result);
-  }
-
-  /// Login con usuario y contraseña (admin / supervisores / dueño).
+  /// Único punto de entrada remoto. Se usa solo la primera vez en cada
+  /// dispositivo; el resto de aperturas se resuelven con biometría local.
   Future<LoginResponse> login({
     required String username,
     required String password,
@@ -38,15 +25,5 @@ class AuthApi {
             })
             as Map<String, dynamic>;
     return LoginResponse.fromJson(result);
-  }
-
-  /// Configura el PIN del usuario que ya inició sesión con contraseña.
-  Future<void> setPin(String newPin) async {
-    await _api.postJson('/api/auth/set-pin', {'newPin': newPin});
-  }
-
-  /// Solicitar reset de PIN al administrador.
-  Future<void> requestPinReset(String username) async {
-    await _api.postJson('/api/auth/forgot-pin', {'username': username});
   }
 }

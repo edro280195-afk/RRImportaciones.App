@@ -138,8 +138,7 @@ class ApiClient {
       // Intercepta 401 si no es llamada de login ni de refresh
       if (e.statusCode == 401 &&
           !path.contains('/api/auth/refresh') &&
-          !path.contains('/api/auth/login') &&
-          !path.contains('/api/auth/pin-login')) {
+          !path.contains('/api/auth/login')) {
         final success = await _tryTokenRefresh();
         if (success) {
           // Reintentamos con la nueva cabecera (authHeaders tomará el nuevo token)
@@ -273,6 +272,32 @@ class ApiClient {
       }
       rethrow;
     }
+  }
+
+  /// Descarga bytes crudos (ej. PDF de recibo) con el mismo token y el mismo
+  /// reintento por 401 que las peticiones JSON. `getJson` no sirve aquí porque
+  /// decodifica el cuerpo como JSON.
+  Future<List<int>> getBytes(String path) async {
+    Future<http.Response> execute() async {
+      final headers = await authHeaders(json: false);
+      return httpClient.get(uri(path), headers: headers);
+    }
+
+    var response = await execute();
+    if (response.statusCode == 401) {
+      final refreshed = await _tryTokenRefresh();
+      if (refreshed) {
+        response = await execute();
+      }
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response.bodyBytes;
+    }
+    throw ApiException(
+      'No se pudo descargar el archivo',
+      statusCode: response.statusCode,
+    );
   }
 
   dynamic _decode(http.Response response) {

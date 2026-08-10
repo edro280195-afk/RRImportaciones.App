@@ -10,9 +10,17 @@ import '../domain/admin_models.dart';
 import 'cotizacion_detail_page.dart';
 
 class CotizacionNuevaPage extends ConsumerStatefulWidget {
-  const CotizacionNuevaPage({super.key, this.startWithScan = false});
+  const CotizacionNuevaPage({
+    super.key,
+    this.startWithScan = false,
+    this.initialVin,
+  });
 
   final bool startWithScan;
+
+  /// VIN conocido de antemano (ej. desde Inventario): se prellena y se
+  /// decodifica automáticamente al abrir, sin pasar por escaneo manual.
+  final String? initialVin;
 
   @override
   ConsumerState<CotizacionNuevaPage> createState() =>
@@ -129,6 +137,9 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
 
     if (widget.startWithScan) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scanVin());
+    } else if ((widget.initialVin ?? '').isNotEmpty) {
+      _vinController.text = widget.initialVin!;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _decodeVin());
     }
   }
 
@@ -189,8 +200,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
         _errorMessage = null;
       });
       if (decoded != null) {
-        _goToPage(1);
-        _fetchCandidates();
+        _advanceAfterDecode();
       } else {
         _decodeVin();
       }
@@ -216,24 +226,45 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
       setState(() {
         _decodedVehicle = decoded;
       });
-      _goToPage(1);
-      _fetchCandidates();
+      _advanceAfterDecode();
     } catch (e) {
       setState(() {
         _errorMessage =
             'Error al decodificar VIN: $e. Ingresa los datos manualmente.';
         _decodedVehicle = VehicleDecodedDto(vin: vin);
       });
-      _goToPage(1);
-      _fetchCandidates();
+      _advanceAfterDecode();
     } finally {
       setState(() => _loading = false);
+    }
+  }
+
+  /// Los vehículos de amparo tienen precio fijo por categoría (tabulador) y no
+  /// usan tipo de cambio ni candidatos del Anexo 2, así que se calcula de
+  /// inmediato con la categoría por defecto y se aterriza en Revisar. Si el
+  /// agente necesita la categoría Lujo, puede volver al paso de Cálculo desde
+  /// ahí y recalcular.
+  void _advanceAfterDecode() {
+    if (_detectedFiscalRegime == 'AMPARO') {
+      _calculateTaxes();
+    } else {
+      _goToPage(1);
+      _fetchCandidates();
     }
   }
 
   Future<void> _fetchCandidates() async {
     final vehicle = _decodedVehicle;
     if (vehicle == null) return;
+
+    // Los vehículos 2019-2021 se cotizan con el tabulador de amparo (precio fijo
+    // por categoría en el paso 2), no con el catálogo Anexo 2. Sin este corte se
+    // mostraba "Sin coincidencias, ingresa el valor manualmente", un mensaje que
+    // confunde porque ese valor nunca se usa para el cálculo de amparo.
+    if (_detectedFiscalRegime == 'AMPARO') {
+      setState(() => _candidatesOutput = null);
+      return;
+    }
 
     setState(() {
       _loading = true;
@@ -694,7 +725,8 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
       1 => _decodedVehicle != null,
       2 =>
         _decodedVehicle != null &&
-            (_selectedCandidate != null ||
+            (_detectedFiscalRegime == 'AMPARO' ||
+                _selectedCandidate != null ||
                 _valorAduanaController.text.trim().isNotEmpty),
       3 => _calculatedOutput != null,
       _ => false,
@@ -705,7 +737,8 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     return switch (step) {
       0 => _decodedVehicle != null,
       1 =>
-        _selectedCandidate != null ||
+        _detectedFiscalRegime == 'AMPARO' ||
+            _selectedCandidate != null ||
             _valorAduanaController.text.trim().isNotEmpty,
       2 => _calculatedOutput != null,
       3 => _selectedCliente != null,
@@ -724,7 +757,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
   String _stepActionLabel() {
     return switch (_currentStep) {
       0 => 'Decodificar VIN',
-      1 => 'Usar este valor',
+      1 => _detectedFiscalRegime == 'AMPARO' ? 'Continuar' : 'Usar este valor',
       2 => 'Calcular total',
       3 => 'Guardar cotización',
       _ => 'Continuar',
@@ -764,7 +797,9 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
   bool _canRunCurrentAction() {
     return switch (_currentStep) {
       0 => _vinController.text.trim().length == 17,
-      1 => (double.tryParse(_valorAduanaController.text) ?? 0) > 0,
+      1 =>
+        _detectedFiscalRegime == 'AMPARO' ||
+            (double.tryParse(_valorAduanaController.text) ?? 0) > 0,
       2 => _decodedVehicle != null,
       3 => _selectedCliente != null,
       _ => false,
@@ -1089,7 +1124,36 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
           ),
         ),
         const SizedBox(height: 24),
-        if (_candidatesOutput != null &&
+        if (_detectedFiscalRegime == 'AMPARO') ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.redSoft,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, color: AppColors.red, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Este vehículo aplica para amparo (modelo 2019-2021). El precio '
+                    'sale de un tabulador fijo por categoría, no del catálogo Anexo 2. '
+                    'Elige la categoría en el siguiente paso.',
+                    style: TextStyle(
+                      color: AppColors.ink,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else if (_candidatesOutput != null &&
             _candidatesOutput!.candidatos.isNotEmpty) ...[
           const Text(
             'Coincidencias en Catálogo SAT',
@@ -1218,43 +1282,45 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
             style: TextStyle(color: AppColors.ink3, fontSize: 12),
           ),
         ],
-        const SizedBox(height: 24),
-        TextField(
-          controller: _valorAduanaController,
-          onChanged: (_) {
-            setState(() {
-              _selectedCandidate = null;
-              _calculatedOutput = null;
-              _errorMessage = null;
-            });
-          },
-          decoration: InputDecoration(
-            labelText: 'Valor en Aduana (USD)',
-            hintText: 'Ej. 8500.00',
-            prefixText: '\$ ',
-            suffixText: ' USD',
-            filled: true,
-            fillColor: AppColors.surface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.border),
+        if (_detectedFiscalRegime != 'AMPARO') ...[
+          const SizedBox(height: 24),
+          TextField(
+            controller: _valorAduanaController,
+            onChanged: (_) {
+              setState(() {
+                _selectedCandidate = null;
+                _calculatedOutput = null;
+                _errorMessage = null;
+              });
+            },
+            decoration: InputDecoration(
+              labelText: 'Valor en Aduana (USD)',
+              hintText: 'Ej. 8500.00',
+              prefixText: '\$ ',
+              suffixText: ' USD',
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                borderSide: const BorderSide(color: AppColors.red, width: 2),
+              ),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.border),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              fontFeatures: [FontFeature.tabularFigures()],
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(color: AppColors.red, width: 2),
-            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-            fontFeatures: [FontFeature.tabularFigures()],
-          ),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        ),
+        ],
       ],
     );
   }

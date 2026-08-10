@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../shared/api/api_client.dart';
 import '../domain/admin_models.dart';
@@ -124,6 +125,32 @@ class AdminApi {
     return response.map((item) => item.toString()).toList();
   }
 
+  /// Registra el acuse de entrega física del vehículo.
+  Future<dynamic> agregarEntrega(
+    String tramiteId, {
+    required String ubicacionEntrega,
+    required String nombreRecibe,
+    required List<String> documentosEntregados,
+    String? descripcion,
+    String? fotoEvidenciaUrl,
+  }) async {
+    return await _api.postJson('/api/tramites/$tramiteId/entregas', {
+      'ubicacionEntrega': ubicacionEntrega,
+      'nombreRecibe': nombreRecibe,
+      'documentosEntregados': documentosEntregados,
+      'descripcion': ?descripcion,
+      'fotoEvidenciaUrl': ?fotoEvidenciaUrl,
+    });
+  }
+
+  /// Sube la foto de evidencia (o firma escaneada) de una entrega.
+  Future<String> uploadEvidenciaEntrega(XFile file) async {
+    final response =
+        await _api.uploadFile('/api/tramites/upload-evidencia', file)
+            as Map<String, dynamic>;
+    return response['url']?.toString() ?? '';
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // PAGOS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -154,6 +181,60 @@ class AdminApi {
 
   Future<void> eliminarPago(String pagoId) async {
     await _api.deleteJson('/api/pagos/$pagoId');
+  }
+
+  /// Libro mayor global de pagos ("Más > Pagos"), cruzando todos los trámites.
+  Future<PagedResult<PagoListDto>> getPagos({
+    String? search,
+    String? fechaDesde,
+    String? fechaHasta,
+    bool? verificado,
+    String? metodo,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final verificadoParam = verificado?.toString();
+    final response =
+        await _api.getJson('/api/pagos', {
+              'search': ?search,
+              'fechaDesde': ?fechaDesde,
+              'fechaHasta': ?fechaHasta,
+              'verificado': ?verificadoParam,
+              'metodo': ?metodo,
+              'page': page.toString(),
+              'pageSize': pageSize.toString(),
+            })
+            as Map<String, dynamic>;
+    return PagedResult.fromJson(response, PagoListDto.fromJson);
+  }
+
+  Future<PagoVerificarResponse> verificarPago(String pagoId) async {
+    final response =
+        await _api.postJson('/api/pagos/$pagoId/verificar', {})
+            as Map<String, dynamic>;
+    return PagoVerificarResponse.fromJson(response);
+  }
+
+  Future<PagoVerificarResponse> verificarPagosBulk(
+    List<String> pagoIds,
+  ) async {
+    final response =
+        await _api.postJson('/api/pagos/verificar-bulk', {
+              'pagoIds': pagoIds,
+            })
+            as Map<String, dynamic>;
+    return PagoVerificarResponse.fromJson(response);
+  }
+
+  Future<void> regenerarRecibo(String pagoId) async {
+    await _api.postJson('/api/pagos/$pagoId/recibo/regenerar', {});
+  }
+
+  /// Descarga el PDF del recibo cuando aún no tiene `reciboPagoUrl` público
+  /// (lo genera el backend al vuelo). Requiere token porque pasa por el
+  /// controller protegido, a diferencia de un archivo ya subido a storage.
+  Future<List<int>> getPagoRecibo(String pagoId) async {
+    return _api.getBytes('/api/pagos/$pagoId/recibo');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -294,6 +375,68 @@ class AdminApi {
             )
             as Map<String, dynamic>;
     return TramiteDetailDto.fromJson(response);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CLIENTES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<PagedResult<ClienteListDto>> getClientes({
+    String? search,
+    String? procedencia,
+    int page = 1,
+    int pageSize = 20,
+    String? orderBy,
+  }) async {
+    final response =
+        await _api.getJson('/api/clientes', {
+              'search': ?search,
+              'procedencia': ?procedencia,
+              'page': page.toString(),
+              'pageSize': pageSize.toString(),
+              'orderBy': ?orderBy,
+            })
+            as Map<String, dynamic>;
+    return PagedResult.fromJson(response, ClienteListDto.fromJson);
+  }
+
+  Future<ClienteDetailDto> getClienteById(String id) async {
+    final response =
+        await _api.getJson('/api/clientes/$id') as Map<String, dynamic>;
+    return ClienteDetailDto.fromJson(response);
+  }
+
+  Future<ClienteDetailDto> crearCliente(ClienteRequest request) async {
+    final response =
+        await _api.postJson('/api/clientes', request.toJson())
+            as Map<String, dynamic>;
+    return ClienteDetailDto.fromJson(response);
+  }
+
+  Future<ClienteDetailDto> actualizarCliente(
+    String id,
+    ClienteRequest request,
+  ) async {
+    final response =
+        await _api.putJson('/api/clientes/$id', request.toJson())
+            as Map<String, dynamic>;
+    return ClienteDetailDto.fromJson(response);
+  }
+
+  Future<void> eliminarCliente(String id) async {
+    await _api.deleteJson('/api/clientes/$id');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INVENTARIO
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<List<VehiculoListDto>> getInventario() async {
+    final response =
+        await _api.getJson('/api/vehiculos/inventario') as List<dynamic>;
+    return response
+        .map((item) => VehiculoListDto.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

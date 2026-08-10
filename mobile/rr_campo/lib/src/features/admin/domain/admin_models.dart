@@ -79,6 +79,325 @@ class ClienteListDto {
   }
 }
 
+class VehiculoSimpleDto {
+  const VehiculoSimpleDto({
+    required this.id,
+    required this.vin,
+    this.marcaNombre,
+    this.modeloNombre,
+    this.anno,
+  });
+
+  final String id;
+  final String vin;
+  final String? marcaNombre;
+  final String? modeloNombre;
+  final int? anno;
+
+  String get marcaModeloLabel {
+    final parts = [
+      if ((marcaNombre ?? '').trim().isNotEmpty) marcaNombre!.trim(),
+      if ((modeloNombre ?? '').trim().isNotEmpty) modeloNombre!.trim(),
+      if (anno != null) '$anno',
+    ];
+    return parts.isEmpty ? vin : parts.join(' ');
+  }
+
+  factory VehiculoSimpleDto.fromJson(Map<String, dynamic> json) {
+    return VehiculoSimpleDto(
+      id: json['id']?.toString() ?? '',
+      vin: json['vin']?.toString() ?? '',
+      marcaNombre: json['marcaNombre']?.toString(),
+      modeloNombre: json['modeloNombre']?.toString(),
+      anno: json['anno'] as int?,
+    );
+  }
+}
+
+class TramiteSimpleDto {
+  const TramiteSimpleDto({
+    required this.id,
+    required this.numeroConsecutivo,
+    required this.estadoLogistico,
+    required this.fechaCreacion,
+  });
+
+  final String id;
+  final String numeroConsecutivo;
+  final String estadoLogistico;
+  final String fechaCreacion;
+
+  factory TramiteSimpleDto.fromJson(Map<String, dynamic> json) {
+    return TramiteSimpleDto(
+      id: json['id']?.toString() ?? '',
+      numeroConsecutivo: json['numeroConsecutivo']?.toString() ?? '',
+      estadoLogistico: json['estadoLogistico']?.toString() ?? '',
+      fechaCreacion: json['fechaCreacion']?.toString() ?? '',
+    );
+  }
+}
+
+class ClienteDetailDto {
+  const ClienteDetailDto({
+    required this.id,
+    required this.apodo,
+    this.nombreCompleto,
+    this.telefono,
+    this.email,
+    this.procedencia,
+    required this.totalVehiculos,
+    required this.totalTramites,
+    required this.totalFacturado,
+    required this.fechaRegistro,
+    this.notas,
+    this.rfc,
+    this.direccion,
+    required this.vehiculos,
+    required this.ultimosTramites,
+    required this.saldoPendiente,
+  });
+
+  final String id;
+  final String apodo;
+  final String? nombreCompleto;
+  final String? telefono;
+  final String? email;
+  final String? procedencia;
+  final int totalVehiculos;
+  final int totalTramites;
+  final double totalFacturado;
+  final String fechaRegistro;
+  final String? notas;
+  final String? rfc;
+  final String? direccion;
+  final List<VehiculoSimpleDto> vehiculos;
+  final List<TramiteSimpleDto> ultimosTramites;
+  final double saldoPendiente;
+
+  factory ClienteDetailDto.fromJson(Map<String, dynamic> json) {
+    return ClienteDetailDto(
+      id: json['id']?.toString() ?? '',
+      apodo: json['apodo']?.toString() ?? '',
+      nombreCompleto: json['nombreCompleto']?.toString(),
+      telefono: json['telefono']?.toString(),
+      email: json['email']?.toString(),
+      procedencia: json['procedencia']?.toString(),
+      totalVehiculos: json['totalVehiculos'] as int? ?? 0,
+      totalTramites: json['totalTramites'] as int? ?? 0,
+      totalFacturado: (json['totalFacturado'] as num? ?? 0).toDouble(),
+      fechaRegistro: json['fechaRegistro']?.toString() ?? '',
+      notas: json['notas']?.toString(),
+      rfc: json['rfc']?.toString(),
+      direccion: json['direccion']?.toString(),
+      vehiculos: (json['vehiculos'] as List<dynamic>? ?? [])
+          .map(
+            (item) =>
+                VehiculoSimpleDto.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
+      ultimosTramites: (json['ultimosTramites'] as List<dynamic>? ?? [])
+          .map(
+            (item) =>
+                TramiteSimpleDto.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(),
+      saldoPendiente: (json['saldoPendiente'] as num? ?? 0).toDouble(),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODELOS DE PAGOS (libro mayor global, "Más > Pagos")
+// ═══════════════════════════════════════════════════════════════════════════
+
+class PagoListDto {
+  const PagoListDto({
+    required this.id,
+    required this.tramiteId,
+    required this.numeroConsecutivo,
+    this.clienteNombre,
+    required this.monto,
+    required this.moneda,
+    this.tipoCambio,
+    required this.tipoMovimiento,
+    required this.pagadoPor,
+    required this.seCobraAlCliente,
+    required this.metodo,
+    this.banco,
+    this.referencia,
+    this.comprobanteUrl,
+    this.folioRecibo,
+    this.reciboPagoUrl,
+    this.reciboGeneradoEn,
+    required this.fechaPago,
+    required this.verificado,
+    required this.fechaRegistro,
+  });
+
+  final String id;
+  final String tramiteId;
+  final String numeroConsecutivo;
+  final String? clienteNombre;
+  final double monto;
+  final String moneda;
+  final double? tipoCambio;
+  final String tipoMovimiento;
+  final String pagadoPor;
+  final bool seCobraAlCliente;
+  final String metodo;
+  final String? banco;
+  final String? referencia;
+  final String? comprobanteUrl;
+  final String? folioRecibo;
+  final String? reciboPagoUrl;
+  final String? reciboGeneradoEn;
+  final String fechaPago;
+  final bool verificado;
+  final String fechaRegistro;
+
+  factory PagoListDto.fromJson(Map<String, dynamic> json) {
+    return PagoListDto(
+      id: json['id']?.toString() ?? '',
+      tramiteId: json['tramiteId']?.toString() ?? '',
+      numeroConsecutivo: json['numeroConsecutivo']?.toString() ?? '',
+      clienteNombre: json['clienteNombre']?.toString(),
+      monto: (json['monto'] as num? ?? 0).toDouble(),
+      moneda: json['moneda']?.toString() ?? 'MXN',
+      tipoCambio: (json['tipoCambio'] as num?)?.toDouble(),
+      tipoMovimiento: json['tipoMovimiento']?.toString() ?? '',
+      pagadoPor: json['pagadoPor']?.toString() ?? '',
+      seCobraAlCliente: json['seCobraAlCliente'] == true,
+      metodo: json['metodo']?.toString() ?? '',
+      banco: json['banco']?.toString(),
+      referencia: json['referencia']?.toString(),
+      comprobanteUrl: json['comprobanteUrl']?.toString(),
+      folioRecibo: json['folioRecibo']?.toString(),
+      reciboPagoUrl: json['reciboPagoUrl']?.toString(),
+      reciboGeneradoEn: json['reciboGeneradoEn']?.toString(),
+      fechaPago: json['fechaPago']?.toString() ?? '',
+      verificado: json['verificado'] == true,
+      fechaRegistro: json['fechaRegistro']?.toString() ?? '',
+    );
+  }
+}
+
+class PagoVerificarResponse {
+  const PagoVerificarResponse({required this.tramiteCobrado, this.mensaje});
+
+  final bool tramiteCobrado;
+  final String? mensaje;
+
+  factory PagoVerificarResponse.fromJson(Map<String, dynamic> json) {
+    return PagoVerificarResponse(
+      tramiteCobrado: json['tramiteCobrado'] == true,
+      mensaje: json['mensaje']?.toString(),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODELOS DE INVENTARIO
+// ═══════════════════════════════════════════════════════════════════════════
+
+class VehiculoListDto {
+  const VehiculoListDto({
+    required this.id,
+    required this.vin,
+    this.vinCorto,
+    this.marcaNombre,
+    this.modeloNombre,
+    this.anno,
+    this.clienteApodo,
+    this.fechaIngresoPatio,
+    this.ubicacionActual,
+    required this.tieneTramiteActivo,
+    required this.cumplioRequisitos,
+    required this.tieneSelloAduanal,
+    required this.estado,
+    required this.fotosUrls,
+  });
+
+  final String id;
+  final String vin;
+  final String? vinCorto;
+  final String? marcaNombre;
+  final String? modeloNombre;
+  final int? anno;
+  final String? clienteApodo;
+  final String? fechaIngresoPatio;
+  final String? ubicacionActual;
+  final bool tieneTramiteActivo;
+  final bool cumplioRequisitos;
+  final bool tieneSelloAduanal;
+  final String estado;
+  final List<String> fotosUrls;
+
+  String get marcaModeloLabel {
+    final parts = [
+      if ((marcaNombre ?? '').trim().isNotEmpty) marcaNombre!.trim(),
+      if ((modeloNombre ?? '').trim().isNotEmpty) modeloNombre!.trim(),
+    ];
+    return parts.isEmpty ? 'Vehículo' : parts.join(' ');
+  }
+
+  factory VehiculoListDto.fromJson(Map<String, dynamic> json) {
+    return VehiculoListDto(
+      id: json['id']?.toString() ?? '',
+      vin: json['vin']?.toString() ?? '',
+      vinCorto: json['vinCorto']?.toString(),
+      marcaNombre: json['marcaNombre']?.toString(),
+      modeloNombre: json['modeloNombre']?.toString(),
+      anno: json['anno'] as int?,
+      clienteApodo: json['clienteApodo']?.toString(),
+      fechaIngresoPatio: json['fechaIngresoPatio']?.toString(),
+      ubicacionActual: json['ubicacionActual']?.toString(),
+      tieneTramiteActivo: json['tieneTramiteActivo'] == true,
+      cumplioRequisitos: json['cumplioRequisitos'] == true,
+      tieneSelloAduanal: json['tieneSelloAduanal'] == true,
+      estado: json['estado']?.toString() ?? '',
+      fotosUrls: (json['fotosUrls'] as List<dynamic>? ?? [])
+          .map((item) => item.toString())
+          .toList(),
+    );
+  }
+}
+
+/// Cuerpo compartido por crear y editar cliente (mismo shape en el backend).
+class ClienteRequest {
+  const ClienteRequest({
+    required this.apodo,
+    this.nombreCompleto,
+    this.rfc,
+    this.telefono,
+    this.email,
+    this.procedencia,
+    this.direccion,
+    this.notas,
+  });
+
+  final String apodo;
+  final String? nombreCompleto;
+  final String? rfc;
+  final String? telefono;
+  final String? email;
+  final String? procedencia;
+  final String? direccion;
+  final String? notas;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'apodo': apodo,
+      'nombreCompleto': nombreCompleto,
+      'rfc': rfc,
+      'telefono': telefono,
+      'email': email,
+      'procedencia': procedencia,
+      'direccion': direccion,
+      'notas': notas,
+    };
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // MODELOS DE TRAMITES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -125,7 +444,7 @@ class TramiteListDto {
     this.vehiculoMarcaModelo,
     this.aduanaNombre,
     this.tramitadorNombre,
-    required this.estatus,
+    required this.estadoLogistico,
     required this.tipoTramite,
     required this.cobroTotal,
     required this.cargoExpress,
@@ -146,7 +465,7 @@ class TramiteListDto {
   final String? vehiculoMarcaModelo;
   final String? aduanaNombre;
   final String? tramitadorNombre;
-  final String estatus;
+  final String estadoLogistico;
   final String tipoTramite;
   final double cobroTotal;
   final double cargoExpress;
@@ -168,7 +487,7 @@ class TramiteListDto {
       vehiculoMarcaModelo: json['vehiculoMarcaModelo']?.toString(),
       aduanaNombre: json['aduanaNombre']?.toString(),
       tramitadorNombre: json['tramitadorNombre']?.toString(),
-      estatus: json['estatus']?.toString() ?? '',
+      estadoLogistico: json['estadoLogistico']?.toString() ?? '',
       tipoTramite: json['tipoTramite']?.toString() ?? '',
       cobroTotal: (json['cobroTotal'] as num? ?? 0).toDouble(),
       cargoExpress: (json['cargoExpress'] as num? ?? 0).toDouble(),
@@ -226,7 +545,7 @@ class TramitePedimentoDto {
     this.dta,
     this.iva,
     this.totalContribuciones,
-    this.estatus,
+    this.estadoLogistico,
     this.motivoRectificacion,
     this.responsableError,
     required this.cobroAdicional,
@@ -241,7 +560,7 @@ class TramitePedimentoDto {
   final double? dta;
   final double? iva;
   final double? totalContribuciones;
-  final String? estatus;
+  final String? estadoLogistico;
   final String? motivoRectificacion;
   final String? responsableError;
   final double cobroAdicional;
@@ -257,7 +576,7 @@ class TramitePedimentoDto {
       dta: (json['dta'] as num?)?.toDouble(),
       iva: (json['iva'] as num?)?.toDouble(),
       totalContribuciones: (json['totalContribuciones'] as num?)?.toDouble(),
-      estatus: json['estatus']?.toString(),
+      estadoLogistico: json['estadoLogistico']?.toString(),
       motivoRectificacion: json['motivoRectificacion']?.toString(),
       responsableError: json['responsableError']?.toString(),
       cobroAdicional: (json['cobroAdicional'] as num? ?? 0).toDouble(),
@@ -464,7 +783,7 @@ class TramiteTareaCampoDto {
   const TramiteTareaCampoDto({
     required this.id,
     required this.tipo,
-    required this.estatus,
+    required this.estadoLogistico,
     this.personalCampoNombre,
     this.ubicacion,
     this.vinConfirmado,
@@ -477,7 +796,7 @@ class TramiteTareaCampoDto {
 
   final String id;
   final String tipo;
-  final String estatus;
+  final String estadoLogistico;
   final String? personalCampoNombre;
   final String? ubicacion;
   final String? vinConfirmado;
@@ -491,7 +810,7 @@ class TramiteTareaCampoDto {
     return TramiteTareaCampoDto(
       id: json['id']?.toString() ?? '',
       tipo: json['tipo']?.toString() ?? '',
-      estatus: json['estatus']?.toString() ?? '',
+      estadoLogistico: json['estadoLogistico']?.toString() ?? '',
       personalCampoNombre: json['personalCampoNombre']?.toString(),
       ubicacion: json['ubicacion']?.toString(),
       vinConfirmado: json['vinConfirmado']?.toString(),
@@ -530,7 +849,7 @@ class TramiteDetailDto {
     this.cotizacionOrigenFolio,
     this.cotizacionFecha,
     required this.tipoTramite,
-    required this.estatus,
+    required this.estadoLogistico,
     required this.cobroTotal,
     required this.honorarios,
     required this.cargoExpress,
@@ -573,7 +892,7 @@ class TramiteDetailDto {
   final String? cotizacionOrigenFolio;
   final String? cotizacionFecha;
   final String tipoTramite;
-  final String estatus;
+  final String estadoLogistico;
   final double cobroTotal;
   final double honorarios;
   final double cargoExpress;
@@ -617,7 +936,7 @@ class TramiteDetailDto {
       cotizacionOrigenFolio: json['cotizacionOrigenFolio']?.toString(),
       cotizacionFecha: json['cotizacionFecha']?.toString(),
       tipoTramite: json['tipoTramite']?.toString() ?? '',
-      estatus: json['estatus']?.toString() ?? '',
+      estadoLogistico: json['estadoLogistico']?.toString() ?? '',
       cobroTotal: (json['cobroTotal'] as num? ?? 0).toDouble(),
       honorarios: (json['honorarios'] as num? ?? 0).toDouble(),
       cargoExpress: (json['cargoExpress'] as num? ?? 0).toDouble(),
