@@ -95,7 +95,7 @@ public class CampoServiceTests
             Mock.Of<IEmailService>(),
             new ConfigurationBuilder().Build(),
             Mock.Of<IWhatsAppService>(),
-            Mock.Of<IPushNotificationService>());
+            Mock.Of<INotificacionEventoService>());
     }
 
     private static AppDbContext CreateDbContext(ITenantContext tenantContext)

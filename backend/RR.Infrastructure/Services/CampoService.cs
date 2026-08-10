@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using RR.Application.DTOs.Campo;
 using RR.Application.Interfaces;
+using RR.Application.Notificaciones;
 using RR.Domain.Entities;
 using RR.Infrastructure.Data;
 using System.Net.Http.Json;
@@ -19,7 +20,7 @@ public class CampoService : ICampoService
     private readonly IEmailService _email;
     private readonly IConfiguration _configuration;
     private readonly IWhatsAppService _whatsapp;
-    private readonly IPushNotificationService _push;
+    private readonly INotificacionEventoService _notificaciones;
 
     public CampoService(
         AppDbContext db,
@@ -28,7 +29,7 @@ public class CampoService : ICampoService
         IEmailService email,
         IConfiguration configuration,
         IWhatsAppService whatsapp,
-        IPushNotificationService push)
+        INotificacionEventoService notificaciones)
     {
         _db = db;
         _currentUser = currentUser;
@@ -36,7 +37,7 @@ public class CampoService : ICampoService
         _email = email;
         _configuration = configuration;
         _whatsapp = whatsapp;
-        _push = push;
+        _notificaciones = notificaciones;
     }
 
     public async Task<List<TareaCampoDto>> GetTareasAsync(string? EstadoLogistico)
@@ -99,7 +100,16 @@ public class CampoService : ICampoService
         await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "CREADA");
         await _realtime.TramiteActualizadoAsync(tarea.TramiteId!.Value, "CAMPO_CREADO");
 
-        return (await GetById(tarea.Id))!;
+        var dto = (await GetById(tarea.Id))!;
+
+        // Aviso a la yarda: hay trabajo nuevo esperando.
+        await _notificaciones.EmitirAsync(CatalogoNotificaciones.TareaCampoCreada(
+            tarea.Id,
+            dto.NumeroConsecutivo ?? "Tarea de campo",
+            dto.VehiculoResumen,
+            tarea.Ubicacion));
+
+        return dto;
     }
 
     public async Task<TareaCampoDto> CrearPreInspeccionAsync(CrearPreInspeccionRequest request)
@@ -222,12 +232,9 @@ public class CampoService : ICampoService
             operadorNombre,
             clienteNombre));
 
-        // Push notification a admins (best-effort)
-        await RunBestEffortAsync(() => _push.SendToAdminsAsync(
-            "Pre-inspección nueva en yarda",
-            $"{operadorNombre} capturó {resumenPreInsp}" + (vin != null ? $" — VIN {vin}" : ""),
-            "/campo/bandeja-admin",
-            "pre-inspeccion-" + tarea.Id));
+        // Push + campanita a admins: alguien registró una unidad en la yarda.
+        await _notificaciones.EmitirAsync(CatalogoNotificaciones.VehiculoRegistradoEnCampo(
+            tarea.Id, resumenPreInsp, vin, operadorNombre, clienteNombre));
 
         return dto;
     }
@@ -284,12 +291,8 @@ public class CampoService : ICampoService
         await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "FOTOS_SOLICITADAS");
 
         // Push al yardero (puede llegar aún con la PWA cerrada)
-        await RunBestEffortAsync(() => _push.SendToUserAsync(
-            operadorUserId,
-            "Admin pide más fotos",
-            $"{vehiculoResumen} — {mensaje}",
-            "/campo",
-            "solicitud-fotos-" + tarea.Id));
+        await _notificaciones.EmitirAsync(CatalogoNotificaciones.FotosAdicionalesSolicitadas(
+            operadorUserId, tarea.Id, vehiculoResumen, mensaje));
 
         return (await GetById(id))!;
     }
@@ -439,6 +442,16 @@ public class CampoService : ICampoService
                 tarea.Ubicacion, tarea.VinConfirmado, tarea.Incidencia,
                 tarea.FotosUrls.Length, operadorNombre);
         }
+
+        // Push + campanita: fotos listas, o incidencia si el operador reportó algo.
+        var referencia = dto.NumeroConsecutivo ?? "Pre-inspección";
+        await _notificaciones.EmitirAsync(tarea.EstadoLogistico == "INCIDENCIA"
+            ? CatalogoNotificaciones.IncidenciaCampo(
+                tarea.Id, tarea.TramiteId, referencia, dto.VehiculoResumen,
+                tarea.Incidencia ?? "Sin detalle", operadorNombre)
+            : CatalogoNotificaciones.CapturaCampoCompletada(
+                tarea.Id, tarea.TramiteId, referencia, dto.VehiculoResumen,
+                tarea.FotosUrls.Length, operadorNombre));
 
         // Email → a todos los usuarios admin del tenant que tengan email
         var appBaseUrl = _configuration["AppBaseUrl"] ?? string.Empty;

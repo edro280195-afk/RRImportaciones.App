@@ -191,48 +191,86 @@ const MIN_PHOTOS = 3;
           </div>
         }
 
-        <!-- ★ HERO CAMERA BUTTON ────────────────────────────── -->
-        <button
-          class="hero-cam"
-          [class.hero-cam--has-photos]="totalPhotoCount() > 0"
-          [class.hero-cam--complete]="totalPhotoCount() >= MIN_PHOTOS"
-          (click)="openCamera()"
-          [disabled]="state() === 'sending'"
-          type="button"
-        >
-          <div class="hero-cam__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M6.8 6.2A2.3 2.3 0 015.2 7.2c-.4.1-.8.1-1.1.2A2.3 2.3 0 002.3 9.6V18A2.3 2.3 0 004.5 20.3h15A2.3 2.3 0 0021.8 18V9.6c0-1.1-.8-2-1.8-2.2-.4-.1-.8-.1-1.1-.2a2.3 2.3 0 01-1.6-1.1l-.8-1.3a2.2 2.2 0 00-1.7-1 48.8 48.8 0 00-5.3 0 2.2 2.2 0 00-1.7 1l-.9 1.4z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M16.5 12.8a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"
-              />
-            </svg>
-          </div>
+        <!-- ★ BOTONES DE FOTO: cámara + galería del teléfono ─────────── -->
+        <div class="photo-actions">
+          <button
+            class="cam-btn cam-btn--camera"
+            [class.cam-btn--complete]="totalPhotoCount() >= MIN_PHOTOS"
+            (click)="openCamera()"
+            [disabled]="state() === 'sending'"
+            type="button"
+          >
+            <div class="cam-btn__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6.8 6.2A2.3 2.3 0 015.2 7.2c-.4.1-.8.1-1.1.2A2.3 2.3 0 002.3 9.6V18A2.3 2.3 0 004.5 20.3h15A2.3 2.3 0 0021.8 18V9.6c0-1.1-.8-2-1.8-2.2-.4-.1-.8-.1-1.1-.2a2.3 2.3 0 01-1.6-1.1l-.8-1.3a2.2 2.2 0 00-1.7-1 48.8 48.8 0 00-5.3 0 2.2 2.2 0 00-1.7 1l-.9 1.4z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M16.5 12.8a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"
+                />
+              </svg>
+            </div>
+            <span class="cam-btn__title">TOMAR FOTOS</span>
+            <span class="cam-btn__sub">Con la cámara</span>
+            @if (totalPhotoCount() > 0) {
+              <div class="cam-btn__badge">{{ totalPhotoCount() }}</div>
+            }
+          </button>
 
+          <button
+            class="cam-btn cam-btn--gallery"
+            (click)="openFilePicker()"
+            [disabled]="state() === 'sending' || importingPhotos()"
+            type="button"
+          >
+            <div class="cam-btn__icon">
+              @if (importingPhotos()) {
+                <span class="cam-btn__spinner"></span>
+              } @else {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <rect x="2.8" y="4.8" width="18.4" height="14.4" rx="2.4" />
+                  <circle cx="8.4" cy="10" r="1.7" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3.2 16.4l4.6-4.2a2 2 0 012.7 0l3.4 3.2m0 0l2-1.9a2 2 0 012.7 0l2.2 2"
+                  />
+                </svg>
+              }
+            </div>
+            <span class="cam-btn__title">ELEGIR FOTOS</span>
+            <span class="cam-btn__sub">{{
+              importingPhotos() ? 'Cargando…' : 'Del teléfono'
+            }}</span>
+          </button>
+        </div>
+
+        <!-- Input oculto: es el que abre la galería del dispositivo -->
+        <input
+          #fileInput
+          type="file"
+          accept="image/*"
+          multiple
+          class="file-input-hidden"
+          (change)="onFilesSelected($event)"
+        />
+
+        <p class="photo-hint">
           @if (totalPhotoCount() === 0) {
-            <span class="hero-cam__title">TOMAR FOTOS</span>
-            <span class="hero-cam__sub">Mínimo {{ MIN_PHOTOS }} fotos de la unidad</span>
+            Mínimo {{ MIN_PHOTOS }} fotos de la unidad.
           } @else if (totalPhotoCount() < MIN_PHOTOS) {
-            <span class="hero-cam__title">AGREGAR MÁS FOTOS</span>
-            <span class="hero-cam__sub"
-              >Faltan {{ MIN_PHOTOS - totalPhotoCount() }} fotos para continuar</span
-            >
+            Faltan {{ MIN_PHOTOS - totalPhotoCount() }} foto{{
+              MIN_PHOTOS - totalPhotoCount() === 1 ? '' : 's'
+            }}
+            para continuar.
           } @else {
-            <span class="hero-cam__title">✓ FOTOS COMPLETAS</span>
-            <span class="hero-cam__sub">{{ totalPhotoCount() }} fotos · Toca para agregar más</span>
+            ✓ {{ totalPhotoCount() }} fotos listas · puedes agregar más.
           }
-
-          <!-- Photo count badge -->
-          @if (totalPhotoCount() > 0) {
-            <div class="hero-cam__badge">{{ totalPhotoCount() }}</div>
-          }
-        </button>
+        </p>
 
         <!-- PHOTO STRIP ──────────────────────────────────────── -->
         @if (totalPhotoCount() > 0) {
@@ -626,17 +664,6 @@ const MIN_PHOTOS = 3;
           transform: translateY(0);
         }
       }
-      @keyframes pulse-ring {
-        0% {
-          box-shadow: 0 0 0 0 rgba(198, 29, 38, 0.35);
-        }
-        70% {
-          box-shadow: 0 0 0 14px rgba(198, 29, 38, 0);
-        }
-        100% {
-          box-shadow: 0 0 0 0 rgba(198, 29, 38, 0);
-        }
-      }
       @keyframes bar-enter {
         from {
           transform: scaleX(0);
@@ -950,98 +977,126 @@ const MIN_PHOTOS = 3;
         letter-spacing: 0.04em;
       }
 
-      /* ── Hero Camera Button ─────────────────────────────────────────── */
-      .hero-cam {
+      /* ── Botones de foto: cámara (rojo) y galería (azul) ────────────── */
+      //
+      // Van del mismo tamaño y en la misma fila para que el yardero vea de
+      // entrada que tiene las dos opciones. El color es lo que las distingue:
+      // rojo = abrir la cámara, azul = traer fotos que ya están en el teléfono.
+      .photo-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 8px;
+        animation: slideUp 0.22s ease-out;
+      }
+      .cam-btn {
         position: relative;
-        width: 100%;
-        background: var(--red);
         border: none;
-        border-radius: var(--radius-lg);
-        padding: 28px 20px;
+        border-radius: var(--radius-md);
+        padding: 16px 10px;
         cursor: pointer;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 10px;
+        gap: 6px;
         transition:
           transform 0.15s,
           filter 0.15s;
-        box-shadow:
-          0 6px 24px rgba(198, 29, 38, 0.3),
-          0 2px 6px rgba(198, 29, 38, 0.2);
-        animation:
-          slideUp 0.22s ease-out,
-          pulse-ring 2.5s ease-out 1s 2;
         overflow: hidden;
       }
-      .hero-cam::before {
+      .cam-btn::before {
         content: '';
         position: absolute;
         inset: 0;
         background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, transparent 60%);
         pointer-events: none;
       }
-      .hero-cam:active:not(:disabled) {
-        transform: scale(0.98);
+      .cam-btn:active:not(:disabled) {
+        transform: scale(0.97);
         filter: brightness(0.94);
       }
-      .hero-cam:disabled {
+      .cam-btn:disabled {
         opacity: 0.55;
         cursor: default;
-        animation: none;
       }
 
-      .hero-cam--has-photos {
-        background: var(--red-dk);
-        animation: none;
+      .cam-btn--camera {
+        background: var(--red);
+        box-shadow:
+          0 4px 16px rgba(198, 29, 38, 0.28),
+          0 2px 5px rgba(198, 29, 38, 0.18);
       }
-      .hero-cam--complete {
+      .cam-btn--camera.cam-btn--complete {
         background: linear-gradient(135deg, var(--green) 0%, #15803d 100%);
-        box-shadow: 0 6px 24px rgba(22, 163, 74, 0.3);
-        animation: none;
+        box-shadow: 0 4px 16px rgba(22, 163, 74, 0.28);
+      }
+      .cam-btn--gallery {
+        background: #1d4ed8;
+        box-shadow:
+          0 4px 16px rgba(29, 78, 216, 0.28),
+          0 2px 5px rgba(29, 78, 216, 0.18);
       }
 
-      .hero-cam__icon {
-        width: 72px;
-        height: 72px;
+      .cam-btn__icon {
+        width: 46px;
+        height: 46px;
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.18);
         display: grid;
         place-items: center;
         border: 2px solid rgba(255, 255, 255, 0.25);
       }
-      .hero-cam__icon svg {
-        width: 38px;
-        height: 38px;
+      .cam-btn__icon svg {
+        width: 25px;
+        height: 25px;
         stroke: #fff;
+        fill: none;
       }
-      .hero-cam__title {
-        font-size: 20px;
+      .cam-btn__spinner {
+        width: 20px;
+        height: 20px;
+        border: 2.5px solid rgba(255, 255, 255, 0.35);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+      .cam-btn__title {
+        font-size: 14px;
         font-weight: 800;
         color: #fff;
         letter-spacing: 0.03em;
       }
-      .hero-cam__sub {
-        font-size: 13px;
-        color: rgba(255, 255, 255, 0.75);
+      .cam-btn__sub {
+        font-size: 11.5px;
+        color: rgba(255, 255, 255, 0.78);
         text-align: center;
       }
-      .hero-cam__badge {
+      .cam-btn__badge {
         position: absolute;
-        top: 14px;
-        right: 16px;
-        min-width: 30px;
-        height: 30px;
+        top: 10px;
+        right: 10px;
+        min-width: 24px;
+        height: 24px;
         border-radius: 999px;
         background: rgba(255, 255, 255, 0.25);
         border: 2px solid rgba(255, 255, 255, 0.4);
         color: #fff;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 800;
         display: grid;
         place-items: center;
-        padding: 0 6px;
+        padding: 0 5px;
+      }
+
+      .file-input-hidden {
+        display: none;
+      }
+
+      .photo-hint {
+        font-size: 12.5px;
+        color: var(--text-2);
+        text-align: center;
+        margin: 0 0 10px;
       }
 
       /* ── Photo strip ────────────────────────────────────────────────── */
@@ -1756,19 +1811,25 @@ const MIN_PHOTOS = 3;
 
       /* ── Responsive ─────────────────────────────────────────────────── */
       @media (max-width: 400px) {
-        .hero-cam {
-          padding: 24px 16px;
+        .photo-actions {
+          gap: 8px;
         }
-        .hero-cam__icon {
-          width: 60px;
-          height: 60px;
+        .cam-btn {
+          padding: 13px 6px;
         }
-        .hero-cam__icon svg {
-          width: 30px;
-          height: 30px;
+        .cam-btn__icon {
+          width: 40px;
+          height: 40px;
         }
-        .hero-cam__title {
-          font-size: 17px;
+        .cam-btn__icon svg {
+          width: 22px;
+          height: 22px;
+        }
+        .cam-btn__title {
+          font-size: 12.5px;
+        }
+        .cam-btn__sub {
+          font-size: 10.5px;
         }
         .vehicle-name {
           font-size: 15px;
@@ -1827,6 +1888,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
 
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvas') canvasRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('fileInput') fileInputRef?: ElementRef<HTMLInputElement>;
 
   readonly MIN_PHOTOS = MIN_PHOTOS;
 
@@ -1846,6 +1908,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   readonly galleryIndex = signal(0);
   readonly deletingPhoto = signal(false);
   readonly storageFull = signal(false);
+  /** True mientras se leen y redimensionan las fotos elegidas del teléfono. */
+  readonly importingPhotos = signal(false);
 
   ubicacion = '';
   vinConfirmado = '';
@@ -2023,6 +2087,98 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
         'Ya no hay espacio para respaldar las fotos en este dispositivo. Guarda la captura pronto: si recargas el navegador se perderán.'
       );
     }
+  }
+
+  /** Abre la galería/archivos del dispositivo. */
+  openFilePicker(): void {
+    if (this.state() === 'sending' || this.importingPhotos()) return;
+    this.fileInputRef?.nativeElement.click();
+  }
+
+  /**
+   * Toma las fotos que el yardero eligió del teléfono y las mete al mismo flujo
+   * que las de la cámara: se redimensionan igual (máx. 1600 px, JPEG 82%) para
+   * que no revienten la subida ni el respaldo local.
+   */
+  async onFilesSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const archivos = Array.from(input.files ?? []).filter(f => f.type.startsWith('image/'));
+    input.value = ''; // permite volver a elegir la misma foto
+
+    if (archivos.length === 0) return;
+
+    this.importingPhotos.set(true);
+    let agregadas = 0;
+    let fallidas = 0;
+
+    try {
+      for (const archivo of archivos) {
+        try {
+          const dataUrl = await this.fileToResizedDataUrl(archivo);
+          this.photos.update(items => [
+            ...items,
+            { id: crypto.randomUUID(), dataUrl, uploading: false, uploaded: false, err: false },
+          ]);
+          agregadas++;
+        } catch {
+          fallidas++;
+        }
+      }
+    } finally {
+      this.importingPhotos.set(false);
+    }
+
+    if (agregadas > 0) {
+      const respaldada = this.persistLocalPhotos();
+      this.vibrate([18, 28, 18]);
+
+      if (!respaldada) {
+        this.notifications.warning(
+          'Ya no hay espacio para respaldar las fotos en este dispositivo. Guarda la captura pronto: si recargas el navegador se perderán.'
+        );
+      }
+    }
+
+    if (fallidas > 0) {
+      this.notifications.warning(
+        `No se pudieron leer ${fallidas} ${fallidas === 1 ? 'archivo' : 'archivos'}. Intenta con otra foto.`
+      );
+    }
+  }
+
+  /** Lee el archivo y lo reescala al mismo tamaño que usa la cámara. */
+  private fileToResizedDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const lector = new FileReader();
+
+      lector.onerror = () => reject(new Error('No se pudo leer el archivo'));
+      lector.onload = () => {
+        const imagen = new Image();
+        imagen.onerror = () => reject(new Error('El archivo no es una imagen válida'));
+        imagen.onload = () => {
+          try {
+            const maxSide = 1600;
+            const ratio = Math.min(1, maxSide / Math.max(imagen.width, imagen.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(imagen.width * ratio));
+            canvas.height = Math.max(1, Math.round(imagen.height * ratio));
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('No se pudo preparar la imagen'));
+              return;
+            }
+            ctx.drawImage(imagen, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.82));
+          } catch (err) {
+            reject(err instanceof Error ? err : new Error('No se pudo procesar la imagen'));
+          }
+        };
+        imagen.src = String(lector.result);
+      };
+
+      lector.readAsDataURL(file);
+    });
   }
 
   removePhoto(id: string): void {

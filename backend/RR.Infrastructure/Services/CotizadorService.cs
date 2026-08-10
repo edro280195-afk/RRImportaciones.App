@@ -16,19 +16,22 @@ public partial class CotizadorService : ICotizadorService
     private readonly IBanxicoService _banxico;
     private readonly ITenantContext _tenantContext;
     private readonly ICurrentUserService _currentUser;
+    private readonly INotificacionEventoService _notificaciones;
 
     public CotizadorService(
         AppDbContext db,
         INhtsaService nhtsa,
         IBanxicoService banxico,
         ITenantContext tenantContext,
-        ICurrentUserService currentUser)
+        ICurrentUserService currentUser,
+        INotificacionEventoService notificaciones)
     {
         _db = db;
         _nhtsa = nhtsa;
         _banxico = banxico;
         _tenantContext = tenantContext;
         _currentUser = currentUser;
+        _notificaciones = notificaciones;
     }
 
     public async Task<CotizacionOutput> CalcularCotizacionAsync(CotizacionInput input)

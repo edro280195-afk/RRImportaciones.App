@@ -14,6 +14,11 @@ import { catchError, forkJoin, map, of } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { ClienteService } from '../../services/cliente.service';
 import { CotizacionService } from '../../services/cotizacion.service';
+import {
+  NotificacionItem,
+  NotificacionSeveridad,
+  NotificationCenterService,
+} from '../../services/notification-center.service';
 import { PagoService } from '../../services/pago.service';
 import { RodriStateService } from '../../services/rodri-state.service';
 import { TramiteService } from '../../services/tramite.service';
@@ -255,10 +260,10 @@ interface AppNotification {
                 d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
               />
             </svg>
-            @if (visibleNotifications().length > 0) {
+            @if (badgeCount() > 0) {
               <span
                 class="absolute top-[7px] right-[7px] min-w-[15px] h-[15px] rounded-full bg-[#C61D26] px-1 text-[9px] font-bold leading-[15px] text-white ring-2 ring-[#FBFAFB]"
-                >{{ visibleNotifications().length }}</span
+                >{{ badgeCount() > 9 ? '9+' : badgeCount() }}</span
               >
             }
           </button>
@@ -267,45 +272,94 @@ interface AppNotification {
             <section
               class="fixed inset-x-3 top-[64px] max-h-[calc(100vh-80px)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] shadow-[var(--shadow-xl)] md:absolute md:inset-x-auto md:right-0 md:top-[44px] md:w-[360px]"
             >
-              <div class="border-b border-[var(--border)] px-4 py-3">
-                <p class="text-[13px] font-semibold text-[var(--n-800)]">Notificaciones</p>
-                <p class="mt-0.5 text-[12px] text-[var(--n-400)]">Pendientes operativos</p>
-              </div>
-              <div class="max-h-[340px] overflow-y-auto p-2">
-                @for (item of visibleNotifications(); track item.title) {
+              <div class="flex items-start justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
+                <div>
+                  <p class="text-[13px] font-semibold text-[var(--n-800)]">Notificaciones</p>
+                  <p class="mt-0.5 text-[12px] text-[var(--n-400)]">
+                    {{
+                      noLeidas() > 0
+                        ? noLeidas() + ' sin leer'
+                        : recibidas().length > 0
+                          ? 'Todo al día'
+                          : 'Pendientes operativos'
+                    }}
+                  </p>
+                </div>
+                @if (recibidas().length > 0) {
                   <button
                     type="button"
-                    class="flex w-full gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-[var(--n-50)] transition-colors"
-                    (click)="go(item.route)"
+                    class="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--n-500)] hover:bg-[var(--n-100)] hover:text-[var(--n-800)] transition-colors"
+                    (click)="limpiarNotificaciones()"
+                  >
+                    Limpiar
+                  </button>
+                }
+              </div>
+              <div class="max-h-[340px] overflow-y-auto p-2">
+                <!-- Lo que realmente llegó: campo, pagos, cotizaciones, trámites -->
+                @for (item of recibidas(); track item.id) {
+                  <button
+                    type="button"
+                    class="flex w-full gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[var(--n-50)]"
+                    [style.background]="item.leida ? 'transparent' : 'var(--n-50)'"
+                    (click)="abrirNotificacion(item)"
                   >
                     <span
                       class="mt-[5px] h-2 w-2 shrink-0 rounded-full"
-                      [style.background]="
-                        item.severity === 'warning'
-                          ? 'var(--amber)'
-                          : item.severity === 'info'
-                            ? 'var(--blue)'
-                            : 'var(--green)'
-                      "
+                      [style.background]="colorSeveridad(item.severidad)"
+                      [style.opacity]="item.leida ? 0.35 : 1"
                     ></span>
-                    <span class="min-w-0">
-                      <span class="block text-[13px] font-semibold text-[var(--n-800)]">{{
-                        item.title
-                      }}</span>
+                    <span class="min-w-0 flex-1">
+                      <span class="flex items-baseline justify-between gap-2">
+                        <span class="block text-[13px] font-semibold text-[var(--n-800)]">{{
+                          item.titulo
+                        }}</span>
+                        <span class="shrink-0 text-[10px] text-[var(--n-400)]">{{
+                          tiempoRelativo(item.fecha)
+                        }}</span>
+                      </span>
                       <span class="mt-0.5 block text-[12px] leading-5 text-[var(--n-500)]">{{
-                        item.detail
+                        item.mensaje
                       }}</span>
                     </span>
                   </button>
                 } @empty {
-                  <div class="px-4 py-6 text-center">
-                    <p class="text-[13px] font-semibold text-[var(--n-800)]">
-                      Sin alertas visibles
-                    </p>
-                    <p class="mt-1 text-[12px] text-[var(--n-400)]">
-                      Tu rol no tiene pendientes disponibles aquí.
-                    </p>
-                  </div>
+                  <!-- Sin novedades: dejamos a la vista los pendientes de siempre -->
+                  @for (item of visibleNotifications(); track item.title) {
+                    <button
+                      type="button"
+                      class="flex w-full gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-[var(--n-50)] transition-colors"
+                      (click)="go(item.route)"
+                    >
+                      <span
+                        class="mt-[5px] h-2 w-2 shrink-0 rounded-full"
+                        [style.background]="
+                          item.severity === 'warning'
+                            ? 'var(--amber)'
+                            : item.severity === 'info'
+                              ? 'var(--blue)'
+                              : 'var(--green)'
+                        "
+                      ></span>
+                      <span class="min-w-0">
+                        <span class="block text-[13px] font-semibold text-[var(--n-800)]">{{
+                          item.title
+                        }}</span>
+                        <span class="mt-0.5 block text-[12px] leading-5 text-[var(--n-500)]">{{
+                          item.detail
+                        }}</span>
+                      </span>
+                    </button>
+                  } @empty {
+                    <div class="px-4 py-6 text-center">
+                      <p class="text-[13px] font-semibold text-[var(--n-800)]">
+                        Sin alertas visibles
+                      </p>
+                      <p class="mt-1 text-[12px] text-[var(--n-400)]">
+                        Tu rol no tiene pendientes disponibles aquí.
+                      </p>
+                    </div>
+                  }
                 }
               </div>
             </section>
@@ -403,6 +457,7 @@ export class TopbarComponent implements OnInit {
 
   rodriState = inject(RodriStateService);
   auth = inject(AuthService);
+  private centro = inject(NotificationCenterService);
   private host = inject(ElementRef<HTMLElement>);
   private clienteService = inject(ClienteService);
   private tramiteService = inject(TramiteService);
@@ -553,6 +608,18 @@ export class TopbarComponent implements OnInit {
   visibleNotifications = computed(() =>
     this.notifications.filter(item => this.canSee(item.permiso))
   );
+
+  /** Notificaciones que de verdad llegaron (campo, pagos, cotizaciones, trámites). */
+  readonly recibidas = this.centro.items;
+  readonly noLeidas = this.centro.noLeidas;
+
+  /**
+   * El badge cuenta lo sin leer; si nunca ha llegado nada, cae a los pendientes
+   * operativos de siempre para que la campanita no se vea muerta.
+   */
+  badgeCount = computed(() =>
+    this.recibidas().length > 0 ? this.noLeidas() : this.visibleNotifications().length
+  );
   settingsSubtitle = computed(() =>
     this.auth.isAdmin() ? 'Ajustes administrativos del sistema' : 'Sin permisos de modificacion'
   );
@@ -627,9 +694,14 @@ export class TopbarComponent implements OnInit {
   }
 
   toggleNotifications(): void {
-    this.notificationsOpen.update(value => !value);
+    const abriendo = !this.notificationsOpen();
+    this.notificationsOpen.set(abriendo);
     this.searchOpen.set(false);
     this.settingsOpen.set(false);
+
+    // Al cerrar se dan por vistas: así el contador refleja lo que llegó nuevo
+    // desde la última vez que el usuario abrió la campanita.
+    if (!abriendo) this.centro.marcarTodasLeidas();
   }
 
   toggleSettings(): void {
@@ -642,6 +714,38 @@ export class TopbarComponent implements OnInit {
     this.closePanels();
     this.searchTerm.set('');
     this.router.navigate([route]);
+  }
+
+  /** Marca la notificación como leída y navega a donde apunta, si trae ruta. */
+  abrirNotificacion(item: NotificacionItem): void {
+    this.centro.marcarLeida(item.id);
+    if (!item.url) {
+      this.closePanels();
+      return;
+    }
+    this.router.navigateByUrl(item.url).catch(() => this.router.navigate(['/']));
+    this.closePanels();
+  }
+
+  limpiarNotificaciones(): void {
+    this.centro.limpiar();
+  }
+
+  tiempoRelativo(fecha: string): string {
+    return this.centro.tiempoRelativo(fecha);
+  }
+
+  colorSeveridad(severidad: NotificacionSeveridad): string {
+    switch (severidad) {
+      case 'success':
+        return 'var(--green)';
+      case 'warning':
+        return 'var(--amber)';
+      case 'error':
+        return '#C61D26';
+      default:
+        return 'var(--blue)';
+    }
   }
 
   goToAsistente(): void {

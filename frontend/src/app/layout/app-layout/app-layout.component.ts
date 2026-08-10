@@ -13,6 +13,9 @@ import {
 } from '../../services/realtime.service';
 import { AuthService } from '../../services/auth.service';
 import { PushNotificationService } from '../../services/push-notification.service';
+import { FcmService } from '../../services/fcm.service';
+import { NotificationCenterService } from '../../services/notification-center.service';
+import { NotificationService } from '../../services/notification.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -395,12 +398,17 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private auth = inject(AuthService);
   private push = inject(PushNotificationService);
+  private fcm = inject(FcmService);
+  private centro = inject(NotificationCenterService);
+  private toasts = inject(NotificationService);
   private notifSub?: Subscription;
   private pinResetSub?: Subscription;
   private authSub?: Subscription;
   private preInspSub?: Subscription;
   private tareaAsignadaSub?: Subscription;
   private fotosSolicitadasSub?: Subscription;
+  private notificacionSub?: Subscription;
+  private fcmSub?: Subscription;
   private autoDismissTimer?: ReturnType<typeof setTimeout>;
   private pinResetDismissTimer?: ReturnType<typeof setTimeout>;
   private preInspDismissTimer?: ReturnType<typeof setTimeout>;
@@ -455,6 +463,30 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
       });
     });
 
+    // Canal único de notificaciones de negocio → campanita del topbar + toast.
+    this.notificacionSub = this.realtime.notificacion$.subscribe(event => {
+      this.registrarNotificacion({
+        tipo: event.tipo,
+        titulo: event.titulo,
+        mensaje: event.mensaje,
+        url: event.url,
+        severidad: event.severidad,
+        fecha: event.fecha,
+      });
+    });
+
+    // Lo mismo por Firebase cuando la app está en primer plano: si SignalR está
+    // caído, el aviso igual entra (y si llegan los dos, el centro descarta el repetido).
+    this.fcmSub = this.fcm.mensajeEnPrimerPlano$.subscribe(mensaje => {
+      this.registrarNotificacion({
+        tipo: mensaje.tipo,
+        titulo: mensaje.titulo,
+        mensaje: mensaje.mensaje,
+        url: mensaje.url,
+        severidad: mensaje.data['severidad'],
+      });
+    });
+
     // Si el token expiró, SignalR detectará un 401 y redirigiremos a login
     this.authSub = this.realtime.authError$.subscribe(() => {
       this.auth.clearSession();
@@ -472,10 +504,45 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
     this.preInspSub?.unsubscribe();
     this.tareaAsignadaSub?.unsubscribe();
     this.fotosSolicitadasSub?.unsubscribe();
+    this.notificacionSub?.unsubscribe();
+    this.fcmSub?.unsubscribe();
     clearTimeout(this.autoDismissTimer);
     clearTimeout(this.pinResetDismissTimer);
     clearTimeout(this.preInspDismissTimer);
     clearTimeout(this.yarderoDismissTimer);
+  }
+
+  /**
+   * Eventos de campo que ya se anuncian con su propia tarjeta grande en esta
+   * pantalla. Se guardan en la campanita, pero sin toast: si no, el admin ve
+   * dos avisos del mismo hecho.
+   */
+  private readonly tiposConTarjetaPropia = new Set([
+    'campo_vehiculo_registrado',
+    'campo_fotos_subidas',
+    'campo_incidencia',
+    'campo_fotos_solicitadas',
+  ]);
+
+  /** Deja el aviso en la campanita y saca un toast si no era repetido. */
+  private registrarNotificacion(entrante: {
+    tipo: string;
+    titulo: string;
+    mensaje: string;
+    url: string | null;
+    severidad?: string;
+    fecha?: string;
+  }): void {
+    const item = this.centro.agregar(entrante);
+    if (!item) return;
+    if (this.tiposConTarjetaPropia.has(item.tipo)) return;
+
+    this.toasts.notify({
+      severity: item.severidad,
+      title: item.titulo,
+      message: item.mensaje,
+    });
+    navigator.vibrate?.([100, 50, 100]);
   }
 
   private showNotif(event: CampoNotificacionEvent): void {

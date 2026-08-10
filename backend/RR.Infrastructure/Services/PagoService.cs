@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using RR.Application.DTOs.Common;
 using RR.Application.DTOs.Pagos;
 using RR.Application.Interfaces;
+using RR.Application.Notificaciones;
 using RR.Domain.Entities;
 using RR.Infrastructure.Data;
 using System.Text.Json;
@@ -14,13 +15,20 @@ public class PagoService : IPagoService
     private readonly ICurrentUserService _currentUser;
     private readonly IBanxicoService _banxico;
     private readonly IPagoReciboPdfService _reciboPdf;
+    private readonly INotificacionEventoService _notificaciones;
 
-    public PagoService(AppDbContext db, ICurrentUserService currentUser, IBanxicoService banxico, IPagoReciboPdfService reciboPdf)
+    public PagoService(
+        AppDbContext db,
+        ICurrentUserService currentUser,
+        IBanxicoService banxico,
+        IPagoReciboPdfService reciboPdf,
+        INotificacionEventoService notificaciones)
     {
         _db = db;
         _currentUser = currentUser;
         _banxico = banxico;
         _reciboPdf = reciboPdf;
+        _notificaciones = notificaciones;
     }
 
     public async Task<PagedResult<PagoListDto>> GetListAsync(Guid? tramiteId, string? search, DateTime? fechaDesde, DateTime? fechaHasta, bool? verificado, string? metodo, int page = 1, int pageSize = 20)
@@ -216,6 +224,11 @@ public class PagoService : IPagoService
             // El pago no debe perderse si falla el PDF. La UI permite regenerar el recibo.
         }
 
+        var (referencia, cliente) = await GetDatosTramiteAsync(pago.TramiteId);
+        await _notificaciones.EmitirAsync(CatalogoNotificaciones.PagoRegistrado(
+            pago.Id, pago.TramiteId, referencia, pago.Monto, pago.Moneda,
+            cliente, pago.Metodo, await GetNombreUsuarioActualAsync()));
+
         return (await GetByIdAsync(pago.Id))!;
     }
 
@@ -344,6 +357,11 @@ public class PagoService : IPagoService
             await _db.SaveChangesAsync();
             tramiteCobrado = true;
         }
+
+        var (referencia, _) = await GetDatosTramiteAsync(pago.TramiteId);
+        await _notificaciones.EmitirAsync(CatalogoNotificaciones.PagoVerificado(
+            pago.Id, pago.TramiteId, referencia, pago.Monto, pago.Moneda,
+            await GetNombreUsuarioActualAsync()));
 
         return new PagoVerificarResponse
         {
@@ -522,6 +540,41 @@ public class PagoService : IPagoService
     private static decimal ConvertPagoToMxn(Pago pago)
     {
         return pago.Moneda == "USD" ? pago.Monto * (pago.TipoCambio ?? 0m) : pago.Monto;
+    }
+
+    /// <summary>Consecutivo del trámite y nombre del cliente, para el texto de la notificación.</summary>
+    private async Task<(string Referencia, string? Cliente)> GetDatosTramiteAsync(Guid tramiteId)
+    {
+        var datos = await _db.Tramites
+            .Where(t => t.Id == tramiteId)
+            .Select(t => new
+            {
+                t.NumeroConsecutivo,
+                ClienteNombre = t.Cliente != null
+                    ? (t.Cliente.NombreCompleto ?? t.Cliente.Nombre)
+                    : null,
+            })
+            .FirstOrDefaultAsync();
+
+        return (datos?.NumeroConsecutivo ?? "Trámite", datos?.ClienteNombre);
+    }
+
+    private async Task<string> GetNombreUsuarioActualAsync()
+    {
+        var userId = _currentUser.UserId;
+        if (!userId.HasValue || userId.Value == Guid.Empty) return "el sistema";
+
+        var usuario = await _db.Usuarios
+            .Where(u => u.Id == userId.Value)
+            .Select(u => new { u.Nombre, u.Apellidos })
+            .FirstOrDefaultAsync();
+
+        if (usuario == null) return "el sistema";
+
+        var nombre = string.Join(" ", new[] { usuario.Nombre, usuario.Apellidos }
+            .Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+
+        return string.IsNullOrWhiteSpace(nombre) ? "el sistema" : nombre;
     }
 
     private static decimal ConvertGastoToMxn(GastoHormiga gasto)

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RR.Application.DTOs.Entregas;
 using RR.Application.Interfaces;
+using RR.Application.Notificaciones;
 using RR.Domain.Entities;
 using RR.Infrastructure.Data;
 
@@ -11,12 +12,18 @@ public class EntregaTaskService : IEntregaTaskService
     private readonly AppDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IRealtimeNotifier _realtime;
+    private readonly INotificacionEventoService _notificaciones;
 
-    public EntregaTaskService(AppDbContext db, ICurrentUserService currentUser, IRealtimeNotifier realtime)
+    public EntregaTaskService(
+        AppDbContext db,
+        ICurrentUserService currentUser,
+        IRealtimeNotifier realtime,
+        INotificacionEventoService notificaciones)
     {
         _db = db;
         _currentUser = currentUser;
         _realtime = realtime;
+        _notificaciones = notificaciones;
     }
 
     public async Task<List<TareaEntregaDto>> GetTareasAsync(Guid? choferUserId = null, string? estado = null)
@@ -83,7 +90,17 @@ public class EntregaTaskService : IEntregaTaskService
         await _db.SaveChangesAsync();
         await _realtime.TramiteActualizadoAsync(request.TramiteId, "ENTREGA_CREADA");
 
-        return (await GetById(tarea.Id))!;
+        var dto = (await GetById(tarea.Id))!;
+
+        // Si ya trae chofer, le llega directo al suyo; si no, lo ve la yarda.
+        await _notificaciones.EmitirAsync(tarea.ChoferUserId.HasValue
+            ? CatalogoNotificaciones.TareaEntregaAsignada(
+                tarea.ChoferUserId.Value, tarea.Id, dto.NumeroConsecutivo,
+                dto.VehiculoResumen, tarea.UbicacionEntrega)
+            : CatalogoNotificaciones.TareaCampoCreada(
+                tarea.Id, dto.NumeroConsecutivo, dto.VehiculoResumen, tarea.UbicacionEntrega));
+
+        return dto;
     }
 
     public async Task<TareaEntregaDto> TomarAsync(Guid id)
@@ -158,7 +175,17 @@ public class EntregaTaskService : IEntregaTaskService
         await _db.SaveChangesAsync();
         await _realtime.TramiteActualizadoAsync(tarea.TramiteId, "ENTREGA_COMPLETADA");
 
-        return (await GetById(id))!;
+        var dto = (await GetById(id))!;
+        var operadorNombre = dto.ChoferNombre ?? "El chofer";
+
+        await _notificaciones.EmitirAsync(tarea.Estado == "INCIDENCIA"
+            ? CatalogoNotificaciones.IncidenciaCampo(
+                tarea.Id, tarea.TramiteId, dto.NumeroConsecutivo, dto.VehiculoResumen,
+                tarea.Incidencia ?? "Sin detalle", operadorNombre)
+            : CatalogoNotificaciones.TareaEntregaCompletada(
+                tarea.Id, tarea.TramiteId, dto.NumeroConsecutivo, tarea.NombreRecibe, operadorNombre));
+
+        return dto;
     }
 
     public async Task<TareaEntregaDto> AgregarFotoAsync(Guid id, string fotoUrl)

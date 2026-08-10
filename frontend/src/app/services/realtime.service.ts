@@ -64,6 +64,20 @@ export interface FotosSolicitadasEvent {
   fecha: string;
 }
 
+/**
+ * Notificación genérica del backend: cubre campo, pagos, cotizaciones y
+ * trámites. Es el espejo en vivo de lo que se manda por push.
+ */
+export interface NotificacionEvent {
+  tipo: string;
+  titulo: string;
+  mensaje: string;
+  url: string | null;
+  severidad: string;
+  data: Record<string, string> | null;
+  fecha: string;
+}
+
 import { environment } from '../../environments/environment';
 @Injectable({ providedIn: 'root' })
 export class RealtimeService {
@@ -83,6 +97,8 @@ export class RealtimeService {
   readonly tareaAsignada$ = new Subject<TareaAsignadaEvent>();
   /** Emitido en el cliente del operador cuando admin solicita fotos adicionales. */
   readonly fotosSolicitadas$ = new Subject<FotosSolicitadasEvent>();
+  /** Canal único de notificaciones de negocio (campo, pagos, cotizaciones, trámites). */
+  readonly notificacion$ = new Subject<NotificacionEvent>();
 
   /** Emitido cuando el hub responde 401 — el layout debe redirigir a /login. */
   readonly authError$ = new Subject<void>();
@@ -137,6 +153,10 @@ export class RealtimeService {
 
     this.connection.on('fotosSolicitadas', (event: FotosSolicitadasEvent) => {
       this.zone.run(() => this.fotosSolicitadas$.next(event));
+    });
+
+    this.connection.on('notificacion', (event: NotificacionEvent) => {
+      this.zone.run(() => this.notificacion$.next(event));
     });
 
     this.connection.start().catch((err: unknown) => {

@@ -60,6 +60,7 @@ public class AppDbContext : DbContext
     public DbSet<TareaEntrega> TareasEntrega => Set<TareaEntrega>();
     public DbSet<WhatsAppMessage> WhatsAppMessages => Set<WhatsAppMessage>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
+    public DbSet<PushDeviceToken> PushDeviceTokens => Set<PushDeviceToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -404,6 +405,21 @@ public class AppDbContext : DbContext
             e.Property(x => x.Role).HasMaxLength(20).HasDefaultValue("admin");
             e.Property(x => x.UserAgent).HasMaxLength(500);
             e.HasIndex(x => x.Endpoint).IsUnique();
+            e.HasIndex(x => new { x.TenantId, x.Role });
+            e.HasIndex(x => new { x.TenantId, x.UserId });
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
+        });
+
+        modelBuilder.Entity<PushDeviceToken>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Token).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Platform).HasMaxLength(20).HasDefaultValue("web");
+            e.Property(x => x.Role).HasMaxLength(20).HasDefaultValue("admin");
+            e.Property(x => x.UserAgent).HasMaxLength(500);
+            e.HasIndex(x => x.Token).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.Role });
             e.HasIndex(x => new { x.TenantId, x.UserId });
             e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);

@@ -24,6 +24,26 @@ public class RealtimeNotifier : IRealtimeNotifier
         }, cancellationToken);
     }
 
+    public Task NotificacionAsync(string destino, NotificacionRealtime notificacion, Guid? usuarioId = null, CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            notificacion.Tipo,
+            notificacion.Titulo,
+            notificacion.Mensaje,
+            notificacion.Url,
+            notificacion.Severidad,
+            notificacion.Data,
+            fecha = DateTime.UtcNow,
+        };
+
+        var grupo = usuarioId.HasValue && usuarioId.Value != Guid.Empty
+            ? $"user-{usuarioId.Value}"
+            : destino;
+
+        return _hub.Clients.Group(grupo).SendAsync("notificacion", payload, cancellationToken);
+    }
+
     public Task TramiteActualizadoAsync(Guid tramiteId, string accion, CancellationToken cancellationToken = default)
     {
         return _hub.Clients.All.SendAsync("tramiteActualizado", new

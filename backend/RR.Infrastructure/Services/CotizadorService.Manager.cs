@@ -3,6 +3,7 @@ using RR.Application.DTOs.Common;
 using RR.Application.DTOs.Cotizaciones;
 using RR.Application.DTOs.Reportes;
 using RR.Application.DTOs.Tramites;
+using RR.Application.Notificaciones;
 using RR.Domain.Entities;
 
 namespace RR.Infrastructure.Services;
@@ -377,6 +378,20 @@ public partial class CotizadorService
         c.EstadoLogistico = "ACEPTADA";
         c.FechaModificacion = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var cliente = c.ClienteId.HasValue
+            ? await _db.Clientes
+                .Where(x => x.Id == c.ClienteId.Value)
+                .Select(x => x.NombreCompleto ?? x.Nombre)
+                .FirstOrDefaultAsync()
+            : null;
+
+        await _notificaciones.EmitirAsync(CatalogoNotificaciones.CotizacionAceptada(
+            c.Id,
+            c.Folio ?? "Cotización",
+            cliente,
+            c.TotalGeneral ?? 0m,
+            "MXN"));
     }
 
     public async Task RechazarAsync(Guid id, string motivo)

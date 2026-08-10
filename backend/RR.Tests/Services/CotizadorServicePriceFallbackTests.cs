@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using RR.Application.DTOs.Cotizaciones;
 using RR.Application.Interfaces;
 using RR.Domain.Entities;
@@ -156,7 +157,8 @@ public class CotizadorServicePriceFallbackTests
         => Math.Clamp(DateTime.Today.Year - AnnoModelo, 1, 12);
 
     private static CotizadorService CreateService(AppDbContext db, ITenantContext tenantContext)
-        => new(db, new TestNhtsaService(), new TestBanxicoService(), tenantContext, new TestCurrentUserService());
+        => new(db, new TestNhtsaService(), new TestBanxicoService(), tenantContext, new TestCurrentUserService(),
+            Mock.Of<INotificacionEventoService>());
 
     private static AppDbContext CreateDbContext(ITenantContext tenantContext)
     {

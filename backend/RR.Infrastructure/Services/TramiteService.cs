@@ -3,6 +3,7 @@ using RR.Application.DTOs.Common;
 using RR.Application.DTOs.Entregas;
 using RR.Application.DTOs.Tramites;
 using RR.Application.Interfaces;
+using RR.Application.Notificaciones;
 using RR.Domain.Entities;
 using RR.Infrastructure.Data;
 
@@ -14,13 +15,20 @@ public class TramiteService : ITramiteService
     private readonly ICurrentUserService _currentUser;
     private readonly ITramiteStateService _stateService;
     private readonly IRealtimeNotifier _realtime;
+    private readonly INotificacionEventoService _notificaciones;
 
-    public TramiteService(AppDbContext db, ICurrentUserService currentUser, ITramiteStateService stateService, IRealtimeNotifier realtime)
+    public TramiteService(
+        AppDbContext db,
+        ICurrentUserService currentUser,
+        ITramiteStateService stateService,
+        IRealtimeNotifier realtime,
+        INotificacionEventoService notificaciones)
     {
         _db = db;
         _currentUser = currentUser;
         _stateService = stateService;
         _realtime = realtime;
+        _notificaciones = notificaciones;
     }
 
     public async Task<PagedResult<TramiteListDto>> GetListAsync(string? search, string? estado, Guid? tramitadorId, Guid? clienteId, Guid? aduanaId, DateTime? fechaDesde, DateTime? fechaHasta, string? orderBy, string? orderDir, int page, int pageSize, Guid? loteId = null)
@@ -410,6 +418,17 @@ public class TramiteService : ITramiteService
 
         await _db.SaveChangesAsync();
 
+        await _realtime.TramiteActualizadoAsync(id, "ESTADO_CAMBIADO");
+
+        // Avance de trámite: le avisa a oficina en qué etapa quedó la unidad.
+        await _notificaciones.EmitirAsync(CatalogoNotificaciones.TramiteAvanzo(
+            id,
+            tramite.NumeroConsecutivo,
+            estadoAnterior,
+            request.NuevoEstado,
+            await GetVehiculoResumenAsync(tramite.VehiculoId, tramite.DescripcionMercancia),
+            await GetNombreUsuarioActualAsync()));
+
         return new TramiteEventoDto
         {
             Id = evento.Id,
@@ -419,6 +438,48 @@ public class TramiteService : ITramiteService
             Contenido = evento.Contenido,
             FechaEvento = evento.FechaEvento,
         };
+    }
+
+    /// <summary>Marca + modelo + año de la unidad; si no hay vehículo, la descripción libre.</summary>
+    private async Task<string?> GetVehiculoResumenAsync(Guid? vehiculoId, string? descripcionMercancia)
+    {
+        if (!vehiculoId.HasValue) return descripcionMercancia;
+
+        var datos = await _db.Vehiculos
+            .Where(v => v.Id == vehiculoId.Value)
+            .Select(v => new
+            {
+                Marca = v.Marca != null ? v.Marca.Nombre : null,
+                Modelo = v.Modelo != null ? v.Modelo.Nombre : null,
+                v.Anno,
+            })
+            .FirstOrDefaultAsync();
+
+        if (datos == null) return descripcionMercancia;
+
+        var partes = new[] { datos.Marca, datos.Modelo, datos.Anno?.ToString() }
+            .Where(p => !string.IsNullOrWhiteSpace(p));
+        var resumen = string.Join(" ", partes).Trim();
+
+        return string.IsNullOrWhiteSpace(resumen) ? descripcionMercancia : resumen;
+    }
+
+    private async Task<string> GetNombreUsuarioActualAsync()
+    {
+        var userId = _currentUser.UserId;
+        if (!userId.HasValue || userId.Value == Guid.Empty) return "el sistema";
+
+        var usuario = await _db.Usuarios
+            .Where(u => u.Id == userId.Value)
+            .Select(u => new { u.Nombre, u.Apellidos })
+            .FirstOrDefaultAsync();
+
+        if (usuario == null) return "el sistema";
+
+        var nombre = string.Join(" ", new[] { usuario.Nombre, usuario.Apellidos }
+            .Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+
+        return string.IsNullOrWhiteSpace(nombre) ? "el sistema" : nombre;
     }
 
     public async Task<TramitePedimentoDto> AgregarPedimentoAsync(Guid tramiteId, AgregarPedimentoRequest request)
@@ -508,6 +569,12 @@ public class TramiteService : ITramiteService
 
         await _db.SaveChangesAsync();
         await _realtime.TramiteActualizadoAsync(tramiteId, "ENTREGA_REGISTRADA");
+
+        await _notificaciones.EmitirAsync(CatalogoNotificaciones.EntregaRegistrada(
+            tramiteId,
+            tramite.NumeroConsecutivo,
+            await GetVehiculoResumenAsync(tramite.VehiculoId, tramite.DescripcionMercancia),
+            entrega.NombreRecibe));
 
         return new TramiteEntregaDto
         {

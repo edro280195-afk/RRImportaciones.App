@@ -117,7 +117,9 @@ builder.Services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
 builder.Services.AddScoped<ICatalogoPreciosService, CatalogoPreciosService>();
 builder.Services.AddHttpClient("twilio");
 builder.Services.AddScoped<IWhatsAppService, RR.Infrastructure.Services.WhatsApp.TwilioWhatsAppService>();
-builder.Services.AddScoped<IPushNotificationService, RR.Infrastructure.Services.Push.WebPushNotificationService>();
+builder.Services.AddSingleton<RR.Infrastructure.Services.Push.IFirebaseMessagingSender, RR.Infrastructure.Services.Push.FirebaseMessagingSender>();
+builder.Services.AddScoped<IPushNotificationService, RR.Infrastructure.Services.Push.PushNotificationService>();
+builder.Services.AddScoped<INotificacionEventoService, RR.Infrastructure.Services.Push.NotificacionEventoService>();
 builder.Services.AddSingleton<IPortalAccessService, PortalAccessService>();
 
 // Rodri tools — consultas generales
