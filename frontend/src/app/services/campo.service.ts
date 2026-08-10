@@ -36,8 +36,10 @@ export class CampoService {
   private readonly baseUrl = environment.apiUrl + '/api/campo';
 
   getTareas(estatus?: string): Observable<TareaCampoDto[]> {
+    // El parámetro se llama EstadoLogistico en CampoController; mandarlo como
+    // "estatus" hacía que el backend ignorara el filtro en silencio.
     const url = estatus
-      ? `${this.baseUrl}/tareas?estatus=${encodeURIComponent(estatus)}`
+      ? `${this.baseUrl}/tareas?EstadoLogistico=${encodeURIComponent(estatus)}`
       : `${this.baseUrl}/tareas`;
     return this.http.get<TareaCampoDto[]>(url);
   }

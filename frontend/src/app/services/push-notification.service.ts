@@ -22,6 +22,17 @@ export class PushNotificationService {
   }
 
   /**
+   * Estado actual del permiso: 'granted' | 'denied' | 'default' | 'unsupported'.
+   * Sirve para decidir si hay que ofrecerle al usuario un botón que lo pida —
+   * Safari en iOS exige que `requestPermission()` salga de un gesto suyo, así
+   * que pedirlo en el ngOnInit simplemente no funciona ahí.
+   */
+  permissionState(): NotificationPermission | 'unsupported' {
+    if (!this.isSupported()) return 'unsupported';
+    return Notification.permission;
+  }
+
+  /**
    * Suscribe al navegador a notificaciones push para el rol indicado.
    * Si el permiso ya fue denegado, sale silenciosamente.
    */

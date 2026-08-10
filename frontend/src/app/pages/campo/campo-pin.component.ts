@@ -11,8 +11,15 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService, CampoUserDto } from '../../services/auth.service';
+import { BiometricService } from '../../services/biometric.service';
 
-type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lockout';
+type PinScreen =
+  | 'select-user'
+  | 'enter-pin'
+  | 'set-pin'
+  | 'confirm-pin'
+  | 'lockout'
+  | 'offer-biometric';
 
 @Component({
   selector: 'app-campo-pin',
@@ -194,8 +201,11 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
                     <button
                       class="key key-action key-bio"
                       (click)="triggerBiometric()"
-                      [disabled]="true"
-                      title="Próximamente: biometría"
+                      [disabled]="!bioActivada() || bioEnCurso()"
+                      [class.key-bio--ready]="bioActivada() && !bioEnCurso()"
+                      [title]="
+                        bioActivada() ? 'Entrar con huella o Face ID' : 'Activa la huella al entrar con tu PIN'
+                      "
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                         <path
@@ -346,6 +356,38 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
               <p class="pin-sub">Demasiados intentos fallidos</p>
               <div class="lockout-timer">{{ lockoutRemaining() }}s</div>
               <p class="pin-hint">Por favor, espera para volver a intentar</p>
+            </div>
+          }
+
+          @if (screen() === 'offer-biometric') {
+            <div class="pin-card text-center">
+              <div class="bio-offer-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04.054-.09A13.916 13.916 0 0 0 8 11a4 4 0 1 1 8 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0 0 15.171 15m3.13-6.868A13.94 13.94 0 0 1 19 11c0 1.42-.13 2.81-.379 4.158M5.5 6.5A13.93 13.93 0 0 1 12 4c2.53 0 4.876.784 6.813 2.122"
+                  />
+                </svg>
+              </div>
+              <h2 class="pin-title">Entra más rápido</h2>
+              <p class="pin-sub">
+                Usa tu huella o Face ID para entrar sin teclear el PIN cada vez.
+              </p>
+              @if (pinError()) {
+                <p class="pin-error-text">{{ pinError() }}</p>
+              }
+              <button
+                class="bio-offer-btn"
+                (click)="activarBiometria()"
+                [disabled]="bioEnCurso()"
+                type="button"
+              >
+                {{ bioEnCurso() ? 'Activando…' : 'Activar huella / Face ID' }}
+              </button>
+              <button class="bio-offer-skip" (click)="omitirBiometria()" type="button">
+                Ahora no
+              </button>
             </div>
           }
 
@@ -890,6 +932,60 @@ type PinScreen = 'select-user' | 'enter-pin' | 'set-pin' | 'confirm-pin' | 'lock
       .key-bio {
         opacity: 0.35;
       }
+      .key-bio--ready {
+        opacity: 1;
+      }
+      .key-bio--ready svg {
+        color: #c61d26;
+      }
+
+      /* Oferta de biometría tras entrar con PIN */
+      .bio-offer-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 16px;
+        color: #c61d26;
+      }
+      .bio-offer-icon svg {
+        width: 100%;
+        height: 100%;
+      }
+      .bio-offer-btn {
+        width: 100%;
+        margin-top: 20px;
+        padding: 15px;
+        border: none;
+        border-radius: 14px;
+        background: #c61d26;
+        color: #fff;
+        font-family: inherit;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .bio-offer-btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      .bio-offer-skip {
+        width: 100%;
+        margin-top: 10px;
+        padding: 12px;
+        border: none;
+        border-radius: 14px;
+        background: none;
+        color: #6b717f;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .pin-error-text {
+        margin-top: 12px;
+        color: #c61d26;
+        font-size: 13px;
+        font-weight: 700;
+      }
 
       /* Olvidé mi PIN / Alerta */
       .forgot-pin-container {
@@ -1144,6 +1240,7 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
   private auth = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private biometric = inject(BiometricService);
 
   @ViewChild('networkCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
   private ctx: CanvasRenderingContext2D | null = null;
@@ -1168,6 +1265,11 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
   resetRequested = signal(false);
   currentYear = new Date().getFullYear();
 
+  /** Biometría: disponible en el dispositivo, activada por este usuario, en curso. */
+  bioDisponible = signal(false);
+  bioActivada = signal(false);
+  bioEnCurso = signal(false);
+
   readonly keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'backspace', '0', 'bio'];
   readonly keySub: Record<string, string> = {
     '2': 'ABC',
@@ -1191,6 +1293,8 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
       return;
     }
 
+    void this.biometric.isAvailable().then(ok => this.bioDisponible.set(ok));
+
     // Intentar recordar el último usuario
     const saved = localStorage.getItem('campo_username');
     if (saved) {
@@ -1200,6 +1304,7 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
           const user = users.find(u => u.username === saved);
           if (user) {
             this.selectedUser.set(user);
+            this.bioActivada.set(this.biometric.isEnrolled(user.username));
             this.screen.set(user.tienePin ? 'enter-pin' : 'set-pin');
           }
           this.loadingUsers.set(false);
@@ -1228,15 +1333,31 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
     window.addEventListener('resize', this.onResize);
     canvas.addEventListener('mousemove', this.onMouseMove);
     canvas.addEventListener('mouseleave', this.onMouseLeave);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
 
     this.tick();
   }
+
+  /**
+   * La animación de fondo corre en bucle con requestAnimationFrame. En un
+   * teléfono de yarda eso consume batería mientras la pantalla de acceso está
+   * abierta, así que se detiene cuando la pestaña deja de verse.
+   */
+  private onVisibilityChange = (): void => {
+    if (document.hidden) {
+      if (this.animationId) cancelAnimationFrame(this.animationId);
+      this.animationId = undefined;
+    } else if (this.animationId === undefined && this.ctx) {
+      this.tick();
+    }
+  };
 
   ngOnDestroy(): void {
     if (this.lockoutTimer) clearInterval(this.lockoutTimer);
     if (this.animationId) cancelAnimationFrame(this.animationId);
 
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
     const canvas = this.canvasRef?.nativeElement;
     if (canvas) {
       canvas.removeEventListener('mousemove', this.onMouseMove);
@@ -1399,6 +1520,10 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
     this.selectedUser.set(user);
     this.pin.set('');
     this.pinError.set('');
+    // Los intentos son por usuario: sin esto, los fallos de un compañero
+    // seguían contando y bloqueaban al siguiente en el mismo dispositivo.
+    this.attempts.set(0);
+    this.bioActivada.set(this.biometric.isEnrolled(user.username));
     this.screen.set(user.tienePin ? 'enter-pin' : 'set-pin');
     localStorage.setItem('campo_username', user.username);
   }
@@ -1407,6 +1532,7 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
     this.screen.set('select-user');
     this.pin.set('');
     this.pinError.set('');
+    this.attempts.set(0);
     this.resetRequested.set(false);
     localStorage.removeItem('campo_username');
   }
@@ -1434,7 +1560,11 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
       this.pinError.set('');
       return;
     }
-    if (key === 'bio' || this.pin().length >= 6) return;
+    if (key === 'bio') {
+      void this.triggerBiometric();
+      return;
+    }
+    if (this.pin().length >= 6) return;
 
     // vibration feedback
     if ('vibrate' in navigator) navigator.vibrate(8);
@@ -1448,8 +1578,84 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  triggerBiometric(): void {
-    // Placeholder — se implementa en la siguiente fase
+  /**
+   * Desbloqueo por huella/rostro. Es un candado local: al superarlo se reanuda
+   * la sesión con el refresh token guardado. Si ese token ya venció, no hay nada
+   * que reanudar y hay que caer al PIN — se le dice explícitamente.
+   */
+  async triggerBiometric(): Promise<void> {
+    const user = this.selectedUser();
+    if (!user || this.bioEnCurso() || !this.bioActivada()) return;
+
+    this.bioEnCurso.set(true);
+    this.pinError.set('');
+
+    const verificado = await this.biometric.verify(user.username);
+    if (!verificado) {
+      this.bioEnCurso.set(false);
+      this.pinError.set('No se pudo verificar tu huella. Ingresa tu PIN.');
+      this.triggerShake();
+      return;
+    }
+
+    this.auth.refreshToken().subscribe({
+      next: () => {
+        this.bioEnCurso.set(false);
+        if ('vibrate' in navigator) navigator.vibrate([50, 50, 100]);
+        this.router.navigateByUrl(this.returnUrl());
+      },
+      error: () => {
+        this.bioEnCurso.set(false);
+        this.pinError.set('Tu sesión expiró. Ingresa tu PIN para continuar.');
+        this.triggerShake();
+      },
+    });
+  }
+
+  /** Alta de la biometría desde la pantalla que se ofrece tras entrar con PIN. */
+  async activarBiometria(): Promise<void> {
+    const user = this.selectedUser();
+    if (!user) return;
+
+    this.bioEnCurso.set(true);
+    const ok = await this.biometric.enroll(user.username);
+    this.bioEnCurso.set(false);
+
+    if (ok) {
+      this.bioActivada.set(true);
+      if ('vibrate' in navigator) navigator.vibrate([50, 50, 100]);
+    } else {
+      this.pinError.set('No se pudo activar. Puedes intentarlo luego desde aquí.');
+    }
+    this.router.navigateByUrl(this.returnUrl());
+  }
+
+  omitirBiometria(): void {
+    const user = this.selectedUser();
+    // Recordar la decisión: si no, la oferta reaparece en cada inicio de sesión.
+    if (user) localStorage.setItem(this.bioOfferKey(user.username), 'skipped');
+    this.router.navigateByUrl(this.returnUrl());
+  }
+
+  private returnUrl(): string {
+    return this.route.snapshot.queryParams['returnUrl'] || '/campo';
+  }
+
+  private readonly bioOfferKey = (username: string) => `rr_campo_bio_offer_${username}`;
+
+  /**
+   * Tras entrar con PIN: ofrecer la biometría una sola vez por usuario y
+   * dispositivo. Si no aplica, entra directo.
+   */
+  private async continuarTrasLogin(): Promise<void> {
+    const user = this.selectedUser();
+    const yaDecidio = user ? localStorage.getItem(this.bioOfferKey(user.username)) : 'skipped';
+
+    if (user && this.bioDisponible() && !this.bioActivada() && !yaDecidio) {
+      this.screen.set('offer-biometric');
+      return;
+    }
+    this.router.navigateByUrl(this.returnUrl());
   }
 
   private submitPin(pin: string): void {
@@ -1467,12 +1673,12 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
     this.auth.pinLogin({ username: user.username, pin }).subscribe({
       next: res => {
         this.loading.set(false);
+        this.attempts.set(0);
         if (res.needsSetPin) {
           this.pin.set('');
           this.screen.set('set-pin');
         } else {
-          const returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/campo';
-          this.router.navigateByUrl(returnUrl);
+          void this.continuarTrasLogin();
         }
       },
       error: (err: Error) => {
@@ -1518,8 +1724,7 @@ export class CampoPinComponent implements OnInit, OnDestroy, AfterViewInit {
     const onSaved = () => {
       this.loading.set(false);
       if ('vibrate' in navigator) navigator.vibrate([50, 50, 100]);
-      const returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/campo';
-      this.router.navigateByUrl(returnUrl);
+      void this.continuarTrasLogin();
     };
     const onError = (err: Error) => {
       this.loading.set(false);

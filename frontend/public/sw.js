@@ -1,4 +1,5 @@
-const CACHE_NAME = 'rr-importaciones-v1';
+// Subir esta versión invalida todo lo cacheado por la versión anterior.
+const CACHE_NAME = 'rr-importaciones-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -32,6 +33,17 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// ── Estrategias de caché ──────────────────────────────────────────────────
+//
+// El HTML y el código de la app van por RED PRIMERO, con la caché solo como
+// respaldo sin conexión. Antes era al revés (caché primero para todo) y eso
+// dejaba la app congelada en la versión instalada: al publicar una versión
+// nueva, el navegador seguía sirviendo el index.html viejo, que a su vez
+// apuntaba a los bundles viejos —también cacheados—, así que el despliegue no
+// le llegaba nunca al usuario.
+//
+// Las imágenes e iconos sí van por caché primero: no cambian y así la app
+// arranca rápido y funciona en la yarda sin señal.
 self.addEventListener('fetch', (event) => {
   // Solo interceptar peticiones GET locales
   if (event.request.method !== 'GET') return;
@@ -39,41 +51,52 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Si es navegación (ej. rutas de Angular como /asistente-personal, /campo)
-  // devolver index.html para que el router de Angular cargue la ruta offline
+  // Navegación (rutas de Angular como /campo o /asistente-personal)
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      caches.match('/index.html').then((response) => {
-        return response || fetch(event.request);
-      })
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  const esCodigo = url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
+  const esEstatico = url.pathname.includes('/assets/') || url.pathname.includes('/icons/');
+
+  if (esCodigo) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        // Cachar recursos estáticos locales como JS o CSS
-        if (
-          networkResponse.status === 200 &&
-          (url.pathname.endsWith('.js') ||
-           url.pathname.endsWith('.css') ||
-           url.pathname.includes('/assets/') ||
-           url.pathname.includes('/icons/'))
-        ) {
-          const cacheCopy = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, cacheCopy);
-          });
-        }
-        return networkResponse;
-      }).catch(() => {
-        // Fallback en caso de error de red
-        return caches.match('/index.html');
-      });
+      if (cachedResponse) return cachedResponse;
+      return fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse.status === 200 && esEstatico) {
+            const cacheCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cacheCopy));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match('/index.html'));
     })
   );
 });

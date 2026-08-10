@@ -9,6 +9,15 @@ import { RealtimeService } from '../../services/realtime.service';
 import { PushNotificationService } from '../../services/push-notification.service';
 import { CampoRegistroModalComponent } from './campo-registro-modal.component';
 
+/** Aviso en vivo que se le muestra al operador dentro de la pantalla de campo. */
+interface AvisoCampo {
+  icono: string;
+  titulo: string;
+  vehiculoResumen: string;
+  mensaje: string;
+  tareaCampoId: string;
+}
+
 @Component({
   selector: 'app-campo-tareas',
   standalone: true,
@@ -74,6 +83,43 @@ import { CampoRegistroModalComponent } from './campo-registro-modal.component';
           </button>
         </div>
       </header>
+
+      <!-- ── Activar avisos push (solo si aún no se ha decidido) ──── -->
+      @if (pushPermiso() === 'default') {
+        <button
+          class="push-cta"
+          (click)="activarNotificaciones()"
+          [disabled]="activandoPush()"
+          type="button"
+        >
+          <span class="push-cta__icon">🔔</span>
+          <span class="push-cta__text">
+            {{ activandoPush() ? 'Activando…' : 'Activar avisos de nuevas unidades' }}
+          </span>
+        </button>
+      }
+
+      <!-- ── Aviso en vivo (tarea asignada / admin pide fotos) ────── -->
+      @if (avisoNotif(); as aviso) {
+        <button class="aviso" (click)="abrirAviso(aviso)" type="button">
+          <span class="aviso__icon">{{ aviso.icono }}</span>
+          <span class="aviso__body">
+            <span class="aviso__title">{{ aviso.titulo }}</span>
+            <span class="aviso__vehiculo">{{ aviso.vehiculoResumen }}</span>
+            @if (aviso.mensaje) {
+              <span class="aviso__msg">{{ aviso.mensaje }}</span>
+            }
+          </span>
+          <span
+            class="aviso__close"
+            (click)="descartarAviso($event)"
+            role="button"
+            tabindex="0"
+            aria-label="Descartar aviso"
+            >✕</span
+          >
+        </button>
+      }
 
       <!-- ── Summary banner ──────────────────────────────────────── -->
       <div class="summary-banner" [class.banner--clear]="pendientes() === 0 && tareas().length > 0">
@@ -480,6 +526,82 @@ import { CampoRegistroModalComponent } from './campo-registro-modal.component';
       }
 
       /* ── Summary banner ─────────────────────────────────────────── */
+      /* ── Activar avisos push ────────────────────────────────────── */
+      .push-cta {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: calc(100% - 28px);
+        margin: 14px 14px 0;
+        padding: 12px 16px;
+        border: 1.5px dashed var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        color: var(--text-2);
+        font-family: inherit;
+        font-size: 13.5px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .push-cta:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      .push-cta__icon {
+        font-size: 16px;
+      }
+
+      /* ── Aviso en vivo del operador ─────────────────────────────── */
+      .aviso {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        width: calc(100% - 28px);
+        margin: 14px 14px 0;
+        padding: 14px 16px;
+        border: 1.5px solid var(--blue);
+        border-radius: 16px;
+        background: var(--blue-lt);
+        color: var(--text-1);
+        text-align: left;
+        font-family: inherit;
+        cursor: pointer;
+        animation: fadeUp 0.2s ease-out;
+      }
+      .aviso__icon {
+        font-size: 22px;
+        line-height: 1.2;
+      }
+      .aviso__body {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1;
+        min-width: 0;
+      }
+      .aviso__title {
+        font-size: 14px;
+        font-weight: 900;
+        color: var(--blue);
+      }
+      .aviso__vehiculo {
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .aviso__msg {
+        font-size: 12.5px;
+        color: var(--text-2);
+        line-height: 1.35;
+      }
+      .aviso__close {
+        color: var(--text-3);
+        font-size: 15px;
+        font-weight: 700;
+        padding: 0 2px;
+        cursor: pointer;
+      }
+
       .summary-banner {
         display: flex;
         align-items: center;
@@ -1011,6 +1133,13 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   private realtime = inject(RealtimeService);
   private push = inject(PushNotificationService);
   private sub?: Subscription;
+  private tareaAsignadaSub?: Subscription;
+  private fotosSolicitadasSub?: Subscription;
+  private avisoTimer?: ReturnType<typeof setTimeout>;
+
+  readonly avisoNotif = signal<AvisoCampo | null>(null);
+  readonly pushPermiso = signal<NotificationPermission | 'unsupported'>('default');
+  readonly activandoPush = signal(false);
 
   tareas = signal<TareaCampoDto[]>([]);
   loading = signal(false);
@@ -1054,12 +1183,98 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
     this.realtime.start();
     this.sub = this.realtime.campoActualizado$.subscribe(() => this.load());
 
-    // Suscribir a push notifications con rol "campo" (yardero recibe alertas aún con la PWA cerrada)
-    void this.push.subscribe('campo');
+    // El backend manda estos dos eventos al grupo `user-{id}` del operador, pero
+    // hasta ahora solo los escuchaba AppLayout —que envuelve las rutas admin—,
+    // así que el yardero nunca los veía: /campo va por fuera de ese layout.
+    this.tareaAsignadaSub = this.realtime.tareaAsignada$.subscribe(event => {
+      this.mostrarAviso({
+        icono: '🚗',
+        titulo: 'Nueva unidad asignada',
+        vehiculoResumen: event.vehiculoResumen,
+        mensaje: event.mensaje,
+        tareaCampoId: event.tareaCampoId,
+      });
+      this.load();
+    });
+
+    this.fotosSolicitadasSub = this.realtime.fotosSolicitadas$.subscribe(event => {
+      this.mostrarAviso({
+        icono: '📸',
+        titulo: 'Te piden más fotos',
+        vehiculoResumen: event.vehiculoResumen,
+        mensaje: event.mensaje,
+        tareaCampoId: event.tareaCampoId,
+      });
+      this.load();
+    });
+
+    // Push con rol "campo" (alertas aun con la PWA cerrada). Solo se intenta en
+    // automático si el permiso ya está concedido: en iOS el navegador ignora
+    // `requestPermission()` si no viene de un toque del usuario, así que cuando
+    // está en 'default' se le ofrece el botón de abajo.
+    //
+    // Y solo para operadores de campo reales: la suscripción va por endpoint del
+    // navegador, así que si un admin entra aquí a revisar, registrarlo como
+    // "campo" pisaría su suscripción de admin y dejaría de recibir sus avisos.
+    if (this.esOperadorDeCampo) {
+      this.pushPermiso.set(this.push.permissionState());
+      if (this.pushPermiso() === 'granted') void this.push.subscribe('campo');
+    } else {
+      this.pushPermiso.set('granted'); // oculta el CTA: no aplica para admins
+    }
+  }
+
+  /**
+   * Operador de campo real. Se decide por rol y no por el permiso CAMPO_USAR,
+   * porque ADMIN y GERENTE también lo tienen (heredan todos los permisos) y no
+   * deben quedar registrados como dispositivo de campo al entrar a revisar.
+   */
+  private get esOperadorDeCampo(): boolean {
+    const role = this.authService.user()?.role;
+    return role === 'YARDERO' || role === 'CHOFER';
+  }
+
+  async activarNotificaciones(): Promise<void> {
+    this.activandoPush.set(true);
+    const ok = await this.push.subscribe('campo');
+    this.activandoPush.set(false);
+    this.pushPermiso.set(this.push.permissionState());
+
+    if (ok) {
+      this.notifications.success('Avisos activados en este dispositivo.');
+    } else if (this.pushPermiso() === 'denied') {
+      this.notifications.warning(
+        'Los avisos están bloqueados. Actívalos desde los ajustes del navegador para esta página.'
+      );
+    } else {
+      this.notifications.warning('No se pudieron activar los avisos en este dispositivo.');
+    }
   }
 
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
+    this.tareaAsignadaSub?.unsubscribe();
+    this.fotosSolicitadasSub?.unsubscribe();
+    clearTimeout(this.avisoTimer);
+  }
+
+  private mostrarAviso(aviso: AvisoCampo): void {
+    clearTimeout(this.avisoTimer);
+    this.avisoNotif.set(aviso);
+    this.avisoTimer = setTimeout(() => this.avisoNotif.set(null), 12_000);
+    navigator.vibrate?.([200, 100, 200]);
+  }
+
+  abrirAviso(aviso: AvisoCampo): void {
+    this.avisoNotif.set(null);
+    clearTimeout(this.avisoTimer);
+    void this.router.navigate(['/campo', aviso.tareaCampoId, 'captura']);
+  }
+
+  descartarAviso(event: Event): void {
+    event.stopPropagation();
+    clearTimeout(this.avisoTimer);
+    this.avisoNotif.set(null);
   }
 
   load(): void {
@@ -1118,8 +1333,13 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
     this.showLogout.set(true);
   }
 
-  doLogout(): void {
+  async doLogout(): Promise<void> {
     this.showLogout.set(false);
+    // Sin esto el dispositivo seguía suscrito con rol "campo" y recibía alertas
+    // de tareas después de cerrar sesión, incluso con otro usuario dentro.
+    await this.push.unsubscribe();
+    // Cerrar el hub: seguía abierto con el token del usuario anterior.
+    this.realtime.stop();
     localStorage.removeItem('campo_username');
     this.authService.clearSession();
     void this.router.navigateByUrl('/campo/pin', { replaceUrl: true });

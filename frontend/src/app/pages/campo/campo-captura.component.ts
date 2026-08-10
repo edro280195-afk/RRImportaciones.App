@@ -388,7 +388,7 @@ const MIN_PHOTOS = 3;
           <div class="incidencia-card">
             <div class="incidencia-card__head">
               <span class="incidencia-card__title">⚠ Incidencia</span>
-              @if (!incidencia) {
+              @if (!incidencia()) {
                 <button
                   class="incidencia-card__close"
                   (click)="showIncidencia.set(false)"
@@ -399,8 +399,8 @@ const MIN_PHOTOS = 3;
               }
             </div>
             <textarea
-              [(ngModel)]="incidencia"
-              (ngModelChange)="persistDraft()"
+              [ngModel]="incidencia()"
+              (ngModelChange)="onIncidenciaChange($event)"
               class="incidencia-input"
               rows="3"
               placeholder="Describe el problema: daño visible, VIN no coincide, unidad no localizada..."
@@ -410,12 +410,26 @@ const MIN_PHOTOS = 3;
 
         <!-- ACTION BAR ───────────────────────────────────────── -->
         <div class="action-bar">
+          @if (storageFull()) {
+            <p class="storage-warn">
+              ⚠ Sin espacio para respaldar fotos en este dispositivo. Guarda la captura pronto: si
+              recargas el navegador se perderán las que no se hayan subido.
+            </p>
+          }
           @if (state() === 'sending') {
             <div class="send-progress">
               <div class="send-progress__bar" [style.width.%]="sendProgressPct()"></div>
               <span>Subiendo {{ uploadedCount() }} de {{ photos().length }} fotos…</span>
             </div>
           } @else {
+            @if (!canSend()) {
+              <p class="send-hint">
+                Faltan {{ MIN_PHOTOS - totalPhotoCount() }} foto{{
+                  MIN_PHOTOS - totalPhotoCount() === 1 ? '' : 's'
+                }}
+                para guardar, o describe una incidencia si no puedes tomarlas.
+              </p>
+            }
             <button
               class="btn-primary btn-send"
               (click)="sendReport()"
@@ -1409,6 +1423,26 @@ const MIN_PHOTOS = 3;
         margin: 0 auto;
       }
 
+      .send-hint {
+        margin: 0;
+        text-align: center;
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1.4;
+        color: var(--text-2);
+      }
+
+      .storage-warn {
+        margin: 0;
+        border-radius: var(--radius-sm);
+        background: #fef3c7;
+        color: #92400e;
+        padding: 8px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.4;
+      }
+
       /* ── Buttons ────────────────────────────────────────────────────── */
       .btn-primary {
         border: none;
@@ -1789,6 +1823,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   private vinScanner = inject(VinScannerService);
   private authService = inject(AuthService);
   private sub?: Subscription;
+  private fotosSub?: Subscription;
 
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvas') canvasRef?: ElementRef<HTMLCanvasElement>;
@@ -1810,10 +1845,12 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   readonly galleryOpen = signal(false);
   readonly galleryIndex = signal(0);
   readonly deletingPhoto = signal(false);
+  readonly storageFull = signal(false);
 
   ubicacion = '';
   vinConfirmado = '';
-  incidencia = '';
+  /** Signal porque `canSend` depende de ella: con incidencia se relaja el mínimo de fotos. */
+  readonly incidencia = signal('');
 
   private stream: MediaStream | null = null;
   private vinScanSession: VinScanSession | null = null;
@@ -1841,8 +1878,22 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     })),
   ]);
   readonly galleryCurrentPhoto = computed(() => this.galleryPhotos()[this.galleryIndex()]);
-  readonly canDeleteServerPhotos = computed(() => this.authService.isAdmin());
-  readonly canSend = computed(() => this.totalPhotoCount() > 0 && this.state() !== 'sending');
+  /** ADMIN y DUEÑO: `isAdmin()` solo cubre el rol ADMIN y dejaba fuera al dueño. */
+  readonly canDeleteServerPhotos = computed(
+    () => this.authService.isAdmin() || this.authService.isDueno()
+  );
+  /**
+   * El riel de pasos exige MIN_PHOTOS ("Faltan N fotos para continuar"), así que
+   * el botón debe exigir lo mismo. Excepción: con una incidencia descrita se
+   * puede cerrar con menos fotos —el caso real es "unidad no localizada", donde
+   * no hay nada que fotografiar— y el backend la manda a INCIDENCIA en vez de
+   * COMPLETADA, así que igual la revisa un admin.
+   */
+  readonly canSend = computed(() => {
+    if (this.state() === 'sending') return false;
+    if (this.incidencia().trim()) return true;
+    return this.totalPhotoCount() >= MIN_PHOTOS;
+  });
   readonly sendProgressPct = computed(() => {
     const total = this.photos().length;
     return total === 0 ? 0 : Math.round((this.uploadedCount() / total) * 100);
@@ -1862,12 +1913,22 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     this.sub = this.realtime.campoActualizado$.subscribe(ev => {
       if (ev.tareaCampoId === id && this.state() !== 'sending') this.load(id, false);
     });
+
+    // Si el admin pide más fotos justo de la unidad que el operador tiene
+    // abierta, avisarle aquí: de otro modo el mensaje solo existiría en la
+    // lista de tareas, que en ese momento no está viendo.
+    this.fotosSub = this.realtime.fotosSolicitadas$.subscribe(ev => {
+      if (ev.tareaCampoId !== id) return;
+      this.notifications.info(ev.mensaje || 'El administrador solicita más fotos de esta unidad.');
+      this.vibrate([200, 100, 200]);
+    });
   }
 
   ngOnDestroy(): void {
     this.closeCamera();
     this.closeGallery();
     this.sub?.unsubscribe();
+    this.fotosSub?.unsubscribe();
   }
 
   load(id: string, markTaken = true): void {
@@ -1876,8 +1937,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
         this.tarea.set(t);
         this.ubicacion ||= t.ubicacion || '';
         this.vinConfirmado ||= this.normalizeVin(t.vinConfirmado || t.vinCorto || t.vin || '');
-        this.incidencia ||= t.incidencia || '';
-        if (this.incidencia) this.showIncidencia.set(true);
+        if (!this.incidencia()) this.incidencia.set(t.incidencia || '');
+        if (this.incidencia()) this.showIncidencia.set(true);
         this.loadLocalPhotos(id);
         this.persistDraft();
         this.state.set('ready');
@@ -1953,9 +2014,15 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
       ...items,
       { id: crypto.randomUUID(), dataUrl, uploading: false, uploaded: false, err: false },
     ]);
-    this.persistLocalPhotos();
+    const respaldada = this.persistLocalPhotos();
     this.triggerFlash();
     this.vibrate([18, 28, 18]);
+
+    if (!respaldada) {
+      this.notifications.warning(
+        'Ya no hay espacio para respaldar las fotos en este dispositivo. Guarda la captura pronto: si recargas el navegador se perderán.'
+      );
+    }
   }
 
   removePhoto(id: string): void {
@@ -2056,9 +2123,10 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     this.state.set('sending');
     this.closeCamera();
 
-    try {
-      let current = task;
+    let current = task;
+    let subioFotos = false;
 
+    try {
       for (const photo of this.photos()) {
         if (photo.uploaded) continue;
         this.photos.update(items =>
@@ -2071,18 +2139,29 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
         );
         const response = await firstValueFrom(this.campoService.uploadFoto(current.id, file));
         current = response.tarea;
+        subioFotos = true;
 
         this.photos.update(items =>
           items.map(p => (p.id === photo.id ? { ...p, uploading: false, uploaded: true } : p))
         );
       }
 
+      // Si esta pasada no subió nada (reintento donde solo había fallado el
+      // completar), `current` sigue siendo el estado con el que se abrió la
+      // pantalla y su lista de fotos está vieja. Completar con esa lista
+      // BORRARÍA en el servidor las fotos ya subidas, porque el backend
+      // reemplaza FotosUrls en vez de fusionarla.
+      if (!subioFotos) {
+        current = await firstValueFrom(this.campoService.getById(current.id));
+      }
+      this.tarea.set(current);
+
       await firstValueFrom(
         this.campoService.completar(current.id, {
           ubicacion: this.ubicacion || null,
           vinConfirmado: this.vinConfirmado || null,
           fotosUrls: current.fotosUrls,
-          incidencia: this.incidencia || null,
+          incidencia: this.incidencia().trim() || null,
         })
       );
 
@@ -2091,6 +2170,9 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
       this.notifications.success('¡Captura guardada!');
       this.goBack();
     } catch (err) {
+      // Conservar lo que sí alcanzó a subir: si el usuario reintenta, el
+      // refresco de arriba parte de este estado y no de uno anterior.
+      this.tarea.set(current);
       this.photos.update(items =>
         items.map(p => (p.uploading ? { ...p, uploading: false, err: true } : p))
       );
@@ -2104,16 +2186,27 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     this.persistDraft();
   }
 
+  onIncidenciaChange(value: string): void {
+    this.incidencia.set(value);
+    this.persistDraft();
+  }
+
   persistDraft(): void {
     if (!this.taskId) return;
-    localStorage.setItem(
-      this.draftKey(this.taskId),
-      JSON.stringify({
-        ubicacion: this.ubicacion,
-        vinConfirmado: this.vinConfirmado,
-        incidencia: this.incidencia,
-      } satisfies CampoDraft)
-    );
+    try {
+      localStorage.setItem(
+        this.draftKey(this.taskId),
+        JSON.stringify({
+          ubicacion: this.ubicacion,
+          vinConfirmado: this.vinConfirmado,
+          incidencia: this.incidencia(),
+        } satisfies CampoDraft)
+      );
+    } catch {
+      // El borrador de texto es diminuto; si falla es porque las fotos ya
+      // llenaron el almacenamiento. Ese aviso ya lo da persistLocalPhotos().
+      this.storageFull.set(true);
+    }
   }
 
   goBack(): void {
@@ -2212,8 +2305,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
       const d = JSON.parse(raw) as CampoDraft;
       this.ubicacion = d.ubicacion || '';
       this.vinConfirmado = this.normalizeVin(d.vinConfirmado || '');
-      this.incidencia = d.incidencia || '';
-      if (this.incidencia) this.showIncidencia.set(true);
+      this.incidencia.set(d.incidencia || '');
+      if (this.incidencia()) this.showIncidencia.set(true);
     } catch {
       localStorage.removeItem(this.draftKey(id));
     }
@@ -2227,6 +2320,10 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     }
     try {
       const saved = JSON.parse(raw) as Array<{ id: string; dataUrl: string }>;
+      // Conservar el "ya subida" de lo que hay en memoria: esta recarga también
+      // la dispara un evento de realtime, y marcar todo como pendiente hacía
+      // que un reintento volviera a subir fotos que el servidor ya tenía.
+      const previas = new Map(this.photos().map(p => [p.id, p]));
       this.photos.set(
         saved
           .filter(p => p.id && p.dataUrl?.startsWith('data:image/'))
@@ -2234,8 +2331,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
             id: p.id,
             dataUrl: p.dataUrl,
             uploading: false,
-            uploaded: false,
-            err: false,
+            uploaded: previas.get(p.id)?.uploaded ?? false,
+            err: previas.get(p.id)?.err ?? false,
           }))
       );
     } catch {
@@ -2244,12 +2341,26 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     }
   }
 
-  private persistLocalPhotos(): void {
-    if (!this.taskId) return;
-    localStorage.setItem(
-      this.photosKey(this.taskId),
-      JSON.stringify(this.photos().map(p => ({ id: p.id, dataUrl: p.dataUrl })))
-    );
+  /**
+   * Guarda las fotos como respaldo local. Devuelve false si el navegador ya no
+   * tiene espacio: localStorage ronda los 5 MB y cada foto en base64 pesa
+   * cientos de KB, así que a partir de ~8 fotos es un escenario normal, no un
+   * caso raro. La foto sigue en memoria y se puede enviar; lo que se pierde es
+   * el respaldo ante una recarga del navegador.
+   */
+  private persistLocalPhotos(): boolean {
+    if (!this.taskId) return false;
+    try {
+      localStorage.setItem(
+        this.photosKey(this.taskId),
+        JSON.stringify(this.photos().map(p => ({ id: p.id, dataUrl: p.dataUrl })))
+      );
+      this.storageFull.set(false);
+      return true;
+    } catch {
+      this.storageFull.set(true);
+      return false;
+    }
   }
 
   private clearLocalState(): void {

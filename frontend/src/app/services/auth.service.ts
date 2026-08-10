@@ -1,9 +1,10 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap } from 'rxjs/operators';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { PushNotificationService } from './push-notification.service';
 
 export interface LoginRequest {
   username: string;
@@ -48,6 +49,8 @@ export class AuthService {
   private readonly apiUrl = environment.apiUrl + '/api/auth';
   readonly user = signal<UserInfo | null>(null);
   readonly isAuthenticated = signal(false);
+
+  private push = inject(PushNotificationService);
 
   readonly isAdmin = computed(() => this.user()?.role === 'ADMIN');
   readonly isDueno = computed(() => this.user()?.role === 'DUEÑO');
@@ -123,11 +126,14 @@ export class AuthService {
     return this.http.post<void>(`${this.apiUrl}/forgot-pin`, { username });
   }
 
-  logout(): void {
+  async logout(): Promise<void> {
     const refreshToken = localStorage.getItem('refreshToken');
     if (refreshToken) {
       this.http.post(`${this.apiUrl}/logout`, { refreshToken }).subscribe({ error: () => {} }); // fire-and-forget, ignora errores
     }
+    // Antes de limpiar la sesión: dar de baja el push necesita el token, y sin
+    // esto el navegador seguía recibiendo avisos después de cerrar sesión.
+    await this.push.unsubscribe();
     this.clearSession();
     this.router.navigate(['/login']);
   }
