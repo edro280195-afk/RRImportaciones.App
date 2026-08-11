@@ -474,19 +474,19 @@ export class TopbarComponent implements OnInit {
       label: 'Parametros fiscales',
       detail: 'IVA, IGI, DTA e historicos',
       route: '/admin/parametros-fiscales',
-      permiso: 'ADMIN_ONLY',
+      permiso: 'ADMIN_PARAMETROS_FISCALES',
     },
     {
       label: 'Catálogo de precios',
       detail: 'Anexo 2 SAT — editar y limpiar entradas',
       route: '/admin/catalogo-precios',
-      permiso: 'ADMIN_ONLY',
+      permiso: 'ADMIN_CATALOGO_PRECIOS',
     },
     {
       label: 'Plantillas',
       detail: 'Mensajes de email y WhatsApp',
       route: '/admin/plantillas',
-      permiso: 'ADMIN_ONLY',
+      permiso: 'ADMIN_PLANTILLAS',
     },
     {
       label: 'Auditoria',
@@ -583,13 +583,13 @@ export class TopbarComponent implements OnInit {
       label: 'Parametros fiscales',
       detail: 'Configuracion fiscal vigente',
       route: '/admin/parametros-fiscales',
-      permiso: 'ADMIN_ONLY',
+      permiso: 'ADMIN_PARAMETROS_FISCALES',
     },
     {
       label: 'Plantillas',
       detail: 'Editor guiado de email y WhatsApp',
       route: '/admin/plantillas',
-      permiso: 'ADMIN_ONLY',
+      permiso: 'ADMIN_PLANTILLAS',
     },
     {
       label: 'Auditoria',
@@ -626,7 +626,7 @@ export class TopbarComponent implements OnInit {
       detail: 'Valida mensajes de correo y WhatsApp antes de usarlos.',
       route: '/admin/plantillas',
       severity: 'success',
-      permiso: 'ADMIN_ONLY',
+      permiso: 'ADMIN_PLANTILLAS',
     },
   ];
 

@@ -135,6 +135,10 @@ public static class DbInitializer
             new() { Id = Guid.NewGuid(), Codigo = "CAMPO_USAR", Nombre = "Acceso al módulo campo (fotos y tareas en yarda)", Modulo = "CAMPO" },
             new() { Id = Guid.NewGuid(), Codigo = "CATALOGOS_VER", Nombre = "Ver catálogos", Modulo = "CATALOGOS" },
             new() { Id = Guid.NewGuid(), Codigo = "CATALOGOS_EDITAR", Nombre = "Editar catálogos", Modulo = "CATALOGOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "ADMIN_PARAMETROS_FISCALES", Nombre = "Parámetros fiscales (IVA, IGI, DTA)", Modulo = "ADMINISTRACION" },
+            new() { Id = Guid.NewGuid(), Codigo = "ADMIN_IMPORTADOR", Nombre = "Importador de datos", Modulo = "ADMINISTRACION" },
+            new() { Id = Guid.NewGuid(), Codigo = "ADMIN_PLANTILLAS", Nombre = "Plantillas de mensajes", Modulo = "ADMINISTRACION" },
+            new() { Id = Guid.NewGuid(), Codigo = "ADMIN_CATALOGO_PRECIOS", Nombre = "Catálogo de precios SAT", Modulo = "ADMINISTRACION" },
         };
         db.Permisos.AddRange(permisos);
 
@@ -461,6 +465,14 @@ public static class DbInitializer
             var faltantes = new List<(string Codigo, string Nombre, string Modulo)>
             {
                 ("CAMPO_USAR", "Acceso al módulo campo (fotos y tareas en yarda)", "CAMPO"),
+                // Antes estas 4 pantallas solo se podían dar con el rol ADMIN
+                // completo (candado fijo en el frontend, sin permiso que lo
+                // representara). Roles y Auditoría se quedan fuera a propósito
+                // — ver el comentario en Permisos.cs.
+                ("ADMIN_PARAMETROS_FISCALES", "Parámetros fiscales (IVA, IGI, DTA)", "ADMINISTRACION"),
+                ("ADMIN_IMPORTADOR", "Importador de datos", "ADMINISTRACION"),
+                ("ADMIN_PLANTILLAS", "Plantillas de mensajes", "ADMINISTRACION"),
+                ("ADMIN_CATALOGO_PRECIOS", "Catálogo de precios SAT", "ADMINISTRACION"),
             }.Where(x => !existingCodes.Contains(x.Codigo)).ToList();
 
             if (!faltantes.Any())

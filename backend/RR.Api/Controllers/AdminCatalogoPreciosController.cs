@@ -12,7 +12,7 @@ namespace RR.Api.Controllers;
 public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : ControllerBase
 {
     [HttpGet]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminCatalogoPrecios)]
     public async Task<IActionResult> GetList(
         [FromQuery] string? search,
         [FromQuery] string? fraccion,
@@ -26,14 +26,14 @@ public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : C
     }
 
     [HttpGet("stats")]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminCatalogoPrecios)]
     public async Task<IActionResult> GetStats()
     {
         return Ok(await service.GetStatsAsync());
     }
 
     [HttpGet("{id:guid}")]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminCatalogoPrecios)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await service.GetByIdAsync(id);
@@ -41,7 +41,7 @@ public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : C
     }
 
     [HttpPost]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminCatalogoPrecios)]
     public async Task<IActionResult> Create([FromBody] CreateCatalogoPrecioRequest request)
     {
         try
@@ -56,7 +56,7 @@ public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : C
     }
 
     [HttpPut("{id:guid}")]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminCatalogoPrecios)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCatalogoPrecioRequest request)
     {
         try
@@ -70,7 +70,7 @@ public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : C
     }
 
     [HttpDelete("{id:guid}")]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminCatalogoPrecios)]
     public async Task<IActionResult> Delete(Guid id)
     {
         try

@@ -263,8 +263,11 @@ export const routes: Routes = [
           import('./pages/auditoria/auditoria.component').then(m => m.AuditoriaComponent),
       },
       {
+        // A diferencia de Roles/Auditoría, estas 4 sí se pueden delegar sin
+        // riesgo de escalar privilegios — por eso van por permiso propio y no
+        // por adminGuard (ver Permisos.cs en el backend).
         path: 'admin/parametros-fiscales',
-        canActivate: [adminGuard],
+        canActivate: [permissionGuard('ADMIN_PARAMETROS_FISCALES')],
         loadComponent: () =>
           import('./pages/admin/parametros-fiscales.component').then(
             m => m.ParametrosFiscalesComponent
@@ -272,19 +275,19 @@ export const routes: Routes = [
       },
       {
         path: 'admin/importador',
-        canActivate: [adminGuard],
+        canActivate: [permissionGuard('ADMIN_IMPORTADOR')],
         loadComponent: () =>
           import('./pages/admin/importador.component').then(m => m.ImportadorComponent),
       },
       {
         path: 'admin/plantillas',
-        canActivate: [adminGuard],
+        canActivate: [permissionGuard('ADMIN_PLANTILLAS')],
         loadComponent: () =>
           import('./pages/admin/plantillas.component').then(m => m.PlantillasComponent),
       },
       {
         path: 'admin/catalogo-precios',
-        canActivate: [adminGuard],
+        canActivate: [permissionGuard('ADMIN_CATALOGO_PRECIOS')],
         loadComponent: () =>
           import('./pages/admin/catalogo-precios.component').then(m => m.CatalogoPreciosComponent),
       },

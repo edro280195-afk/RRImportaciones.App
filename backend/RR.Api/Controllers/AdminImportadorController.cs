@@ -29,14 +29,14 @@ public class AdminImportadorController : ControllerBase
     }
 
     [HttpPost("validar")]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminImportador)]
     public async Task<IActionResult> Validar(IFormFile file, CancellationToken cancellationToken)
     {
         return await RunImport(file, dryRun: true, cancellationToken);
     }
 
     [HttpPost("importar")]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminImportador)]
     public async Task<IActionResult> Importar(IFormFile file, CancellationToken cancellationToken)
     {
         return await RunImport(file, dryRun: false, cancellationToken);

@@ -8,7 +8,7 @@ namespace RR.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/parametros-fiscales")]
-[SoloAdministracion]
+[RequierePermiso(Permisos.AdminParametrosFiscales)]
 public class AdminParametrosFiscalesController : ControllerBase
 {
     private readonly IParametroFiscalService _service;

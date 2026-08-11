@@ -34,7 +34,7 @@ public class AdminPlantillasController : ControllerBase
     }
 
     [HttpPost]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminPlantillas)]
     public async Task<IActionResult> Create([FromBody] GuardarPlantillaMensajeRequest request)
     {
         try
@@ -49,7 +49,7 @@ public class AdminPlantillasController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminPlantillas)]
     public async Task<IActionResult> Update(Guid id, [FromBody] GuardarPlantillaMensajeRequest request)
     {
         try
@@ -67,7 +67,7 @@ public class AdminPlantillasController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [SoloAdministracion]
+    [RequierePermiso(Permisos.AdminPlantillas)]
     public async Task<IActionResult> Delete(Guid id)
     {
         try

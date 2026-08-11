@@ -40,4 +40,16 @@ public static class Permisos
 
     public const string CatalogosVer = "CATALOGOS_VER";
     public const string CatalogosEditar = "CATALOGOS_EDITAR";
+
+    // Pantallas de administración que antes solo se podían dar con el rol
+    // ADMIN completo (hardcoded en el frontend). Roles y Auditoría se quedan
+    // fuera de este catálogo a propósito: editar permisos de un rol o el
+    // registro de auditoría es delicado (quien puede tocar Roles puede
+    // otorgarse a sí mismo más acceso), así que siguen exclusivas de
+    // ADMIN/DUEÑO sin importar qué se marque aquí. Estas cuatro, en cambio,
+    // son configuración operativa que sí tiene sentido delegar.
+    public const string AdminParametrosFiscales = "ADMIN_PARAMETROS_FISCALES";
+    public const string AdminImportador = "ADMIN_IMPORTADOR";
+    public const string AdminPlantillas = "ADMIN_PLANTILLAS";
+    public const string AdminCatalogoPrecios = "ADMIN_CATALOGO_PRECIOS";
 }
