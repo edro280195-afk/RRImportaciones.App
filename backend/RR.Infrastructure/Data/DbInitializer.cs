@@ -48,6 +48,7 @@ public static class DbInitializer
 
         await EnsureSystemPermissionsAsync(db);
         await MigrateLegacyRolesAsync(db);
+        await FixRolePermissionGapsAsync(db);
 
         // Migrar fracción provisional 8704.31.01 a la oficial 8704.31.05
         var provisional = await db.FraccionesArancelarias.FirstOrDefaultAsync(f => f.Fraccion == "8704.31.01");
@@ -150,7 +151,13 @@ public static class DbInitializer
         var oficinaCodigos = new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "EVENTOS_CREAR" };
         var facturacionPermisos  = permisos.Where(p => oficinaCodigos.Contains(p.Codigo)).Select(p => new RolePermission { RoleId = facturacionRole.Id,   PermissionId = p.Id }).ToList();
         var coordinadoraPermisos = permisos.Where(p => oficinaCodigos.Contains(p.Codigo)).Select(p => new RolePermission { RoleId = coordinadoraRole.Id,  PermissionId = p.Id }).ToList();
-        var controlTramPermisos  = permisos.Where(p => oficinaCodigos.Contains(p.Codigo)).Select(p => new RolePermission { RoleId = controlTramRole.Id,   PermissionId = p.Id }).ToList();
+
+        // Control de trámites es oficina + necesita ver los trámites que sigue,
+        // que es justo lo que le faltaba al rol desde que se creó (ver
+        // FixRolePermissionGapsAsync más abajo, que corrige el mismo hueco en
+        // instalaciones que ya tenían el rol creado sin este permiso).
+        var controlTramCodigos = oficinaCodigos.Append("TRAMITES_VER").ToArray();
+        var controlTramPermisos  = permisos.Where(p => controlTramCodigos.Contains(p.Codigo)).Select(p => new RolePermission { RoleId = controlTramRole.Id,   PermissionId = p.Id }).ToList();
 
         // Permisos heredados del antiguo CAMPO — Yarderos y Choferes comparten exactamente lo mismo.
         var campoCodigos = new[] { "EVENTOS_CREAR", "TRAMITES_VER", "CAMPO_USAR" };
@@ -542,7 +549,7 @@ public static class DbInitializer
                 ("COORDINADORA",     "Oficina · Coordinación de operaciones y agenda",
                     new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "EVENTOS_CREAR" }),
                 ("CONTROL_TRAMITES", "Oficina · Seguimiento y control de trámites aduanales",
-                    new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "EVENTOS_CREAR" }),
+                    new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "EVENTOS_CREAR", "TRAMITES_VER" }),
                 ("YARDERO",          "Campo · Fotos, inventario y maniobras en yarda",
                     new[] { "EVENTOS_CREAR", "TRAMITES_VER", "CAMPO_USAR" }),
                 ("CHOFER",           "Campo · Traslado y entrega de unidades",
@@ -669,6 +676,43 @@ public static class DbInitializer
         {
             await tx.RollbackAsync();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Corrige huecos puntuales en los permisos de roles que YA existen en la base.
+    ///
+    /// <see cref="MigrateLegacyRolesAsync"/> solo asigna permisos la primera vez que
+    /// crea un rol; si el rol ya estaba en la base (como CONTROL_TRAMITES, creado en
+    /// mayo 2026 al dividir el antiguo CAPTURISTA), un ajuste posterior a la lista de
+    /// permisos de ese rol en este archivo nunca llega a producción por sí solo.
+    ///
+    /// Caso real que motivó esto: CONTROL_TRAMITES ("Seguimiento y control de trámites
+    /// aduanales") se sembró sin TRAMITES_VER, así que quien tuviera ese rol no podía
+    /// ver ni Trámites ni Vehículos —ambos gateados por ese permiso en el frontend—
+    /// pese a que es literalmente el trabajo del rol darles seguimiento.
+    ///
+    /// Idempotente: solo agrega la relación si no existe ya.
+    /// </summary>
+    private static async Task FixRolePermissionGapsAsync(AppDbContext db)
+    {
+        var faltantes = new (string Rol, string Permiso)[]
+        {
+            ("CONTROL_TRAMITES", "TRAMITES_VER"),
+        };
+
+        foreach (var (rolNombre, permisoCodigo) in faltantes)
+        {
+            var rol = await db.Roles.FirstOrDefaultAsync(r => r.Nombre == rolNombre);
+            var permiso = await db.Permisos.FirstOrDefaultAsync(p => p.Codigo == permisoCodigo);
+            if (rol == null || permiso == null) continue;
+
+            var yaAsignado = await db.RolesPermisos
+                .AnyAsync(rp => rp.RoleId == rol.Id && rp.PermissionId == permiso.Id);
+            if (yaAsignado) continue;
+
+            db.RolesPermisos.Add(new RolePermission { RoleId = rol.Id, PermissionId = permiso.Id });
+            await db.SaveChangesAsync();
         }
     }
 
