@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Cotizaciones;
 using RR.Application.Interfaces;
 
@@ -7,7 +8,7 @@ namespace RR.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/parametros-fiscales")]
-[Authorize(Roles = "ADMIN")]
+[SoloAdministracion]
 public class AdminParametrosFiscalesController : ControllerBase
 {
     private readonly IParametroFiscalService _service;

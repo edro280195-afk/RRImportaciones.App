@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Admin;
 using RR.Application.Interfaces;
 
@@ -11,6 +12,7 @@ namespace RR.Api.Controllers;
 public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : ControllerBase
 {
     [HttpGet]
+    [SoloAdministracion]
     public async Task<IActionResult> GetList(
         [FromQuery] string? search,
         [FromQuery] string? fraccion,
@@ -24,12 +26,14 @@ public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : C
     }
 
     [HttpGet("stats")]
+    [SoloAdministracion]
     public async Task<IActionResult> GetStats()
     {
         return Ok(await service.GetStatsAsync());
     }
 
     [HttpGet("{id:guid}")]
+    [SoloAdministracion]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await service.GetByIdAsync(id);
@@ -37,6 +41,7 @@ public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : C
     }
 
     [HttpPost]
+    [SoloAdministracion]
     public async Task<IActionResult> Create([FromBody] CreateCatalogoPrecioRequest request)
     {
         try
@@ -51,6 +56,7 @@ public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : C
     }
 
     [HttpPut("{id:guid}")]
+    [SoloAdministracion]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCatalogoPrecioRequest request)
     {
         try
@@ -64,6 +70,7 @@ public class AdminCatalogoPreciosController(ICatalogoPreciosService service) : C
     }
 
     [HttpDelete("{id:guid}")]
+    [SoloAdministracion]
     public async Task<IActionResult> Delete(Guid id)
     {
         try

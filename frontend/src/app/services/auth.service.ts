@@ -56,6 +56,12 @@ export class AuthService {
   readonly isDueno = computed(() => this.user()?.role === 'DUEÑO');
 
   /**
+   * Acceso total al sistema: administración, catálogos internos y ajustes.
+   * DUEÑO cuenta igual que ADMIN — es el dueño del negocio, no un invitado.
+   */
+  readonly esAdminTotal = computed(() => this.isAdmin() || this.isDueno());
+
+  /**
    * El dashboard de /inicio muestra la operación completa del negocio
    * (trámites, cobranza, márgenes) en un solo lugar: es información de
    * dirección, no de la operación diaria de un rol en particular. Por eso va
@@ -65,6 +71,19 @@ export class AuthService {
   readonly puedeVerDashboard = computed(() => {
     const role = this.user()?.role;
     return role === 'ADMIN' || role === 'DUEÑO' || role === 'GERENTE';
+  });
+
+  /**
+   * Roles que sí pueden ver importes de dinero fuera del dashboard (p.ej. en
+   * el detalle de un trámite). Es a propósito por ROL y no por permiso: los
+   * roles de oficina traen PAGOS_VER para operar la pantalla de pagos, pero
+   * eso no les da la foto financiera del negocio completo.
+   */
+  private static readonly ROLES_CON_DINERO = new Set(['DUEÑO', 'ADMIN', 'GERENTE']);
+
+  readonly puedeVerDinero = computed(() => {
+    const role = this.user()?.role;
+    return !!role && AuthService.ROLES_CON_DINERO.has(role);
   });
 
   canAccessRodri(): boolean {
@@ -119,15 +138,13 @@ export class AuthService {
   }
 
   setInitialCampoPin(username: string, newPin: string): Observable<void> {
-    return this.http
-      .post<void>(`${this.apiUrl}/initial-campo-pin`, { username, newPin })
-      .pipe(
-        tap(() => this.markPinConfigured()),
-        catchError(err => {
-          const msg = err.error?.message || 'Error al guardar el PIN';
-          return throwError(() => new Error(msg));
-        })
-      );
+    return this.http.post<void>(`${this.apiUrl}/initial-campo-pin`, { username, newPin }).pipe(
+      tap(() => this.markPinConfigured()),
+      catchError(err => {
+        const msg = err.error?.message || 'Error al guardar el PIN';
+        return throwError(() => new Error(msg));
+      })
+    );
   }
 
   getCampoUsers(): Observable<CampoUserDto[]> {

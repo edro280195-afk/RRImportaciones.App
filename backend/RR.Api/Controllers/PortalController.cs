@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using RR.Application.DTOs.Portal;
@@ -147,6 +148,7 @@ public class PortalController : ControllerBase
 
     [HttpGet("generar-token/{tramiteId:guid}")]
     [Authorize]
+    [RequierePermiso(Permisos.TramitesVer)]
     public IActionResult GenerarToken(Guid tramiteId)
     {
         var token = _portalAccess.GenerateToken(tramiteId);

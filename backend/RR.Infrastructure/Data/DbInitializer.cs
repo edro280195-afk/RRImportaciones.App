@@ -148,7 +148,9 @@ public static class DbInitializer
 
         // Permisos heredados del antiguo CAPTURISTA — los 3 roles de Oficina nacen iguales
         // (después se ajustan desde la UI según las responsabilidades reales de cada uno).
-        var oficinaCodigos = new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "EVENTOS_CREAR" };
+        // CLIENTES_EDITAR incluido a propósito: ya podían crear y ver clientes,
+        // y corregir un dato (teléfono, dirección) es la misma familia de tarea.
+        var oficinaCodigos = new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "CLIENTES_EDITAR", "EVENTOS_CREAR" };
         var facturacionPermisos  = permisos.Where(p => oficinaCodigos.Contains(p.Codigo)).Select(p => new RolePermission { RoleId = facturacionRole.Id,   PermissionId = p.Id }).ToList();
         var coordinadoraPermisos = permisos.Where(p => oficinaCodigos.Contains(p.Codigo)).Select(p => new RolePermission { RoleId = coordinadoraRole.Id,  PermissionId = p.Id }).ToList();
 
@@ -545,11 +547,11 @@ public static class DbInitializer
             var nuevosRoles = new (string Nombre, string Descripcion, string[] Permisos)[]
             {
                 ("FACTURACION",      "Oficina · Facturación y cobros a clientes",
-                    new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "EVENTOS_CREAR" }),
+                    new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "CLIENTES_EDITAR", "EVENTOS_CREAR" }),
                 ("COORDINADORA",     "Oficina · Coordinación de operaciones y agenda",
-                    new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "EVENTOS_CREAR" }),
+                    new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "CLIENTES_EDITAR", "EVENTOS_CREAR" }),
                 ("CONTROL_TRAMITES", "Oficina · Seguimiento y control de trámites aduanales",
-                    new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "EVENTOS_CREAR", "TRAMITES_VER" }),
+                    new[] { "COTIZACIONES_VER", "COTIZACIONES_CREAR", "COTIZACIONES_EDITAR", "PAGOS_VER", "PAGOS_REGISTRAR", "CLIENTES_VER", "CLIENTES_CREAR", "CLIENTES_EDITAR", "EVENTOS_CREAR", "TRAMITES_VER" }),
                 ("YARDERO",          "Campo · Fotos, inventario y maniobras en yarda",
                     new[] { "EVENTOS_CREAR", "TRAMITES_VER", "CAMPO_USAR" }),
                 ("CHOFER",           "Campo · Traslado y entrega de unidades",
@@ -692,6 +694,13 @@ public static class DbInitializer
     /// ver ni Trámites ni Vehículos —ambos gateados por ese permiso en el frontend—
     /// pese a que es literalmente el trabajo del rol darles seguimiento.
     ///
+    /// CLIENTES_EDITAR para los 3 roles de oficina: al activar
+    /// <c>RequierePermisoAttribute</c> en el API, editar/borrar un cliente pasó a
+    /// exigir este permiso — antes lo podían hacer sin candado por tener acceso
+    /// a la pantalla de Clientes. Ya tenían CLIENTES_VER y CLIENTES_CREAR; sin
+    /// este ajuste se quedaban sin poder corregir un dato de un cliente que
+    /// ellos mismos dieron de alta.
+    ///
     /// Idempotente: solo agrega la relación si no existe ya.
     /// </summary>
     private static async Task FixRolePermissionGapsAsync(AppDbContext db)
@@ -699,6 +708,9 @@ public static class DbInitializer
         var faltantes = new (string Rol, string Permiso)[]
         {
             ("CONTROL_TRAMITES", "TRAMITES_VER"),
+            ("FACTURACION", "CLIENTES_EDITAR"),
+            ("COORDINADORA", "CLIENTES_EDITAR"),
+            ("CONTROL_TRAMITES", "CLIENTES_EDITAR"),
         };
 
         foreach (var (rolNombre, permisoCodigo) in faltantes)

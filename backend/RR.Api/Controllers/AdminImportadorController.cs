@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Importador;
 using RR.Application.Interfaces;
 
@@ -28,12 +29,14 @@ public class AdminImportadorController : ControllerBase
     }
 
     [HttpPost("validar")]
+    [SoloAdministracion]
     public async Task<IActionResult> Validar(IFormFile file, CancellationToken cancellationToken)
     {
         return await RunImport(file, dryRun: true, cancellationToken);
     }
 
     [HttpPost("importar")]
+    [SoloAdministracion]
     public async Task<IActionResult> Importar(IFormFile file, CancellationToken cancellationToken)
     {
         return await RunImport(file, dryRun: false, cancellationToken);

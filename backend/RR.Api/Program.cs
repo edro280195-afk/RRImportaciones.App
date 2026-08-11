@@ -80,6 +80,10 @@ builder.Services.AddAuthorization();
 // DI - Scoped services
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+// Permisos por endpoint: la caché guarda un minuto los permisos de cada usuario
+// para no consultar la base en cada petición (ver PermisosUsuario).
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<RR.Api.Auth.IPermisosUsuario, RR.Api.Auth.PermisosUsuario>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IClienteService, ClienteService>();

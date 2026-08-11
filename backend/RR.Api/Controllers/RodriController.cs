@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using RR.Application.DTOs.Rodri;
@@ -14,7 +15,7 @@ namespace RR.Api.Controllers;
 
 [ApiController]
 [Route("api/rodri")]
-[Authorize(Roles = "ADMIN,DUEÑO")]
+[SoloAdministracion]
 public class RodriController : ControllerBase
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()

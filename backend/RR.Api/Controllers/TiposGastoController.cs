@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.TiposGasto;
 using RR.Application.Interfaces;
 
@@ -18,6 +19,7 @@ public class TiposGastoController : ControllerBase
     }
 
     [HttpGet]
+    [RequierePermiso(Permisos.GastosVer, Permisos.GastosRegistrar)]
     public async Task<IActionResult> GetAll()
     {
         var tipos = await _service.GetAllAsync();
@@ -25,6 +27,7 @@ public class TiposGastoController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.GastosVer, Permisos.GastosRegistrar)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var tipo = await _service.GetByIdAsync(id);
@@ -34,7 +37,7 @@ public class TiposGastoController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "ADMIN")]
+    [SoloAdministracion]
     public async Task<IActionResult> Create([FromBody] CreateTipoGastoRequest request)
     {
         try
@@ -49,7 +52,7 @@ public class TiposGastoController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "ADMIN")]
+    [SoloAdministracion]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateTipoGastoRequest request)
     {
         try
@@ -64,7 +67,7 @@ public class TiposGastoController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "ADMIN")]
+    [SoloAdministracion]
     public async Task<IActionResult> Delete(Guid id)
     {
         try

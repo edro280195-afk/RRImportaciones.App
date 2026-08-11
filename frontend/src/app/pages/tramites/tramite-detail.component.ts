@@ -1,4 +1,4 @@
-import { Component, signal, inject, OnInit } from '@angular/core';
+import { Component, computed, signal, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DatePipe, CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -230,17 +230,19 @@ import { environment } from '../../../environments/environment';
             </p>
             <p class="text-[12px] text-[#6B717F] font-mono-data">{{ t.vehiculoVin || '' }}</p>
           </div>
-          <div class="card-elevated rounded-xl p-4">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] mb-1">
-              Cobro
-            </p>
-            <p class="text-[15px] font-semibold text-[#0D1017]">
-              {{ t.cobroTotal | currency: 'USD' : 'symbol' : '1.2-2' }}
-            </p>
-            <p class="text-[12px]" [style.color]="t.saldoPendiente > 0 ? '#D97706' : '#16A34A'">
-              Saldo: {{ t.saldoPendiente | currency: 'USD' : 'symbol' : '1.2-2' }}
-            </p>
-          </div>
+          @if (verCobranza()) {
+            <div class="card-elevated rounded-xl p-4">
+              <p class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9EA3AE] mb-1">
+                Cobro
+              </p>
+              <p class="text-[15px] font-semibold text-[#0D1017]">
+                {{ t.cobroTotal | currency: 'USD' : 'symbol' : '1.2-2' }}
+              </p>
+              <p class="text-[12px]" [style.color]="t.saldoPendiente > 0 ? '#D97706' : '#16A34A'">
+                Saldo: {{ t.saldoPendiente | currency: 'USD' : 'symbol' : '1.2-2' }}
+              </p>
+            </div>
+          }
         </div>
 
         @if (t.cotizacionOrigenId) {
@@ -267,7 +269,7 @@ import { environment } from '../../../environments/environment';
 
         <!-- Tabs — scroll horizontal en móvil para no desbordar -->
         <div class="flex items-center gap-1 mb-4 overflow-x-auto pb-1 scrollbar-hide">
-          @for (tab of tabs; track tab.key) {
+          @for (tab of tabs(); track tab.key) {
             <button
               (click)="activeTab.set(tab.key)"
               class="shrink-0 whitespace-nowrap px-4 py-2 rounded-lg text-[12.5px] font-medium transition-all duration-150"
@@ -326,7 +328,9 @@ import { environment } from '../../../environments/environment';
                       <th class="text-left px-4 py-3">Número</th>
                       <th class="text-left px-4 py-3">Tipo</th>
                       <th class="text-left px-4 py-3">Fecha</th>
-                      <th class="text-right px-4 py-3">Cobro adicional</th>
+                      @if (verCobranza()) {
+                        <th class="text-right px-4 py-3">Cobro adicional</th>
+                      }
                     </tr>
                   </thead>
                   <tbody>
@@ -339,9 +343,11 @@ import { environment } from '../../../environments/environment';
                         <td class="px-4 py-3 text-[#6B717F]">
                           {{ p.fechaEntrada | date: 'dd/MM/yyyy' }}
                         </td>
-                        <td class="px-4 py-3 text-right font-mono-data">
-                          {{ p.cobroAdicional | currency }}
-                        </td>
+                        @if (verCobranza()) {
+                          <td class="px-4 py-3 text-right font-mono-data">
+                            {{ p.cobroAdicional | currency }}
+                          </td>
+                        }
                       </tr>
                     }
                   </tbody>
@@ -1656,14 +1662,19 @@ export class TramiteDetailComponent implements OnInit {
   pagoForm = this.emptyPagoForm();
   gastoForm = this.emptyGastoForm();
 
-  tabs = [
+  /**
+   * Pestañas visibles según permisos. Sin las de dinero el API ya devuelve el
+   * trámite con los pagos y gastos vacíos, así que dejarlas puestas solo servía
+   * para enseñar tableros en ceros a quien no tiene por qué verlos.
+   */
+  readonly tabs = computed(() => [
     { key: 'timeline', label: 'Timeline' },
     { key: 'pedimentos', label: 'Pedimentos' },
     { key: 'documentos', label: 'Documentos' },
     { key: 'entregas', label: 'Entregas' },
-    { key: 'gastos', label: 'Gastos hormiga' },
-    { key: 'pagos', label: 'Pagos' },
-  ];
+    ...(this.verGastos() ? [{ key: 'gastos', label: 'Gastos hormiga' }] : []),
+    ...(this.verCobranza() ? [{ key: 'pagos', label: 'Pagos' }] : []),
+  ]);
 
   documentosBase = [
     { tipoDocumento: 'FACTURA', nombre: 'Factura', descripcion: 'Documento requerido del vehículo.' },
@@ -1679,9 +1690,21 @@ export class TramiteDetailComponent implements OnInit {
     },
   ];
 
+  /**
+   * Catálogos de dinero: solo se piden si el usuario los puede ver. El API ya
+   * los protege, así que sin esto un yardero abriendo un trámite se llevaba dos
+   * 403 en la cara nada más entrar.
+   */
+  readonly verCobranza = computed(() => this.auth.canAny('PAGOS_VER', 'PAGOS_REGISTRAR'));
+  readonly verGastos = computed(() => this.auth.canAny('GASTOS_VER', 'GASTOS_REGISTRAR'));
+
   ngOnInit() {
-    this.gastoService.getTiposGasto().subscribe(t => (this.tiposGasto = t));
-    this.bancoService.getAll(true).subscribe(b => (this.bancos = b));
+    if (this.verGastos()) {
+      this.gastoService.getTiposGasto().subscribe(t => (this.tiposGasto = t));
+    }
+    if (this.verCobranza()) {
+      this.bancoService.getAll(true).subscribe(b => (this.bancos = b));
+    }
     this.route.paramMap.subscribe(params => {
       const id = params.get('id');
       if (id) this.loadTramite(id);

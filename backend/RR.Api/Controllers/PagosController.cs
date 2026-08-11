@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Pagos;
 using RR.Application.Interfaces;
 
@@ -26,6 +27,7 @@ public class PagosController : ControllerBase
     }
 
     [HttpGet]
+    [RequierePermiso(Permisos.PagosVer)]
     public async Task<IActionResult> GetList(
         [FromQuery] Guid? tramiteId,
         [FromQuery] string? search,
@@ -41,6 +43,7 @@ public class PagosController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.PagosVer)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var pago = await _pagoService.GetByIdAsync(id);
@@ -50,6 +53,7 @@ public class PagosController : ControllerBase
     }
 
     [HttpPost]
+    [RequierePermiso(Permisos.PagosRegistrar)]
     public async Task<IActionResult> Create([FromBody] CreatePagoRequest request)
     {
         try
@@ -73,6 +77,7 @@ public class PagosController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequierePermiso(Permisos.PagosRegistrar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePagoRequest request)
     {
         try
@@ -96,12 +101,11 @@ public class PagosController : ControllerBase
     }
 
     [HttpPost("{id:guid}/verificar")]
+    [SoloDireccion]
     public async Task<IActionResult> Verificar(Guid id)
     {
-        var role = _currentUser.Role;
-        if (role != "ADMIN" && role != "GERENTE")
-            return Forbid();
-
+        // El chequeo de rol lo hace [SoloDireccion]. Antes estaba escrito aquí
+        // a mano contra "ADMIN" y "GERENTE", lo que dejaba fuera al DUEÑO.
         try
         {
             var result = await _pagoService.VerificarAsync(id);
@@ -118,12 +122,9 @@ public class PagosController : ControllerBase
     }
 
     [HttpPost("verificar-bulk")]
+    [SoloDireccion]
     public async Task<IActionResult> VerificarBulk([FromBody] BulkVerificarPagosRequest request)
     {
-        var role = _currentUser.Role;
-        if (role != "ADMIN" && role != "GERENTE")
-            return Forbid();
-
         try
         {
             var result = await _pagoService.VerificarBulkAsync(request.PagoIds);
@@ -141,6 +142,7 @@ public class PagosController : ControllerBase
 
     [HttpPost("{id:guid}/comprobante")]
     [RequestSizeLimit(10_485_760)]
+    [RequierePermiso(Permisos.PagosRegistrar)]
     public async Task<IActionResult> UploadComprobante(Guid id, IFormFile file)
     {
         if (file == null || file.Length == 0)
@@ -172,6 +174,7 @@ public class PagosController : ControllerBase
     }
 
     [HttpGet("{id:guid}/recibo")]
+    [RequierePermiso(Permisos.PagosVer)]
     public async Task<IActionResult> GetRecibo(Guid id)
     {
         try
@@ -191,6 +194,7 @@ public class PagosController : ControllerBase
     }
 
     [HttpPost("{id:guid}/recibo/regenerar")]
+    [RequierePermiso(Permisos.PagosRegistrar)]
     public async Task<IActionResult> RegenerarRecibo(Guid id)
     {
         var role = _currentUser.Role;
@@ -219,6 +223,7 @@ public class PagosController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [SoloDireccion]
     public async Task<IActionResult> Delete(Guid id)
     {
         try
@@ -237,6 +242,7 @@ public class PagosController : ControllerBase
     }
 
     [HttpGet("resumen/{tramiteId:guid}")]
+    [RequierePermiso(Permisos.PagosVer)]
     public async Task<IActionResult> GetResumen(Guid tramiteId)
     {
         try

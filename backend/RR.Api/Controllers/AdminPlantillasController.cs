@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Plantillas;
 using RR.Application.Interfaces;
 
@@ -18,12 +19,14 @@ public class AdminPlantillasController : ControllerBase
     }
 
     [HttpGet]
+    [RequierePermiso(Permisos.CotizacionesVer, Permisos.CotizacionesEditar)]
     public async Task<IActionResult> GetAll()
     {
         return Ok(await _service.GetAllAsync());
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.CotizacionesVer, Permisos.CotizacionesEditar)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var plantilla = await _service.GetByIdAsync(id);
@@ -31,6 +34,7 @@ public class AdminPlantillasController : ControllerBase
     }
 
     [HttpPost]
+    [SoloAdministracion]
     public async Task<IActionResult> Create([FromBody] GuardarPlantillaMensajeRequest request)
     {
         try
@@ -45,6 +49,7 @@ public class AdminPlantillasController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [SoloAdministracion]
     public async Task<IActionResult> Update(Guid id, [FromBody] GuardarPlantillaMensajeRequest request)
     {
         try
@@ -62,6 +67,7 @@ public class AdminPlantillasController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [SoloAdministracion]
     public async Task<IActionResult> Delete(Guid id)
     {
         try

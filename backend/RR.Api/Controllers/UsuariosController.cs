@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Auth;
 using RR.Application.DTOs.Usuarios;
 using RR.Application.Interfaces;
@@ -21,6 +22,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpGet]
+    [RequierePermiso(Permisos.UsuariosVer)]
     public async Task<IActionResult> GetAll()
     {
         var result = await _service.GetAllAsync();
@@ -28,6 +30,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.UsuariosVer)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await _service.GetByIdAsync(id);
@@ -36,6 +39,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPost]
+    [RequierePermiso(Permisos.UsuariosCrear)]
     public async Task<IActionResult> Create([FromBody] CreateUsuarioRequest request)
     {
         try
@@ -50,6 +54,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequierePermiso(Permisos.UsuariosEditar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUsuarioRequest request)
     {
         try
@@ -64,6 +69,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequierePermiso(Permisos.UsuariosBorrar)]
     public async Task<IActionResult> Delete(Guid id)
     {
         try
@@ -79,6 +85,7 @@ public class UsuariosController : ControllerBase
 
     /// <summary>Admin asigna o restablece el PIN de un usuario de campo.</summary>
     [HttpPost("{id:guid}/set-pin")]
+    [RequierePermiso(Permisos.UsuariosEditar)]
     public async Task<IActionResult> AdminSetPin(Guid id, [FromBody] AdminSetPinRequest request)
     {
         try

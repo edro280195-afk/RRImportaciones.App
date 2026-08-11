@@ -18,7 +18,8 @@ interface MenuItem {
   route: string;
   badge?: string;
   /**
-   * Permiso requerido. null = siempre visible. 'ADMIN_ONLY' = solo rol ADMIN.
+   * Permiso requerido. null = siempre visible.
+   * 'ADMIN_ONLY' = administración del sistema (ADMIN y DUEÑO).
    * 'DIRECCION_ONLY' = solo ADMIN, DUEÑO y GERENTE (ver dashboard).
    */
   permiso?: string | null;
@@ -193,7 +194,9 @@ export class SidebarComponent implements OnInit {
         ...group,
         items: group.items.filter(item => {
           if (!item.permiso) return true;
-          if (item.permiso === 'ADMIN_ONLY') return this.auth.isAdmin();
+          // El dueño tiene acceso total al negocio: si se compara solo contra
+          // ADMIN, a él le desaparecen las secciones de administración.
+          if (item.permiso === 'ADMIN_ONLY') return this.auth.esAdminTotal();
           if (item.permiso === 'DIRECCION_ONLY') return this.auth.puedeVerDashboard();
           return this.auth.can(item.permiso);
         }),
@@ -373,10 +376,12 @@ export class SidebarComponent implements OnInit {
           { label: 'Lotes', icon: icons.inventario, route: '/lotes', permiso: 'TRAMITES_VER' },
           { label: 'Campo', icon: icons.personal, route: '/campo', permiso: 'CAMPO_USAR' },
           {
+            // La bandeja es para asignar a un trámite lo que capturó el yardero.
+            // Con TRAMITES_VER la veía el yardero mismo, que solo debe capturar.
             label: 'Bandeja campo',
             icon: icons.personal,
             route: '/campo/bandeja-admin',
-            permiso: 'TRAMITES_VER',
+            permiso: 'TRAMITES_ASIGNAR',
           },
           {
             label: 'Pedimentos',

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using Microsoft.EntityFrameworkCore;
 using RR.Application.DTOs.Roles;
 using RR.Domain.Entities;
@@ -17,6 +18,7 @@ public class RolesController : ControllerBase
     public RolesController(AppDbContext db) => _db = db;
 
     [HttpGet]
+    [RequierePermiso(Permisos.UsuariosVer)]
     public async Task<IActionResult> GetAll()
     {
         var roles = await _db.Roles
@@ -48,6 +50,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.UsuariosVer)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var r = await _db.Roles
@@ -77,6 +80,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpGet("permisos")]
+    [RequierePermiso(Permisos.UsuariosVer)]
     public async Task<IActionResult> GetAllPermisos()
     {
         var permisos = await _db.Permisos
@@ -87,6 +91,7 @@ public class RolesController : ControllerBase
     }
 
     [HttpPut("{id:guid}/permisos")]
+    [SoloAdministracion]
     public async Task<IActionResult> UpdatePermisos(Guid id, [FromBody] UpdatePermisosRequest request)
     {
         var rol = await _db.Roles

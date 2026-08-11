@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Cotizaciones;
 using RR.Application.Interfaces;
 
@@ -34,6 +35,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpPost("calcular")]
+    [RequierePermiso(Permisos.CotizacionesVer, Permisos.CotizacionesCrear)]
     public async Task<IActionResult> Calcular([FromBody] CotizacionInput input)
     {
         try
@@ -51,6 +53,7 @@ public class CotizacionesController : ControllerBase
     /// Llamar antes de /calcular cuando el vehículo tiene múltiples coincidencias.
     /// </summary>
     [HttpPost("candidatos")]
+    [RequierePermiso(Permisos.CotizacionesVer, Permisos.CotizacionesCrear)]
     public async Task<IActionResult> ObtenerCandidatos([FromBody] CotizacionInput input)
     {
         try
@@ -83,6 +86,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpGet]
+    [RequierePermiso(Permisos.CotizacionesVer)]
     public async Task<IActionResult> GetList(
         [FromQuery] Guid? clienteId,
         [FromQuery] string? estado,
@@ -104,6 +108,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.CotizacionesVer)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var cotizacion = await _cotizador.GetByIdAsync(id);
@@ -111,6 +116,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/pdf")]
+    [RequierePermiso(Permisos.CotizacionesVer)]
     public async Task<IActionResult> Pdf(Guid id)
     {
         try
@@ -135,6 +141,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/pdf/download")]
+    [RequierePermiso(Permisos.CotizacionesVer)]
     public async Task<IActionResult> PdfDownload(Guid id)
     {
         try
@@ -154,6 +161,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpPost]
+    [RequierePermiso(Permisos.CotizacionesCrear)]
     public async Task<IActionResult> Create([FromBody] GuardarCotizacionRequest request)
     {
         try
@@ -168,6 +176,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequierePermiso(Permisos.CotizacionesEditar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] GuardarCotizacionRequest request)
     {
         try
@@ -185,6 +194,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/marcar-enviada")]
+    [RequierePermiso(Permisos.CotizacionesEditar)]
     public async Task<IActionResult> MarcarEnviada(Guid id, [FromBody] MarcarEnviadaRequest request)
     {
         try
@@ -199,6 +209,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/recalcular")]
+    [RequierePermiso(Permisos.CotizacionesEditar)]
     public async Task<IActionResult> Recalcular(Guid id)
     {
         try
@@ -215,7 +226,12 @@ public class CotizacionesController : ControllerBase
         }
     }
 
+    // CotizacionesEditar también entra: convertir SU PROPIA cotización
+    // aceptada en trámite es el paso natural que sigue oficina al cerrar una
+    // venta, sin que eso les dé TRAMITES_CREAR de forma general (crear un
+    // trámite suelto o un lote de importación).
     [HttpPost("{id:guid}/convertir-a-tramite")]
+    [RequierePermiso(Permisos.TramitesCrear, Permisos.CotizacionesEditar)]
     public async Task<IActionResult> ConvertirATramite(Guid id, [FromBody] ConvertirCotizacionRequest request)
     {
         try
@@ -233,6 +249,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/enviar-email")]
+    [RequierePermiso(Permisos.CotizacionesEditar)]
     public async Task<IActionResult> EnviarEmail(Guid id, [FromBody] EnviarEmailCotizacionRequest request)
     {
         try
@@ -251,6 +268,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/whatsapp-link")]
+    [RequierePermiso(Permisos.CotizacionesEditar)]
     public async Task<IActionResult> WhatsAppLink(Guid id, [FromBody] WhatsAppLinkRequest request)
     {
         try
@@ -268,6 +286,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/aceptar")]
+    [RequierePermiso(Permisos.CotizacionesEditar)]
     public async Task<IActionResult> Aceptar(Guid id)
     {
         try
@@ -286,6 +305,7 @@ public class CotizacionesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/rechazar")]
+    [RequierePermiso(Permisos.CotizacionesEditar)]
     public async Task<IActionResult> Rechazar(Guid id, [FromBody] RechazarCotizacionRequest request)
     {
         try

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Entregas;
 using RR.Application.Interfaces;
 
@@ -22,6 +23,7 @@ public class EntregaTasksController : ControllerBase
     }
 
     [HttpGet]
+    [RequierePermiso(Permisos.CampoUsar, Permisos.TramitesAsignar)]
     public async Task<IActionResult> GetTareas([FromQuery] Guid? choferUserId, [FromQuery] string? estado)
     {
         // Si el usuario que consulta es chofer y no especifica otro ID, usar el propio
@@ -30,6 +32,7 @@ public class EntregaTasksController : ControllerBase
     }
 
     [HttpGet("mias")]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> GetMias()
     {
         var userId = _currentUser.UserId;
@@ -37,6 +40,7 @@ public class EntregaTasksController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.CampoUsar, Permisos.TramitesAsignar)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var tarea = await _service.GetByIdAsync(id);
@@ -44,6 +48,7 @@ public class EntregaTasksController : ControllerBase
     }
 
     [HttpPost]
+    [RequierePermiso(Permisos.TramitesEditar, Permisos.TramitesAsignar)]
     public async Task<IActionResult> Crear([FromBody] CrearTareaEntregaRequest request)
     {
         try
@@ -61,6 +66,7 @@ public class EntregaTasksController : ControllerBase
     }
 
     [HttpPost("{id:guid}/tomar")]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> Tomar(Guid id)
     {
         try
@@ -78,6 +84,7 @@ public class EntregaTasksController : ControllerBase
     }
 
     [HttpPost("{id:guid}/registrar")]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> RegistrarEntrega(Guid id, [FromBody] RegistrarEntregaRequest request)
     {
         try
@@ -92,6 +99,7 @@ public class EntregaTasksController : ControllerBase
 
     [HttpPost("{id:guid}/fotos")]
     [RequestSizeLimit(15_728_640)]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> UploadFoto(Guid id, IFormFile file)
     {
         if (file == null || file.Length == 0)

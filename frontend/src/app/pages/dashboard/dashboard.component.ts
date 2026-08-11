@@ -1,7 +1,8 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
+import { AuthService } from '../../services/auth.service';
 import { PagoListDto, PagoService } from '../../services/pago.service';
 import { GastoHormigaListDto, GastoHormigaService } from '../../services/gasto-hormiga.service';
 import {
@@ -25,305 +26,173 @@ import { CotizacionDashboardDto, CotizacionService } from '../../services/cotiza
           <p class="page-eyebrow">{{ today }}</p>
           <h1 class="page-title">Dashboard</h1>
         </div>
-        <button
-          (click)="router.navigate(['/tramites'])"
-          class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Nuevo trámite
-        </button>
+        @if (verTramites()) {
+          <button
+            (click)="router.navigate(['/tramites'])"
+            class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Nuevo trámite
+          </button>
+        }
       </div>
 
-      <!-- Stat strip — operacional, no decorativo -->
-      <div
-        class="stat-strip card-elevated rounded-2xl mb-5 stagger-item"
-        style="animation-delay:40ms;"
-      >
-        <div class="stat-cell">
-          <span class="stat-label">Trámites activos</span>
-          @if (loading()) {
-            <div class="h-7 w-12 shimmer rounded mt-1 mb-1"></div>
-          } @else {
-            <span class="stat-value">{{ dash.activos }}</span>
+      <!-- Stat strip — operacional, no decorativo.
+           Las celdas de dinero solo existen para dirección; el resto ve la
+           operación. Las columnas se ajustan a lo que de verdad se muestra. -->
+      @if (totalCeldas() > 0) {
+        <div
+          class="stat-strip card-elevated rounded-2xl mb-5 stagger-item"
+          [class.stat-strip--2]="totalCeldas() === 2"
+          style="animation-delay:40ms;"
+        >
+          @if (verTramites()) {
+            <div class="stat-cell">
+              <span class="stat-label">Trámites activos</span>
+              @if (loading()) {
+                <div class="h-7 w-12 shimmer rounded mt-1 mb-1"></div>
+              } @else {
+                <span class="stat-value">{{ dash.activos }}</span>
+              }
+              <span class="stat-sub">
+                @if (!loading()) {
+                  {{ dash.verdesEsteMes }} completados · {{ dash.amarillosPendientePago }} pend.
+                  pago
+                }
+              </span>
+            </div>
           }
-          <span class="stat-sub">
-            @if (!loading()) {
-              {{ dash.verdesEsteMes }} completados · {{ dash.amarillosPendientePago }} pend. pago
-            }
-          </span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-cell">
-          <span class="stat-label">Cobrado este mes</span>
-          @if (loading()) {
-            <div class="h-7 w-28 shimmer rounded mt-1 mb-1"></div>
-          } @else {
-            <span class="stat-value stat-value--money">{{
-              dash.cobradoMes | currency: 'MXN' : 'symbol' : '1.0-0'
-            }}</span>
+
+          @if (verDinero()) {
+            <div class="stat-cell">
+              <span class="stat-label">Cobrado este mes</span>
+              @if (loading()) {
+                <div class="h-7 w-28 shimmer rounded mt-1 mb-1"></div>
+              } @else {
+                <span class="stat-value stat-value--money">{{
+                  dash.cobradoMes | currency: 'MXN' : 'symbol' : '1.0-0'
+                }}</span>
+              }
+              <span class="stat-sub stat-sub--ok">
+                @if (!loading()) {
+                  Conciliado con banco
+                }
+              </span>
+            </div>
+
+            <div class="stat-cell">
+              <span class="stat-label">Por cobrar</span>
+              @if (loading()) {
+                <div class="h-7 w-24 shimmer rounded mt-1 mb-1"></div>
+              } @else {
+                <span class="stat-value stat-value--warn">{{
+                  dash.porCobrar | currency: 'MXN' : 'symbol' : '1.0-0'
+                }}</span>
+              }
+              <span class="stat-sub stat-sub--warn">
+                @if (!loading()) {
+                  {{ dash.amarillosPendientePago }} trámites pendientes
+                }
+              </span>
+            </div>
           }
-          <span class="stat-sub stat-sub--ok">
-            @if (!loading()) {
-              Conciliado con banco
-            }
-          </span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-cell">
-          <span class="stat-label">Por cobrar</span>
-          @if (loading()) {
-            <div class="h-7 w-24 shimmer rounded mt-1 mb-1"></div>
-          } @else {
-            <span class="stat-value stat-value--warn">{{
-              dash.porCobrar | currency: 'MXN' : 'symbol' : '1.0-0'
-            }}</span>
+
+          @if (verTramites()) {
+            <div class="stat-cell">
+              <span class="stat-label">Vehículos en patio</span>
+              @if (loading()) {
+                <div class="h-7 w-10 shimmer rounded mt-1 mb-1"></div>
+              } @else {
+                <span class="stat-value"
+                  >{{ dash.vehiculosEnPatio }}<span class="stat-unit">uds</span></span
+                >
+              }
+              <span class="stat-sub">
+                @if (!loading()) {
+                  Sin trámite completo
+                }
+              </span>
+            </div>
           }
-          <span class="stat-sub stat-sub--warn">
-            @if (!loading()) {
-              {{ dash.amarillosPendientePago }} trámites pendientes
-            }
-          </span>
         </div>
-        <div class="stat-divider"></div>
-        <div class="stat-cell">
-          <span class="stat-label">Vehículos en patio</span>
-          @if (loading()) {
-            <div class="h-7 w-10 shimmer rounded mt-1 mb-1"></div>
-          } @else {
-            <span class="stat-value"
-              >{{ dash.vehiculosEnPatio }}<span class="stat-unit">uds</span></span
-            >
-          }
-          <span class="stat-sub">
-            @if (!loading()) {
-              Sin trámite completo
-            }
-          </span>
-        </div>
-      </div>
+      }
 
       <!-- Cotizaciones strip -->
-      <div
-        class="card-elevated rounded-2xl mb-5 stagger-item overflow-hidden"
-        style="animation-delay:80ms;"
-      >
-        <div class="flex items-center justify-between px-6 py-3 border-b border-[var(--border)]">
-          <p class="text-[13px] font-semibold text-[var(--n-800)]">Cotizaciones</p>
-          <button
-            (click)="router.navigate(['/cotizaciones'])"
-            class="text-[12px] font-medium text-[var(--rr-600)]"
-          >
-            Ver todas
-          </button>
-        </div>
+      @if (verCotizaciones()) {
         <div
-          class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[var(--border)]"
+          class="card-elevated rounded-2xl mb-5 stagger-item overflow-hidden"
+          style="animation-delay:80ms;"
         >
-          <div class="px-6 py-4">
-            <p class="stat-label mb-1">Pendientes de respuesta</p>
-            @if (loading()) {
-              <div class="h-6 w-10 shimmer rounded mt-1"></div>
-            } @else {
-              <p class="text-[22px] font-semibold text-[var(--n-900)] tabular-nums tracking-tight">
-                {{ cotDash.pendientesRespuesta }}
-              </p>
-            }
-          </div>
-          <div class="px-6 py-4">
-            <p class="stat-label mb-1">Por expirar (2 días)</p>
-            @if (loading()) {
-              <div class="h-6 w-10 shimmer rounded mt-1"></div>
-            } @else {
-              <p
-                class="text-[22px] font-semibold tabular-nums tracking-tight"
-                [style.color]="cotDash.porExpirar > 0 ? 'var(--amber)' : 'var(--n-900)'"
-              >
-                {{ cotDash.porExpirar }}
-              </p>
-            }
-          </div>
-          <div class="px-6 py-4">
-            <p class="stat-label mb-2">Aceptadas — listas para convertir</p>
-            @if (loading()) {
-              <div class="space-y-2">
-                <div class="h-9 w-full shimmer rounded-lg"></div>
-                <div class="h-9 w-full shimmer rounded-lg" style="animation-delay:100ms"></div>
-              </div>
-            } @else {
-              @for (c of cotDash.aceptadasListas; track c.id) {
-                <button
-                  (click)="router.navigate(['/cotizaciones', c.id])"
-                  class="mb-1.5 flex w-full items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2 text-left text-[12px] hover:bg-[var(--n-50)] transition-colors"
-                >
-                  <span class="text-[var(--n-700)]"
-                    >{{ c.folio }} · {{ c.clienteNombre || 'Sin cliente' }}</span
-                  >
-                  <strong class="font-mono-data text-[var(--n-900)]">{{
-                    c.total | currency: 'MXN' : 'symbol' : '1.0-0'
-                  }}</strong>
-                </button>
-              } @empty {
-                <div class="flex items-center gap-2 py-1">
-                  <svg
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    class="w-4 h-4 stroke-2 text-[var(--n-300)] shrink-0"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <p class="text-[12.5px] text-[var(--n-400)]">
-                    Sin cotizaciones aceptadas pendientes
-                  </p>
-                </div>
-              }
-            }
-          </div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 xl:grid-cols-[1.35fr_0.65fr] gap-5 mb-5">
-        <!-- Trámites recientes -->
-        <section
-          class="card-elevated rounded-2xl overflow-hidden stagger-item"
-          style="animation-delay:120ms;"
-        >
-          <div class="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
-            <div>
-              <p class="text-[13px] font-semibold text-[var(--n-800)]">Trámites recientes</p>
-              <p class="text-[12px] text-[var(--n-400)]">Últimos movimientos registrados</p>
-            </div>
+          <div class="flex items-center justify-between px-6 py-3 border-b border-[var(--border)]">
+            <p class="text-[13px] font-semibold text-[var(--n-800)]">Cotizaciones</p>
             <button
-              (click)="router.navigate(['/tramites'])"
-              class="text-[12px] font-medium text-[var(--rr-600)] hover:text-[var(--rr-700)] transition-colors"
+              (click)="router.navigate(['/cotizaciones'])"
+              class="text-[12px] font-medium text-[var(--rr-600)]"
             >
-              Ver todos
+              Ver todas
             </button>
           </div>
-          <div>
-            @if (loading()) {
-              <div class="px-6 py-4 space-y-3">
-                <div class="h-11 w-full shimmer rounded-lg"></div>
-                <div class="h-11 w-full shimmer rounded-lg" style="animation-delay:80ms"></div>
-                <div class="h-11 w-full shimmer rounded-lg" style="animation-delay:160ms"></div>
-              </div>
-            } @else {
-              @for (t of tramitesRecientes; track t.id) {
-                <button
-                  (click)="router.navigate(['/tramites', t.id])"
-                  class="w-full grid grid-cols-1 sm:grid-cols-[110px_1fr_auto_auto] gap-x-4 gap-y-1 items-center px-6 py-3 text-left border-b border-[var(--n-100)] hover:bg-[var(--n-50)] transition-colors last:border-0"
+          <div
+            class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[var(--border)]"
+          >
+            <div class="px-6 py-4">
+              <p class="stat-label mb-1">Pendientes de respuesta</p>
+              @if (loading()) {
+                <div class="h-6 w-10 shimmer rounded mt-1"></div>
+              } @else {
+                <p
+                  class="text-[22px] font-semibold text-[var(--n-900)] tabular-nums tracking-tight"
                 >
-                  <span class="font-mono-data text-[12px] font-semibold text-[var(--n-900)]">{{
-                    t.numeroConsecutivo
-                  }}</span>
-                  <span class="min-w-0">
-                    <span class="block text-[13px] font-medium text-[var(--n-800)] truncate">{{
-                      t.clienteApodo || 'Sin cliente'
-                    }}</span>
-                    <span class="block text-[11.5px] text-[var(--n-400)] truncate">{{
-                      t.vehiculoMarcaModelo || t.vehiculoVinCorto || 'Sin vehículo'
-                    }}</span>
-                  </span>
-                  <span class="hidden sm:inline-flex badge" [class]="statusBadgeClass(t.estadoLogistico)">{{
-                    t.estadoLogistico
-                  }}</span>
-                  <span
-                    class="font-mono-data text-[12.5px] font-semibold tabular-nums"
-                    [style.color]="t.saldoPendiente > 0 ? 'var(--amber)' : 'var(--green)'"
-                  >
-                    {{ t.saldoPendiente | currency: 'MXN' : 'symbol' : '1.0-0' }}
-                  </span>
-                </button>
-              } @empty {
-                <div class="flex flex-col items-center justify-center py-14 px-6 text-center">
-                  <svg
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    class="w-8 h-8 stroke-[1.5] text-[var(--n-300)] mb-3"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  <p class="text-[13px] font-medium text-[var(--n-600)] mb-1">
-                    Sin trámites registrados
-                  </p>
-                  <p class="text-[12px] text-[var(--n-400)] mb-4">
-                    Los trámites se inician desde una cotización aceptada.
-                  </p>
+                  {{ cotDash.pendientesRespuesta }}
+                </p>
+              }
+            </div>
+            <div class="px-6 py-4">
+              <p class="stat-label mb-1">Por expirar (2 días)</p>
+              @if (loading()) {
+                <div class="h-6 w-10 shimmer rounded mt-1"></div>
+              } @else {
+                <p
+                  class="text-[22px] font-semibold tabular-nums tracking-tight"
+                  [style.color]="cotDash.porExpirar > 0 ? 'var(--amber)' : 'var(--n-900)'"
+                >
+                  {{ cotDash.porExpirar }}
+                </p>
+              }
+            </div>
+            <div class="px-6 py-4">
+              <p class="stat-label mb-2">Aceptadas — listas para convertir</p>
+              @if (loading()) {
+                <div class="space-y-2">
+                  <div class="h-9 w-full shimmer rounded-lg"></div>
+                  <div class="h-9 w-full shimmer rounded-lg" style="animation-delay:100ms"></div>
+                </div>
+              } @else {
+                @for (c of cotDash.aceptadasListas; track c.id) {
                   <button
-                    (click)="router.navigate(['/cotizaciones/nueva'])"
-                    class="text-[12px] font-semibold text-[var(--rr-600)] hover:text-[var(--rr-700)] transition-colors"
+                    (click)="router.navigate(['/cotizaciones', c.id])"
+                    class="mb-1.5 flex w-full items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2 text-left text-[12px] hover:bg-[var(--n-50)] transition-colors"
                   >
-                    Nueva cotización →
+                    <span class="text-[var(--n-700)]"
+                      >{{ c.folio }} · {{ c.clienteNombre || 'Sin cliente' }}</span
+                    >
+                    @if (verDinero()) {
+                      <strong class="font-mono-data text-[var(--n-900)]">{{
+                        c.total | currency: 'MXN' : 'symbol' : '1.0-0'
+                      }}</strong>
+                    } @else {
+                      <span class="text-[11px] font-semibold text-[var(--rr-600)]">Ver →</span>
+                    }
                   </button>
-                </div>
-              }
-            }
-          </div>
-        </section>
-
-        <!-- Pagos por verificar -->
-        <section
-          class="card-elevated rounded-2xl overflow-hidden stagger-item"
-          style="animation-delay:160ms;"
-        >
-          <div class="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
-            <div>
-              <p class="text-[13px] font-semibold text-[var(--n-800)]">Pagos por verificar</p>
-              <p class="text-[12px] text-[var(--n-400)]">Control contra banco</p>
-            </div>
-            <button
-              (click)="router.navigate(['/pagos'])"
-              class="text-[12px] font-medium text-[var(--rr-600)] hover:text-[var(--rr-700)] transition-colors"
-            >
-              Ver pagos
-            </button>
-          </div>
-          <div>
-            @if (loading()) {
-              <div class="px-6 py-4 space-y-3">
-                <div class="h-10 w-full shimmer rounded-lg"></div>
-                <div class="h-10 w-full shimmer rounded-lg" style="animation-delay:80ms"></div>
-              </div>
-            } @else {
-              @for (p of pagosPendientes; track p.id) {
-                <div
-                  class="flex items-center justify-between gap-3 px-6 py-3 border-b border-[var(--n-100)] last:border-0"
-                >
-                  <div class="min-w-0">
-                    <p class="text-[13px] font-medium text-[var(--n-800)] truncate">
-                      {{ p.clienteNombre || 'Sin cliente' }}
-                    </p>
-                    <p class="text-[11.5px] text-[var(--n-400)]">
-                      {{ p.numeroConsecutivo }} · {{ p.fechaPago | date: 'dd/MM/yyyy' }}
-                    </p>
-                  </div>
-                  <p
-                    class="font-mono-data text-[13px] font-semibold tabular-nums text-[var(--n-900)] shrink-0"
-                  >
-                    {{ p.monto | currency: p.moneda : 'symbol' : '1.2-2' }}
-                  </p>
-                </div>
-              } @empty {
-                <div class="flex flex-col items-center justify-center py-12 px-6 text-center">
-                  <div
-                    class="w-10 h-10 rounded-full bg-[var(--green-soft)] flex items-center justify-center mb-3"
-                  >
+                } @empty {
+                  <div class="flex items-center gap-2 py-1">
                     <svg
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
-                      class="w-5 h-5 stroke-2 text-[var(--green)]"
+                      class="w-4 h-4 stroke-2 text-[var(--n-300)] shrink-0"
                     >
                       <path
                         stroke-linecap="round"
@@ -331,20 +200,197 @@ import { CotizacionDashboardDto, CotizacionService } from '../../services/cotiza
                         d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
+                    <p class="text-[12.5px] text-[var(--n-400)]">
+                      Sin cotizaciones aceptadas pendientes
+                    </p>
                   </div>
-                  <p class="text-[13px] font-semibold text-[var(--n-800)] mb-1">Todo al día</p>
-                  <p class="text-[12px] text-[var(--n-400)]">
-                    No hay comprobantes pendientes de verificar.
-                  </p>
-                </div>
+                }
               }
-            }
+            </div>
           </div>
-        </section>
+        </div>
+      }
+
+      <!-- Con pagos a la vista van dos columnas; sin ellos, trámites ocupa todo -->
+      <div
+        [class]="
+          verPagos()
+            ? 'grid grid-cols-1 xl:grid-cols-[1.35fr_0.65fr] gap-5 mb-5'
+            : 'grid grid-cols-1 gap-5 mb-5'
+        "
+      >
+        <!-- Trámites recientes -->
+        @if (verTramites()) {
+          <section
+            class="card-elevated rounded-2xl overflow-hidden stagger-item"
+            style="animation-delay:120ms;"
+          >
+            <div
+              class="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]"
+            >
+              <div>
+                <p class="text-[13px] font-semibold text-[var(--n-800)]">Trámites recientes</p>
+                <p class="text-[12px] text-[var(--n-400)]">Últimos movimientos registrados</p>
+              </div>
+              <button
+                (click)="router.navigate(['/tramites'])"
+                class="text-[12px] font-medium text-[var(--rr-600)] hover:text-[var(--rr-700)] transition-colors"
+              >
+                Ver todos
+              </button>
+            </div>
+            <div>
+              @if (loading()) {
+                <div class="px-6 py-4 space-y-3">
+                  <div class="h-11 w-full shimmer rounded-lg"></div>
+                  <div class="h-11 w-full shimmer rounded-lg" style="animation-delay:80ms"></div>
+                  <div class="h-11 w-full shimmer rounded-lg" style="animation-delay:160ms"></div>
+                </div>
+              } @else {
+                @for (t of tramitesRecientes; track t.id) {
+                  <button
+                    (click)="router.navigate(['/tramites', t.id])"
+                    [class]="
+                      verDinero()
+                        ? 'w-full grid grid-cols-1 sm:grid-cols-[110px_1fr_auto_auto] gap-x-4 gap-y-1 items-center px-6 py-3 text-left border-b border-[var(--n-100)] hover:bg-[var(--n-50)] transition-colors last:border-0'
+                        : 'w-full grid grid-cols-1 sm:grid-cols-[110px_1fr_auto] gap-x-4 gap-y-1 items-center px-6 py-3 text-left border-b border-[var(--n-100)] hover:bg-[var(--n-50)] transition-colors last:border-0'
+                    "
+                  >
+                    <span class="font-mono-data text-[12px] font-semibold text-[var(--n-900)]">{{
+                      t.numeroConsecutivo
+                    }}</span>
+                    <span class="min-w-0">
+                      <span class="block text-[13px] font-medium text-[var(--n-800)] truncate">{{
+                        t.clienteApodo || 'Sin cliente'
+                      }}</span>
+                      <span class="block text-[11.5px] text-[var(--n-400)] truncate">{{
+                        t.vehiculoMarcaModelo || t.vehiculoVinCorto || 'Sin vehículo'
+                      }}</span>
+                    </span>
+                    <span
+                      class="hidden sm:inline-flex badge"
+                      [class]="statusBadgeClass(t.estadoLogistico)"
+                      >{{ t.estadoLogistico }}</span
+                    >
+                    @if (verDinero()) {
+                      <span
+                        class="font-mono-data text-[12.5px] font-semibold tabular-nums"
+                        [style.color]="t.saldoPendiente > 0 ? 'var(--amber)' : 'var(--green)'"
+                      >
+                        {{ t.saldoPendiente | currency: 'MXN' : 'symbol' : '1.0-0' }}
+                      </span>
+                    }
+                  </button>
+                } @empty {
+                  <div class="flex flex-col items-center justify-center py-14 px-6 text-center">
+                    <svg
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      class="w-8 h-8 stroke-[1.5] text-[var(--n-300)] mb-3"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <p class="text-[13px] font-medium text-[var(--n-600)] mb-1">
+                      Sin trámites registrados
+                    </p>
+                    <p class="text-[12px] text-[var(--n-400)] mb-4">
+                      Los trámites se inician desde una cotización aceptada.
+                    </p>
+                    <button
+                      (click)="router.navigate(['/cotizaciones/nueva'])"
+                      class="text-[12px] font-semibold text-[var(--rr-600)] hover:text-[var(--rr-700)] transition-colors"
+                    >
+                      Nueva cotización →
+                    </button>
+                  </div>
+                }
+              }
+            </div>
+          </section>
+        }
+
+        <!-- Pagos por verificar -->
+        @if (verPagos()) {
+          <section
+            class="card-elevated rounded-2xl overflow-hidden stagger-item"
+            style="animation-delay:160ms;"
+          >
+            <div
+              class="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]"
+            >
+              <div>
+                <p class="text-[13px] font-semibold text-[var(--n-800)]">Pagos por verificar</p>
+                <p class="text-[12px] text-[var(--n-400)]">Control contra banco</p>
+              </div>
+              <button
+                (click)="router.navigate(['/pagos'])"
+                class="text-[12px] font-medium text-[var(--rr-600)] hover:text-[var(--rr-700)] transition-colors"
+              >
+                Ver pagos
+              </button>
+            </div>
+            <div>
+              @if (loading()) {
+                <div class="px-6 py-4 space-y-3">
+                  <div class="h-10 w-full shimmer rounded-lg"></div>
+                  <div class="h-10 w-full shimmer rounded-lg" style="animation-delay:80ms"></div>
+                </div>
+              } @else {
+                @for (p of pagosPendientes; track p.id) {
+                  <div
+                    class="flex items-center justify-between gap-3 px-6 py-3 border-b border-[var(--n-100)] last:border-0"
+                  >
+                    <div class="min-w-0">
+                      <p class="text-[13px] font-medium text-[var(--n-800)] truncate">
+                        {{ p.clienteNombre || 'Sin cliente' }}
+                      </p>
+                      <p class="text-[11.5px] text-[var(--n-400)]">
+                        {{ p.numeroConsecutivo }} · {{ p.fechaPago | date: 'dd/MM/yyyy' }}
+                      </p>
+                    </div>
+                    <p
+                      class="font-mono-data text-[13px] font-semibold tabular-nums text-[var(--n-900)] shrink-0"
+                    >
+                      {{ p.monto | currency: p.moneda : 'symbol' : '1.2-2' }}
+                    </p>
+                  </div>
+                } @empty {
+                  <div class="flex flex-col items-center justify-center py-12 px-6 text-center">
+                    <div
+                      class="w-10 h-10 rounded-full bg-[var(--green-soft)] flex items-center justify-center mb-3"
+                    >
+                      <svg
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        class="w-5 h-5 stroke-2 text-[var(--green)]"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                    <p class="text-[13px] font-semibold text-[var(--n-800)] mb-1">Todo al día</p>
+                    <p class="text-[12px] text-[var(--n-400)]">
+                      No hay comprobantes pendientes de verificar.
+                    </p>
+                  </div>
+                }
+              }
+            </div>
+          </section>
+        }
       </div>
 
       <!-- Trámites atrasados -->
-      @if (!loading() && tramitesAtrasados.length > 0) {
+      @if (verTramites() && !loading() && tramitesAtrasados.length > 0) {
         <section
           class="card-elevated rounded-2xl overflow-hidden stagger-item mb-5"
           style="animation-delay:185ms;"
@@ -446,95 +492,115 @@ import { CotizacionDashboardDto, CotizacionService } from '../../services/cotiza
       }
 
       <!-- Gastos hormiga -->
-      <section
-        class="card-elevated rounded-2xl overflow-hidden stagger-item"
-        style="animation-delay:200ms;"
-      >
-        <div class="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
-          <div>
-            <p class="text-[13px] font-semibold text-[var(--n-800)]">Gastos hormiga recientes</p>
-            <p class="text-[12px] text-[var(--n-400)]">Últimos costos registrados en operación</p>
-          </div>
-          <button
-            (click)="router.navigate(['/gastos-hormiga'])"
-            class="text-[12px] font-medium text-[var(--rr-600)] hover:text-[var(--rr-700)] transition-colors"
-          >
-            Ver gastos
-          </button>
-        </div>
-        @if (loading()) {
-          <div
-            class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[var(--border)]"
-          >
-            <div class="p-5"><div class="h-16 shimmer rounded-xl"></div></div>
-            <div class="p-5">
-              <div class="h-16 shimmer rounded-xl" style="animation-delay:80ms"></div>
+      @if (verGastos()) {
+        <section
+          class="card-elevated rounded-2xl overflow-hidden stagger-item"
+          style="animation-delay:200ms;"
+        >
+          <div class="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+            <div>
+              <p class="text-[13px] font-semibold text-[var(--n-800)]">Gastos hormiga recientes</p>
+              <p class="text-[12px] text-[var(--n-400)]">Últimos costos registrados en operación</p>
             </div>
-            <div class="p-5">
-              <div class="h-16 shimmer rounded-xl" style="animation-delay:160ms"></div>
-            </div>
+            <button
+              (click)="router.navigate(['/gastos-hormiga'])"
+              class="text-[12px] font-medium text-[var(--rr-600)] hover:text-[var(--rr-700)] transition-colors"
+            >
+              Ver gastos
+            </button>
           </div>
-        } @else {
-          <div
-            class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[var(--n-100)]"
-          >
-            @for (g of gastosRecientes; track g.id) {
+          @if (loading()) {
+            <div
+              class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[var(--border)]"
+            >
+              <div class="p-5"><div class="h-16 shimmer rounded-xl"></div></div>
               <div class="p-5">
-                <div class="flex items-start justify-between gap-3 mb-1.5">
-                  <p class="text-[13px] font-semibold text-[var(--n-800)] line-clamp-1">
-                    {{ g.concepto }}
+                <div class="h-16 shimmer rounded-xl" style="animation-delay:80ms"></div>
+              </div>
+              <div class="p-5">
+                <div class="h-16 shimmer rounded-xl" style="animation-delay:160ms"></div>
+              </div>
+            </div>
+          } @else {
+            <div
+              class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[var(--n-100)]"
+            >
+              @for (g of gastosRecientes; track g.id) {
+                <div class="p-5">
+                  <div class="flex items-start justify-between gap-3 mb-1.5">
+                    <p class="text-[13px] font-semibold text-[var(--n-800)] line-clamp-1">
+                      {{ g.concepto }}
+                    </p>
+                    <span
+                      class="badge shrink-0"
+                      [class]="g.seCargaAlCliente ? 'badge-pendiente' : 'badge-neutral'"
+                    >
+                      {{ g.seCargaAlCliente ? 'Cargable' : 'Propio' }}
+                    </span>
+                  </div>
+                  <p class="text-[11.5px] text-[var(--n-400)] mb-3">
+                    {{ g.clienteNombre || 'Sin cliente' }} · {{ g.fechaGasto | date: 'dd/MM/yyyy' }}
                   </p>
-                  <span
-                    class="badge shrink-0"
-                    [class]="g.seCargaAlCliente ? 'badge-pendiente' : 'badge-neutral'"
+                  <p
+                    class="font-mono-data text-[19px] font-semibold text-[var(--n-900)] tabular-nums"
                   >
-                    {{ g.seCargaAlCliente ? 'Cargable' : 'Propio' }}
-                  </span>
+                    {{ g.monto | currency: g.moneda }}
+                  </p>
                 </div>
-                <p class="text-[11.5px] text-[var(--n-400)] mb-3">
-                  {{ g.clienteNombre || 'Sin cliente' }} · {{ g.fechaGasto | date: 'dd/MM/yyyy' }}
-                </p>
-                <p
-                  class="font-mono-data text-[19px] font-semibold text-[var(--n-900)] tabular-nums"
+              } @empty {
+                <div
+                  class="col-span-3 flex flex-col items-center justify-center py-12 px-6 text-center"
                 >
-                  {{ g.monto | currency: g.moneda }}
-                </p>
-              </div>
-            } @empty {
-              <div
-                class="col-span-3 flex flex-col items-center justify-center py-12 px-6 text-center"
-              >
-                <svg
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  class="w-7 h-7 stroke-[1.5] text-[var(--n-300)] mb-3"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                  />
-                </svg>
-                <p class="text-[13px] font-medium text-[var(--n-600)] mb-1">
-                  Sin gastos registrados
-                </p>
-                <p class="text-[12px] text-[var(--n-400)]">
-                  Registra los costos de operación para tenerlos en control.
-                </p>
-              </div>
-            }
-          </div>
-        }
-      </section>
+                  <svg
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    class="w-7 h-7 stroke-[1.5] text-[var(--n-300)] mb-3"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <p class="text-[13px] font-medium text-[var(--n-600)] mb-1">
+                    Sin gastos registrados
+                  </p>
+                  <p class="text-[12px] text-[var(--n-400)]">
+                    Registra los costos de operación para tenerlos en control.
+                  </p>
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
+
+      <!-- Rol sin nada que mostrar aquí: mejor decirlo que dejar la página en
+           blanco y que parezca que algo se rompió. -->
+      @if (!verTramites() && !verCotizaciones() && !verPagos() && !verGastos()) {
+        <section class="card-elevated rounded-2xl px-6 py-12 text-center stagger-item">
+          <p class="text-[14px] font-semibold text-[var(--n-800)] mb-1">
+            Todo listo, {{ nombreCorto() }}
+          </p>
+          <p class="text-[12.5px] text-[var(--n-400)]">
+            Tu usuario trabaja desde las secciones del menú lateral. Este tablero resume información
+            que tu rol no necesita.
+          </p>
+        </section>
+      }
     </div>
   `,
   styles: [
     `
-      /* Stat strip — operacional */
+      /* Stat strip — operacional. Las columnas dependen de cuántas celdas
+         sobreviven al filtro de permisos: con dinero son 4, sin dinero 2. */
       .stat-strip {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .stat-strip--2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       @media (max-width: 767px) {
         .stat-strip {
@@ -551,25 +617,23 @@ import { CotizacionDashboardDto, CotizacionService } from '../../services/cotiza
         display: flex;
         flex-direction: column;
       }
-      .stat-divider {
-        width: 1px;
-        background: var(--border);
-        align-self: stretch;
+      /* Separadores por borde y no por elementos sueltos: así el número de
+         celdas puede cambiar sin descuadrar la rejilla. */
+      .stat-cell + .stat-cell {
+        border-left: 1px solid var(--border);
       }
       @media (max-width: 767px) {
-        .stat-divider:nth-child(4) {
-          display: none;
+        .stat-cell:nth-child(odd) {
+          border-left: none;
+        }
+        .stat-cell:nth-child(n + 3) {
+          border-top: 1px solid var(--border);
         }
       }
       @media (max-width: 479px) {
-        .stat-divider {
-          display: none;
-        }
-        .stat-cell {
-          border-bottom: 1px solid var(--border);
-        }
-        .stat-cell:last-child {
-          border-bottom: none;
+        .stat-cell + .stat-cell {
+          border-left: none;
+          border-top: 1px solid var(--border);
         }
       }
       .stat-label {
@@ -621,7 +685,27 @@ export class DashboardComponent implements OnInit {
   private pagoService = inject(PagoService);
   private gastoService = inject(GastoHormigaService);
   private cotizacionService = inject(CotizacionService);
+  private auth = inject(AuthService);
   router = inject(Router);
+
+  /**
+   * Qué puede ver este usuario en el tablero.
+   *
+   * El dinero va por rol (solo dirección: DUEÑO, ADMIN, GERENTE) y el resto por
+   * permiso. Y no es solo cuestión de ocultar: abajo, en ngOnInit, tampoco se
+   * piden al API los datos que no se van a mostrar, así que no hay importes
+   * viajando al navegador de quien no debe verlos.
+   */
+  readonly verDinero = this.auth.puedeVerDinero;
+  readonly verTramites = computed(() => this.auth.can('TRAMITES_VER'));
+  readonly verCotizaciones = computed(() => this.auth.can('COTIZACIONES_VER'));
+  readonly verPagos = computed(() => this.verDinero() && this.auth.can('PAGOS_VER'));
+  readonly verGastos = computed(() => this.verDinero() && this.auth.can('GASTOS_VER'));
+
+  /** Celdas visibles de la tira superior: 2 de operación + 2 de dinero. */
+  readonly totalCeldas = computed(() => (this.verTramites() ? 2 : 0) + (this.verDinero() ? 2 : 0));
+
+  readonly nombreCorto = computed(() => this.auth.user()?.nombre ?? '');
 
   loading = signal(true);
 
@@ -654,21 +738,28 @@ export class DashboardComponent implements OnInit {
   gastosRecientes: GastoHormigaListDto[] = [];
 
   ngOnInit() {
+    const sinTramites = { items: [] as TramiteListDto[] };
+
+    // Cada llamada se hace solo si el usuario puede ver el bloque que alimenta.
+    // Además de no filtrar información, evita los 403 que tumbaban el forkJoin
+    // completo y dejaban el tablero en blanco para los roles de campo.
     forkJoin({
-      dash: this.tramiteService.getDashboard(),
-      cotDash: this.cotizacionService.getDashboard(),
-      tramites: this.tramiteService.getList({ pageSize: 5 }),
-      atrasados: this.tramiteService.getList({
-        orderBy: 'fechaestado',
-        orderDir: 'asc',
-        pageSize: 20,
-      }),
-      pagos: this.pagoService.getList({ verificado: false, pageSize: 5 }),
-      gastos: this.gastoService.getList({ pageSize: 3 }),
+      dash: this.verTramites() || this.verDinero() ? this.tramiteService.getDashboard() : of(null),
+      cotDash: this.verCotizaciones() ? this.cotizacionService.getDashboard() : of(null),
+      tramites: this.verTramites() ? this.tramiteService.getList({ pageSize: 5 }) : of(sinTramites),
+      atrasados: this.verTramites()
+        ? this.tramiteService.getList({ orderBy: 'fechaestado', orderDir: 'asc', pageSize: 20 })
+        : of(sinTramites),
+      pagos: this.verPagos()
+        ? this.pagoService.getList({ verificado: false, pageSize: 5 })
+        : of({ items: [] as PagoListDto[] }),
+      gastos: this.verGastos()
+        ? this.gastoService.getList({ pageSize: 3 })
+        : of({ items: [] as GastoHormigaListDto[] }),
     }).subscribe({
       next: res => {
-        this.dash = res.dash;
-        this.cotDash = res.cotDash;
+        if (res.dash) this.dash = res.dash;
+        if (res.cotDash) this.cotDash = res.cotDash;
         this.tramitesRecientes = res.tramites.items;
         this.tramitesAtrasados = res.atrasados.items
           .filter(t => !this.estadosTerminales.has(t.estadoLogistico) && t.diasEnEstado >= 7)

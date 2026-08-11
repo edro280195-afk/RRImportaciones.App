@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.Interfaces;
 
 namespace RR.Api.Controllers;
@@ -17,6 +18,7 @@ public class EstadosController : ControllerBase
     }
 
     [HttpGet("{estadoActual}/transiciones")]
+    [RequierePermiso(Permisos.TramitesVer)]
     public IActionResult GetTransiciones(string estadoActual)
     {
         var transiciones = _stateService.GetTransicionesPermitidas(estadoActual);

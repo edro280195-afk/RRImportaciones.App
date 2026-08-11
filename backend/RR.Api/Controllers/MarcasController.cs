@@ -1,11 +1,15 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.Interfaces;
 
 namespace RR.Api.Controllers;
 
 [ApiController]
 [Route("api/marcas")]
+// La lectura queda abierta a cualquier sesión: son nombres de marcas de auto y
+// el yardero las necesita para registrar una unidad en la yarda sin tener
+// CATALOGOS_VER. Escribir sí exige CATALOGOS_EDITAR (ver cada acción).
 [Authorize]
 public class MarcasController : ControllerBase
 {
@@ -40,6 +44,7 @@ public class MarcasController : ControllerBase
     }
 
     [HttpPost]
+    [RequierePermiso(Permisos.CatalogosEditar)]
     public async Task<IActionResult> Create([FromBody] SaveMarcaRequest request)
     {
         try
@@ -54,6 +59,7 @@ public class MarcasController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequierePermiso(Permisos.CatalogosEditar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveMarcaRequest request)
     {
         try

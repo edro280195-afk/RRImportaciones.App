@@ -153,7 +153,7 @@ export const routes: Routes = [
       },
       {
         path: 'campo/bandeja-admin',
-        canActivate: [permissionGuard('TRAMITES_VER')],
+        canActivate: [permissionGuard('TRAMITES_ASIGNAR')],
         loadComponent: () =>
           import('./pages/campo/bandeja-campo-admin.component').then(
             m => m.BandejaCampoAdminComponent

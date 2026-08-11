@@ -27,6 +27,7 @@ interface QuickAction {
   label: string;
   detail: string;
   route: string;
+  /** Permiso requerido. 'ADMIN_ONLY' = administración del sistema (ADMIN y DUEÑO). */
   permiso?: string | 'ADMIN_ONLY';
 }
 
@@ -272,7 +273,9 @@ interface AppNotification {
             <section
               class="fixed inset-x-3 top-[64px] max-h-[calc(100vh-80px)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] shadow-[var(--shadow-xl)] md:absolute md:inset-x-auto md:right-0 md:top-[44px] md:w-[360px]"
             >
-              <div class="flex items-start justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
+              <div
+                class="flex items-start justify-between gap-2 border-b border-[var(--border)] px-4 py-3"
+              >
                 <div>
                   <p class="text-[13px] font-semibold text-[var(--n-800)]">Notificaciones</p>
                   <p class="mt-0.5 text-[12px] text-[var(--n-400)]">
@@ -366,44 +369,46 @@ interface AppNotification {
           }
         </div>
 
-        <div class="relative">
-          <button
-            type="button"
-            class="w-9 h-9 rounded-lg flex items-center justify-center text-[var(--n-500)] hover:bg-[var(--n-100)] hover:text-[var(--n-800)] transition-all duration-150"
-            aria-label="Configuración"
-            id="topbar-settings"
-            (click)="toggleSettings()"
-          >
-            <svg
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              class="w-[17px] h-[17px] stroke-[1.8]"
+        <!-- El engrane solo se muestra si hay algo detrás que el usuario pueda
+             abrir; si no, era un botón que solo servía para decirle que no. -->
+        @if (ajustesVisibles().length > 0) {
+          <div class="relative">
+            <button
+              type="button"
+              class="w-9 h-9 rounded-lg flex items-center justify-center text-[var(--n-500)] hover:bg-[var(--n-100)] hover:text-[var(--n-800)] transition-all duration-150"
+              aria-label="Configuración"
+              id="topbar-settings"
+              (click)="toggleSettings()"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </button>
+              <svg
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                class="w-[17px] h-[17px] stroke-[1.8]"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            </button>
 
-          @if (settingsOpen()) {
-            <section
-              class="fixed inset-x-3 top-[64px] max-h-[calc(100vh-80px)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] shadow-[var(--shadow-xl)] md:absolute md:inset-x-auto md:right-0 md:top-[44px] md:w-[340px]"
-            >
-              <div class="border-b border-[var(--border)] px-4 py-3">
-                <p class="text-[13px] font-semibold text-[var(--n-800)]">Configuración</p>
-                <p class="mt-0.5 text-[12px] text-[var(--n-400)]">{{ settingsSubtitle() }}</p>
-              </div>
-              @if (auth.isAdmin()) {
+            @if (settingsOpen()) {
+              <section
+                class="fixed inset-x-3 top-[64px] max-h-[calc(100vh-80px)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] shadow-[var(--shadow-xl)] md:absolute md:inset-x-auto md:right-0 md:top-[44px] md:w-[340px]"
+              >
+                <div class="border-b border-[var(--border)] px-4 py-3">
+                  <p class="text-[13px] font-semibold text-[var(--n-800)]">Configuración</p>
+                  <p class="mt-0.5 text-[12px] text-[var(--n-400)]">{{ settingsSubtitle }}</p>
+                </div>
                 <div class="p-2">
-                  @for (item of adminSettings; track item.route) {
+                  @for (item of ajustesVisibles(); track item.route) {
                     <button
                       type="button"
                       class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-[var(--n-50)] transition-colors"
@@ -428,18 +433,10 @@ interface AppNotification {
                     </button>
                   }
                 </div>
-              } @else {
-                <div class="px-4 py-5">
-                  <p class="text-[13px] font-semibold text-[var(--n-800)]">Solo lectura</p>
-                  <p class="mt-1 text-[12px] leading-5 text-[var(--n-500)]">
-                    Tu usuario no tiene permisos para cambiar configuración, permisos ni
-                    contraseñas.
-                  </p>
-                </div>
-              }
-            </section>
-          }
-        </div>
+              </section>
+            }
+          </div>
+        }
       </div>
     </header>
   `,
@@ -466,21 +463,45 @@ export class TopbarComponent implements OnInit {
   menuClick = output<void>();
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  readonly adminSettings: QuickAction[] = [
-    { label: 'Usuarios y roles', detail: 'Cuentas, permisos y accesos', route: '/usuarios' },
+  private readonly adminSettings: QuickAction[] = [
+    {
+      label: 'Usuarios y roles',
+      detail: 'Cuentas, permisos y accesos',
+      route: '/usuarios',
+      permiso: 'USUARIOS_VER',
+    },
     {
       label: 'Parametros fiscales',
       detail: 'IVA, IGI, DTA e historicos',
       route: '/admin/parametros-fiscales',
+      permiso: 'ADMIN_ONLY',
     },
     {
       label: 'Catálogo de precios',
       detail: 'Anexo 2 SAT — editar y limpiar entradas',
       route: '/admin/catalogo-precios',
+      permiso: 'ADMIN_ONLY',
     },
-    { label: 'Plantillas', detail: 'Mensajes de email y WhatsApp', route: '/admin/plantillas' },
-    { label: 'Auditoria', detail: 'Cambios importantes del sistema', route: '/auditoria' },
+    {
+      label: 'Plantillas',
+      detail: 'Mensajes de email y WhatsApp',
+      route: '/admin/plantillas',
+      permiso: 'ADMIN_ONLY',
+    },
+    {
+      label: 'Auditoria',
+      detail: 'Cambios importantes del sistema',
+      route: '/auditoria',
+      permiso: 'ADMIN_ONLY',
+    },
   ];
+
+  /**
+   * Ajustes que este usuario puede abrir de verdad. Antes el panel listaba las
+   * cinco entradas a cualquier ADMIN sin revisar permiso por permiso, y el
+   * dueño ni siquiera lo veía.
+   */
+  ajustesVisibles = computed(() => this.adminSettings.filter(item => this.canSee(item.permiso)));
 
   private readonly quickActions: QuickAction[] = [
     {
@@ -502,10 +523,19 @@ export class TopbarComponent implements OnInit {
       permiso: 'TRAMITES_VER',
     },
     {
+      // EVENTOS_CREAR lo tiene toda la oficina; el módulo de campo es de quien
+      // trabaja en la yarda y su guard exige CAMPO_USAR. Sin esto, el atajo
+      // aparecía para gente que al entrar rebotaba de vuelta a /inicio.
       label: 'Campo',
       detail: 'Fotos, reportes y tareas de yarda',
       route: '/campo',
-      permiso: 'EVENTOS_CREAR',
+      permiso: 'CAMPO_USAR',
+    },
+    {
+      label: 'Bandeja campo',
+      detail: 'Pre-inspecciones por asignar a un tramite',
+      route: '/campo/bandeja-admin',
+      permiso: 'TRAMITES_ASIGNAR',
     },
     {
       label: 'Nueva cotizacion',
@@ -532,10 +562,16 @@ export class TopbarComponent implements OnInit {
       permiso: 'CATALOGOS_VER',
     },
     {
-      label: 'Reporte de cotizaciones',
-      detail: 'Conversion y rendimiento comercial',
-      route: '/reportes/cotizaciones',
+      label: 'Reportes',
+      detail: 'Conversion, cobranza y rendimiento comercial',
+      route: '/reportes',
       permiso: 'REPORTES_FINANCIEROS',
+    },
+    {
+      label: 'Gastos hormiga',
+      detail: 'Costos de operacion registrados',
+      route: '/gastos-hormiga',
+      permiso: 'GASTOS_VER',
     },
     {
       label: 'Usuarios',
@@ -583,7 +619,7 @@ export class TopbarComponent implements OnInit {
       detail: 'Hay capturas pendientes de fotos o revision en yarda.',
       route: '/campo',
       severity: 'info',
-      permiso: 'EVENTOS_CREAR',
+      permiso: 'CAMPO_USAR',
     },
     {
       title: 'Plantillas listas para revisar',
@@ -620,9 +656,9 @@ export class TopbarComponent implements OnInit {
   badgeCount = computed(() =>
     this.recibidas().length > 0 ? this.noLeidas() : this.visibleNotifications().length
   );
-  settingsSubtitle = computed(() =>
-    this.auth.isAdmin() ? 'Ajustes administrativos del sistema' : 'Sin permisos de modificacion'
-  );
+  // El panel solo se abre cuando hay ajustes disponibles, así que el subtítulo
+  // ya no tiene que contemplar el caso "sin permisos".
+  readonly settingsSubtitle = 'Ajustes administrativos del sistema';
 
   constructor(private router: Router) {
     this.updateBreadcrumbs();
@@ -848,7 +884,7 @@ export class TopbarComponent implements OnInit {
 
   private canSee(permission?: string | 'ADMIN_ONLY'): boolean {
     if (!permission) return true;
-    if (permission === 'ADMIN_ONLY') return this.auth.isAdmin();
+    if (permission === 'ADMIN_ONLY') return this.auth.esAdminTotal();
     return this.auth.can(permission);
   }
 

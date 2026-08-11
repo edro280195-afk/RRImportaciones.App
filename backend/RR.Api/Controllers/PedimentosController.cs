@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Tramites;
 using RR.Application.Interfaces;
 
@@ -18,6 +19,7 @@ public class PedimentosController : ControllerBase
     }
 
     [HttpGet]
+    [RequierePermiso(Permisos.TramitesVer)]
     public async Task<ActionResult<List<PedimentoDto>>> GetAll([FromQuery] string? search)
     {
         var result = await _pedimentoService.GetAllAsync(search);

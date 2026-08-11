@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Clientes;
 using RR.Application.Interfaces;
 
@@ -18,6 +19,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet]
+    [RequierePermiso(Permisos.ClientesVer, Permisos.CampoUsar)]
     public async Task<IActionResult> GetList(
         [FromQuery] string? search,
         [FromQuery] string? procedencia,
@@ -30,6 +32,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.ClientesVer, Permisos.CampoUsar)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var cliente = await _clienteService.GetByIdAsync(id);
@@ -39,6 +42,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpPost]
+    [RequierePermiso(Permisos.ClientesCrear)]
     public async Task<IActionResult> Create([FromBody] CreateClienteRequest request)
     {
         try
@@ -53,6 +57,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequierePermiso(Permisos.ClientesEditar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateClienteRequest request)
     {
         try
@@ -71,6 +76,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequierePermiso(Permisos.ClientesEditar)]
     public async Task<IActionResult> Delete(Guid id)
     {
         try
@@ -85,6 +91,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet("search")]
+    [RequierePermiso(Permisos.ClientesVer, Permisos.CampoUsar)]
     public async Task<IActionResult> SearchAutocomplete([FromQuery] string q)
     {
         var results = await _clienteService.SearchAutocompleteAsync(q);

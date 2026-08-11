@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Reportes;
 using RR.Application.Interfaces;
 
@@ -26,6 +27,7 @@ public class ReportesController : ControllerBase
 
     /// <summary>Resumen financiero del periodo: cobrado, por cobrar, gastos, margen.</summary>
     [HttpGet("financiero")]
+    [RequierePermiso(Permisos.ReportesFinancieros)]
     public async Task<IActionResult> Financiero(
         [FromQuery] DateTime? desde,
         [FromQuery] DateTime? hasta)
@@ -37,6 +39,7 @@ public class ReportesController : ControllerBase
 
     /// <summary>Estado de cuenta de un cliente: todos sus trámites, pagos y saldo.</summary>
     [HttpGet("clientes/{clienteId:guid}/estado-cuenta")]
+    [RequierePermiso(Permisos.ReportesFinancieros, Permisos.PagosVer)]
     public async Task<IActionResult> EstadoCuentaCliente(Guid clienteId)
     {
         try
@@ -51,11 +54,13 @@ public class ReportesController : ControllerBase
 
     /// <summary>Pipeline de trámites activos por estado con días promedio en cada etapa.</summary>
     [HttpGet("pipeline")]
+    [RequierePermiso(Permisos.ReportesFinancieros)]
     public async Task<IActionResult> Pipeline()
         => Ok(await _reportes.GetReportePipelineAsync());
 
     /// <summary>Productividad por tramitador: trámites activos, cerrados en periodo, monto y días promedio.</summary>
     [HttpGet("tramitadores")]
+    [RequierePermiso(Permisos.ReportesFinancieros)]
     public async Task<IActionResult> Tramitadores(
         [FromQuery] DateTime? desde,
         [FromQuery] DateTime? hasta)
@@ -67,6 +72,7 @@ public class ReportesController : ControllerBase
 
     /// <summary>Gastos hormiga del periodo agrupados por categoría, cliente y tramitador.</summary>
     [HttpGet("gastos-hormiga")]
+    [RequierePermiso(Permisos.ReportesFinancieros, Permisos.GastosVer)]
     public async Task<IActionResult> GastosHormiga(
         [FromQuery] DateTime? desde,
         [FromQuery] DateTime? hasta)
@@ -78,6 +84,7 @@ public class ReportesController : ControllerBase
 
     /// <summary>Conversión de cotizaciones (endpoint original).</summary>
     [HttpGet("cotizaciones")]
+    [RequierePermiso(Permisos.ReportesFinancieros, Permisos.CotizacionesVer)]
     public async Task<IActionResult> Cotizaciones(
         [FromQuery] DateTime? desde,
         [FromQuery] DateTime? hasta)

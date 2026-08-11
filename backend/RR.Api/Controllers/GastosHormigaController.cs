@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.GastosHormiga;
 using RR.Application.Interfaces;
 
@@ -18,6 +19,7 @@ public class GastosHormigaController : ControllerBase
     }
 
     [HttpGet]
+    [RequierePermiso(Permisos.GastosVer)]
     public async Task<IActionResult> GetList(
         [FromQuery] Guid? tramiteId,
         [FromQuery] Guid? clienteId,
@@ -34,6 +36,7 @@ public class GastosHormigaController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.GastosVer)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var gasto = await _gastoService.GetByIdAsync(id);
@@ -43,6 +46,7 @@ public class GastosHormigaController : ControllerBase
     }
 
     [HttpPost]
+    [RequierePermiso(Permisos.GastosRegistrar)]
     public async Task<IActionResult> Create([FromBody] CreateGastoHormigaRequest request)
     {
         try
@@ -61,6 +65,7 @@ public class GastosHormigaController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequierePermiso(Permisos.GastosRegistrar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateGastoHormigaRequest request)
     {
         try
@@ -79,6 +84,7 @@ public class GastosHormigaController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequierePermiso(Permisos.GastosRegistrar)]
     public async Task<IActionResult> Delete(Guid id)
     {
         try
@@ -93,6 +99,7 @@ public class GastosHormigaController : ControllerBase
     }
 
     [HttpGet("resumen")]
+    [RequierePermiso(Permisos.GastosVer)]
     public async Task<IActionResult> GetResumen(
         [FromQuery] DateTime? fechaDesde,
         [FromQuery] DateTime? fechaHasta)

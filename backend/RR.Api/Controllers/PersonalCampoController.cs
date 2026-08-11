@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.PersonalCampo;
 using RR.Application.Interfaces;
 
@@ -15,6 +16,7 @@ public class PersonalCampoController : ControllerBase
     public PersonalCampoController(IPersonalCampoService service) => _service = service;
 
     [HttpGet]
+    [RequierePermiso(Permisos.UsuariosVer, Permisos.TramitesAsignar, Permisos.CatalogosVer)]
     public async Task<IActionResult> GetAll([FromQuery] bool soloActivos = true)
     {
         var result = await _service.GetAllAsync(soloActivos);
@@ -22,6 +24,7 @@ public class PersonalCampoController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequierePermiso(Permisos.UsuariosVer, Permisos.TramitesAsignar, Permisos.CatalogosVer)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await _service.GetByIdAsync(id);
@@ -30,6 +33,7 @@ public class PersonalCampoController : ControllerBase
     }
 
     [HttpPost]
+    [RequierePermiso(Permisos.CatalogosEditar)]
     public async Task<IActionResult> Create([FromBody] CreatePersonalCampoRequest request)
     {
         var result = await _service.CreateAsync(request);
@@ -37,6 +41,7 @@ public class PersonalCampoController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [RequierePermiso(Permisos.CatalogosEditar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePersonalCampoRequest request)
     {
         try
@@ -51,6 +56,7 @@ public class PersonalCampoController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [RequierePermiso(Permisos.CatalogosEditar)]
     public async Task<IActionResult> Delete(Guid id)
     {
         try

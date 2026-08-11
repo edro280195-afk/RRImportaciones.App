@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using Microsoft.EntityFrameworkCore;
 using RR.Application.DTOs.Auditoria;
 using RR.Infrastructure.Data;
@@ -16,6 +17,7 @@ public class AuditoriaController : ControllerBase
     public AuditoriaController(AppDbContext db) => _db = db;
 
     [HttpGet]
+    [SoloAdministracion]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? entidad = null,
         [FromQuery] string? accion = null,

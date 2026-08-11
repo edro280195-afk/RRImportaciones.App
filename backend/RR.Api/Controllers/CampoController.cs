@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RR.Api.Auth;
 using RR.Application.DTOs.Campo;
 using RR.Application.Interfaces;
 
@@ -20,12 +21,14 @@ public class CampoController : ControllerBase
     }
 
     [HttpGet("tareas")]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> GetTareas([FromQuery] string? EstadoLogistico)
     {
         return Ok(await _campoService.GetTareasAsync(EstadoLogistico));
     }
 
     [HttpGet("tareas/{id:guid}")]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var tarea = await _campoService.GetByIdAsync(id);
@@ -33,6 +36,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpPost("tareas")]
+    [RequierePermiso(Permisos.TramitesAsignar, Permisos.CampoUsar)]
     public async Task<IActionResult> Crear([FromBody] CrearTareaCampoRequest request)
     {
         try
@@ -50,6 +54,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpPost("pre-inspecciones")]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> CrearPreInspeccion([FromBody] CrearPreInspeccionRequest request)
     {
         try
@@ -67,6 +72,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpPost("tareas/{id:guid}/vincular")]
+    [RequierePermiso(Permisos.TramitesAsignar)]
     public async Task<IActionResult> VincularTramite(Guid id, [FromBody] VincularPreInspeccionRequest request)
     {
         try
@@ -84,6 +90,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpPost("tareas/{id:guid}/tomar")]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> Tomar(Guid id, [FromBody] TomarTareaCampoRequest request)
     {
         try
@@ -101,6 +108,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpPost("tareas/{id:guid}/completar")]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> Completar(Guid id, [FromBody] CompletarTareaCampoRequest request)
     {
         try
@@ -115,6 +123,7 @@ public class CampoController : ControllerBase
 
     [HttpPost("tareas/{id:guid}/fotos")]
     [RequestSizeLimit(15_728_640)]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> UploadFoto(Guid id, IFormFile file)
     {
         if (file == null || file.Length == 0)
@@ -142,7 +151,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpDelete("tareas/{id:guid}/fotos")]
-    [Authorize(Roles = "ADMIN")]
+    [SoloAdministracion]
     public async Task<IActionResult> DeleteFoto(Guid id, [FromBody] EliminarFotoCampoRequest request)
     {
         try
@@ -160,6 +169,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpPost("extract-vin")]
+    [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> ExtractVin([FromBody] ExtractVinRequest request)
     {
         try
@@ -173,6 +183,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpGet("bandeja-admin")]
+    [RequierePermiso(Permisos.TramitesAsignar)]
     public async Task<IActionResult> GetBandejaAdmin(
         [FromQuery] DateTime? desde,
         [FromQuery] DateTime? hasta,
@@ -190,6 +201,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpPost("tareas/{id:guid}/solicitar-fotos")]
+    [RequierePermiso(Permisos.TramitesAsignar)]
     public async Task<IActionResult> SolicitarFotos(Guid id, [FromBody] SolicitarFotosAdicionalesRequest request)
     {
         try
@@ -207,6 +219,7 @@ public class CampoController : ControllerBase
     }
 
     [HttpPost("tareas/{id:guid}/descartar")]
+    [RequierePermiso(Permisos.TramitesAsignar)]
     public async Task<IActionResult> Descartar(Guid id, [FromBody] DescartarTareaCampoRequest request)
     {
         try
