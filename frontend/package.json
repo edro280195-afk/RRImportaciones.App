@@ -4,10 +4,11 @@
   "type": "module",
   "scripts": {
     "ng": "ng",
+    "version:stamp": "node scripts/generate-version.mjs",
     "tailwind": "tailwindcss --input src/styles.css --output src/styles.tailwind.css",
     "tailwind:watch": "tailwindcss --input src/styles.css --output src/styles.tailwind.css --watch",
-    "start": "npm run tailwind && concurrently -k \"npm run tailwind:watch\" \"ng serve\"",
-    "build": "npm run tailwind && ng build",
+    "start": "npm run version:stamp && npm run tailwind && concurrently -k \"npm run tailwind:watch\" \"ng serve\"",
+    "build": "npm run version:stamp && npm run tailwind && ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "eslint \"src/**/*.ts\"",

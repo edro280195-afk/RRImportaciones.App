@@ -1,5 +1,5 @@
 // Subir esta versión invalida todo lo cacheado por la versión anterior.
-const CACHE_NAME = 'rr-importaciones-v2';
+const CACHE_NAME = 'rr-importaciones-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -15,7 +15,11 @@ self.addEventListener('install', (event) => {
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
-  self.skipWaiting();
+  // Ojo: aquí NO se llama a skipWaiting(). La versión nueva se queda esperando a
+  // propósito, para que la app pueda avisarle al usuario ("hay una versión
+  // nueva") y recargar cuando él acepte. Si se activara sola, cambiaría el
+  // service worker por debajo de una pestaña que sigue corriendo el código
+  // viejo: mitad nueva, mitad vieja, que es peor que no actualizar.
 });
 
 self.addEventListener('activate', (event) => {
@@ -31,6 +35,13 @@ self.addEventListener('activate', (event) => {
     })
   );
   self.clients.claim();
+});
+
+// La app manda este mensaje cuando el usuario toca "Actualizar" en el aviso.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // ── Estrategias de caché ──────────────────────────────────────────────────
@@ -50,6 +61,10 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+
+  // La huella del build nunca se cachea: es justo el archivo que sirve para
+  // saber si lo que está corriendo ya quedó viejo.
+  if (url.pathname === '/version.json') return;
 
   // Navegación (rutas de Angular como /campo o /asistente-personal)
   if (event.request.mode === 'navigate') {

@@ -3,6 +3,9 @@
 # Generated Tailwind CSS
 /src/styles.tailwind.css
 
+# Huella del build (la genera scripts/generate-version.mjs en cada compilación)
+/public/version.json
+
 # Compiled output
 /dist
 /tmp

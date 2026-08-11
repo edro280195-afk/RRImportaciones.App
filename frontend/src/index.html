@@ -23,7 +23,10 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
+          // updateViaCache 'none' obliga al navegador a pedir sw.js a la red en
+          // cada revisión. Sin esto puede servir una copia cacheada de hasta 24h
+          // y el despliegue tarda un día en notarse.
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
             .then(reg => console.log('Service Worker registrado:', reg.scope))
             .catch(err => console.warn('Error al registrar Service Worker:', err));
         });
