@@ -165,7 +165,13 @@ public class TramitesController : ControllerBase
         }
     }
 
+    // El dashboard resume cobranza y márgenes del negocio completo: es
+    // información de dirección, no de la operación diaria de un rol
+    // específico. Coincide con el mismo criterio del frontend
+    // (AuthService.puedeVerDashboard) que oculta la sección "Inicio" del
+    // menú y la ruta /inicio a cualquiera que no sea de estos tres roles.
     [HttpGet("dashboard")]
+    [Authorize(Roles = "ADMIN,DUEÑO,GERENTE")]
     public async Task<IActionResult> GetDashboard()
     {
         var result = await _tramiteService.GetDashboardAsync();

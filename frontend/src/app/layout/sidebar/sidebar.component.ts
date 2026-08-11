@@ -17,7 +17,10 @@ interface MenuItem {
   icon: SafeHtml;
   route: string;
   badge?: string;
-  /** Permiso requerido. null = siempre visible. 'ADMIN_ONLY' = solo rol ADMIN. */
+  /**
+   * Permiso requerido. null = siempre visible. 'ADMIN_ONLY' = solo rol ADMIN.
+   * 'DIRECCION_ONLY' = solo ADMIN, DUEÑO y GERENTE (ver dashboard).
+   */
   permiso?: string | null;
 }
 
@@ -191,6 +194,7 @@ export class SidebarComponent implements OnInit {
         items: group.items.filter(item => {
           if (!item.permiso) return true;
           if (item.permiso === 'ADMIN_ONLY') return this.auth.isAdmin();
+          if (item.permiso === 'DIRECCION_ONLY') return this.auth.puedeVerDashboard();
           return this.auth.can(item.permiso);
         }),
       }))
@@ -357,7 +361,7 @@ export class SidebarComponent implements OnInit {
       {
         label: 'Operación',
         items: [
-          { label: 'Inicio', icon: icons.home, route: '/inicio', permiso: null },
+          { label: 'Inicio', icon: icons.home, route: '/inicio', permiso: 'DIRECCION_ONLY' },
           { label: 'Clientes', icon: icons.clients, route: '/clientes', permiso: 'CLIENTES_VER' },
           {
             label: 'Vehículos',

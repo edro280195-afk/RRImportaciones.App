@@ -55,6 +55,18 @@ export class AuthService {
   readonly isAdmin = computed(() => this.user()?.role === 'ADMIN');
   readonly isDueno = computed(() => this.user()?.role === 'DUEÑO');
 
+  /**
+   * El dashboard de /inicio muestra la operación completa del negocio
+   * (trámites, cobranza, márgenes) en un solo lugar: es información de
+   * dirección, no de la operación diaria de un rol en particular. Por eso va
+   * por ROL fijo (ADMIN, DUEÑO, GERENTE) y no por permiso — nadie puede
+   * ganarlo desde la pantalla de Roles como sí pasa con el resto de la app.
+   */
+  readonly puedeVerDashboard = computed(() => {
+    const role = this.user()?.role;
+    return role === 'ADMIN' || role === 'DUEÑO' || role === 'GERENTE';
+  });
+
   canAccessRodri(): boolean {
     const role = this.user()?.role;
     return role === 'ADMIN' || role === 'DUEÑO';

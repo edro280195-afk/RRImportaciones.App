@@ -94,7 +94,10 @@ public class CotizacionesController : ControllerBase
         return Ok(await _cotizador.GetListAsync(clienteId, estado, fechaDesde, search, page, pageSize));
     }
 
+    // Solo lo consume el tablero de /inicio (ver TramitesController.GetDashboard
+    // para el porqué de restringirlo a dirección).
     [HttpGet("dashboard")]
+    [Authorize(Roles = "ADMIN,DUEÑO,GERENTE")]
     public async Task<IActionResult> Dashboard()
     {
         return Ok(await _cotizador.GetDashboardAsync());

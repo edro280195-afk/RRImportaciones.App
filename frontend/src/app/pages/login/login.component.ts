@@ -2103,8 +2103,14 @@ export class LoginComponent implements OnInit, AfterViewInit, OnDestroy {
       this.router.navigate(['/asistente-personal']);
     } else if (isFieldRole) {
       this.router.navigate(['/campo']);
-    } else {
+    } else if (this.auth.puedeVerDashboard()) {
       this.router.navigate(['/inicio']);
+    } else {
+      // Oficina (facturación, coordinación, control de trámites): el
+      // dashboard es exclusivo de dirección, así que aterrizan en
+      // cotizaciones, que todos ellos pueden ver y es el punto de partida
+      // del flujo de trabajo diario.
+      this.router.navigate(['/cotizaciones']);
     }
   }
 }

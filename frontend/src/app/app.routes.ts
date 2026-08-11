@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
-import { permissionGuard, adminGuard, duenoGuard } from './guards/permission.guard';
+import { permissionGuard, adminGuard, duenoGuard, direccionGuard } from './guards/permission.guard';
 import { campoAuthGuard } from './guards/campo-auth.guard';
 import { entregaAuthGuard } from './guards/entrega-auth.guard';
 import { AppLayoutComponent } from './layout/app-layout/app-layout.component';
@@ -87,7 +87,7 @@ export const routes: Routes = [
     component: AppLayoutComponent,
     canActivate: [authGuard],
     children: [
-      { path: 'inicio', component: DashboardComponent },
+      { path: 'inicio', component: DashboardComponent, canActivate: [direccionGuard] },
 
       // Operación
       {
