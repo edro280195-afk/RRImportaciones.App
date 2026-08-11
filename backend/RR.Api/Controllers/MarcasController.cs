@@ -44,7 +44,7 @@ public class MarcasController : ControllerBase
     }
 
     [HttpPost]
-    [RequierePermiso(Permisos.CatalogosEditar)]
+    [RequierePermiso(Permisos.MarcasEditar, Permisos.CatalogosEditar)]
     public async Task<IActionResult> Create([FromBody] SaveMarcaRequest request)
     {
         try
@@ -59,7 +59,7 @@ public class MarcasController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequierePermiso(Permisos.CatalogosEditar)]
+    [RequierePermiso(Permisos.MarcasEditar, Permisos.CatalogosEditar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveMarcaRequest request)
     {
         try

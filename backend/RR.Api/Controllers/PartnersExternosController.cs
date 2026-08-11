@@ -16,7 +16,7 @@ public class PartnersExternosController : ControllerBase
     public PartnersExternosController(IPartnerExternoService service) => _service = service;
 
     [HttpGet]
-    [RequierePermiso(Permisos.TramitesVer, Permisos.CatalogosVer)]
+    [RequierePermiso(Permisos.TramitesVer, Permisos.CatalogosVer, Permisos.PartnersVer)]
     public async Task<IActionResult> GetAll([FromQuery] bool soloActivos = true)
     {
         var result = await _service.GetAllAsync(soloActivos);
@@ -24,7 +24,7 @@ public class PartnersExternosController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [RequierePermiso(Permisos.TramitesVer, Permisos.CatalogosVer)]
+    [RequierePermiso(Permisos.TramitesVer, Permisos.CatalogosVer, Permisos.PartnersVer)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await _service.GetByIdAsync(id);
@@ -33,7 +33,7 @@ public class PartnersExternosController : ControllerBase
     }
 
     [HttpPost]
-    [RequierePermiso(Permisos.CatalogosEditar)]
+    [RequierePermiso(Permisos.PartnersEditar, Permisos.CatalogosEditar)]
     public async Task<IActionResult> Create([FromBody] CreatePartnerExternoRequest request)
     {
         var result = await _service.CreateAsync(request);
@@ -41,7 +41,7 @@ public class PartnersExternosController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequierePermiso(Permisos.CatalogosEditar)]
+    [RequierePermiso(Permisos.PartnersEditar, Permisos.CatalogosEditar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePartnerExternoRequest request)
     {
         try
@@ -56,7 +56,7 @@ public class PartnersExternosController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [RequierePermiso(Permisos.CatalogosEditar)]
+    [RequierePermiso(Permisos.PartnersEditar, Permisos.CatalogosEditar)]
     public async Task<IActionResult> Delete(Guid id)
     {
         try

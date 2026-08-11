@@ -19,7 +19,7 @@ public class PedimentosController : ControllerBase
     }
 
     [HttpGet]
-    [RequierePermiso(Permisos.TramitesVer)]
+    [RequierePermiso(Permisos.PedimentosVer, Permisos.TramitesVer)]
     public async Task<ActionResult<List<PedimentoDto>>> GetAll([FromQuery] string? search)
     {
         var result = await _pedimentoService.GetAllAsync(search);

@@ -103,12 +103,12 @@ export const routes: Routes = [
       {
         path: 'vehiculos',
         component: VehiculosListComponent,
-        canActivate: [permissionGuard('TRAMITES_VER')],
+        canActivate: [permissionGuard('VEHICULOS_VER', 'TRAMITES_VER')],
       },
       {
         path: 'vehiculos/:id',
         component: VehiculosDetailComponent,
-        canActivate: [permissionGuard('TRAMITES_VER')],
+        canActivate: [permissionGuard('VEHICULOS_VER', 'TRAMITES_VER')],
       },
       {
         path: 'tramites',
@@ -117,19 +117,19 @@ export const routes: Routes = [
       },
       {
         path: 'lotes',
-        canActivate: [permissionGuard('TRAMITES_VER')],
+        canActivate: [permissionGuard('LOTES_VER', 'TRAMITES_VER')],
         loadComponent: () =>
           import('./pages/lotes/lotes-list.component').then(m => m.LotesListComponent),
       },
       {
         path: 'lotes/nuevo',
-        canActivate: [permissionGuard('TRAMITES_CREAR')],
+        canActivate: [permissionGuard('LOTES_CREAR', 'TRAMITES_CREAR')],
         loadComponent: () =>
           import('./pages/lotes/lote-form.component').then(m => m.LoteFormComponent),
       },
       {
         path: 'lotes/:id',
-        canActivate: [permissionGuard('TRAMITES_VER')],
+        canActivate: [permissionGuard('LOTES_VER', 'TRAMITES_VER')],
         loadComponent: () =>
           import('./pages/lotes/lote-detail.component').then(m => m.LoteDetailComponent),
       },
@@ -140,7 +140,7 @@ export const routes: Routes = [
       },
       {
         path: 'pedimentos',
-        canActivate: [permissionGuard('TRAMITES_VER')],
+        canActivate: [permissionGuard('PEDIMENTOS_VER', 'TRAMITES_VER')],
         loadComponent: () =>
           import('./pages/pedimentos/pedimentos-list.component').then(
             m => m.PedimentosListComponent
@@ -149,7 +149,7 @@ export const routes: Routes = [
       {
         path: 'inventario',
         component: InventarioComponent,
-        canActivate: [permissionGuard('TRAMITES_VER')],
+        canActivate: [permissionGuard('VEHICULOS_VER', 'TRAMITES_VER')],
       },
       {
         path: 'campo/bandeja-admin',
@@ -210,7 +210,7 @@ export const routes: Routes = [
       // Catálogos
       {
         path: 'marcas',
-        canActivate: [permissionGuard('CATALOGOS_VER')],
+        canActivate: [permissionGuard('MARCAS_VER', 'CATALOGOS_VER')],
         loadComponent: () =>
           import('./pages/catalogos/marcas.component').then(m => m.MarcasComponent),
       },
@@ -222,13 +222,13 @@ export const routes: Routes = [
       },
       {
         path: 'bancos',
-        canActivate: [permissionGuard('CATALOGOS_VER')],
+        canActivate: [permissionGuard('BANCOS_VER', 'CATALOGOS_VER')],
         loadComponent: () =>
           import('./pages/catalogos/bancos.component').then(m => m.BancosComponent),
       },
       {
         path: 'tramitadores',
-        canActivate: [permissionGuard('CATALOGOS_VER')],
+        canActivate: [permissionGuard('TRAMITADORES_VER', 'CATALOGOS_VER')],
         loadComponent: () =>
           import('./pages/catalogos/tramitadores.component').then(m => m.TramitadoresComponent),
       },
@@ -239,7 +239,7 @@ export const routes: Routes = [
       },
       {
         path: 'partners',
-        canActivate: [permissionGuard('CATALOGOS_VER')],
+        canActivate: [permissionGuard('PARTNERS_VER', 'CATALOGOS_VER')],
         loadComponent: () =>
           import('./pages/catalogos/partners.component').then(m => m.PartnersComponent),
       },

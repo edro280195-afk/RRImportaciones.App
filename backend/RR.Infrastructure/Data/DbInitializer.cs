@@ -116,6 +116,15 @@ public static class DbInitializer
             new() { Id = Guid.NewGuid(), Codigo = "TRAMITES_EDITAR", Nombre = "Editar trámites", Modulo = "TRAMITES" },
             new() { Id = Guid.NewGuid(), Codigo = "TRAMITES_BORRAR", Nombre = "Borrar trámites", Modulo = "TRAMITES" },
             new() { Id = Guid.NewGuid(), Codigo = "TRAMITES_ASIGNAR", Nombre = "Asignar trámites", Modulo = "TRAMITES" },
+            new() { Id = Guid.NewGuid(), Codigo = "VEHICULOS_VER", Nombre = "Ver vehículos", Modulo = "VEHICULOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "VEHICULOS_CREAR", Nombre = "Crear vehículos", Modulo = "VEHICULOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "VEHICULOS_EDITAR", Nombre = "Editar vehículos", Modulo = "VEHICULOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "VEHICULOS_BORRAR", Nombre = "Borrar vehículos", Modulo = "VEHICULOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "LOTES_VER", Nombre = "Ver lotes de importación", Modulo = "LOTES" },
+            new() { Id = Guid.NewGuid(), Codigo = "LOTES_CREAR", Nombre = "Crear lotes de importación", Modulo = "LOTES" },
+            new() { Id = Guid.NewGuid(), Codigo = "LOTES_EDITAR", Nombre = "Editar lotes de importación", Modulo = "LOTES" },
+            new() { Id = Guid.NewGuid(), Codigo = "LOTES_BORRAR", Nombre = "Cancelar lotes de importación", Modulo = "LOTES" },
+            new() { Id = Guid.NewGuid(), Codigo = "PEDIMENTOS_VER", Nombre = "Ver pedimentos", Modulo = "PEDIMENTOS" },
             new() { Id = Guid.NewGuid(), Codigo = "CLIENTES_VER", Nombre = "Ver clientes", Modulo = "CLIENTES" },
             new() { Id = Guid.NewGuid(), Codigo = "CLIENTES_CREAR", Nombre = "Crear clientes", Modulo = "CLIENTES" },
             new() { Id = Guid.NewGuid(), Codigo = "CLIENTES_EDITAR", Nombre = "Editar clientes", Modulo = "CLIENTES" },
@@ -135,6 +144,14 @@ public static class DbInitializer
             new() { Id = Guid.NewGuid(), Codigo = "CAMPO_USAR", Nombre = "Acceso al módulo campo (fotos y tareas en yarda)", Modulo = "CAMPO" },
             new() { Id = Guid.NewGuid(), Codigo = "CATALOGOS_VER", Nombre = "Ver catálogos", Modulo = "CATALOGOS" },
             new() { Id = Guid.NewGuid(), Codigo = "CATALOGOS_EDITAR", Nombre = "Editar catálogos", Modulo = "CATALOGOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "MARCAS_VER", Nombre = "Ver marcas", Modulo = "CATALOGOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "MARCAS_EDITAR", Nombre = "Editar marcas", Modulo = "CATALOGOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "BANCOS_VER", Nombre = "Ver bancos", Modulo = "CATALOGOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "BANCOS_EDITAR", Nombre = "Editar bancos", Modulo = "CATALOGOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "TRAMITADORES_VER", Nombre = "Ver tramitadores", Modulo = "CATALOGOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "TRAMITADORES_EDITAR", Nombre = "Editar tramitadores", Modulo = "CATALOGOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "PARTNERS_VER", Nombre = "Ver partners externos", Modulo = "CATALOGOS" },
+            new() { Id = Guid.NewGuid(), Codigo = "PARTNERS_EDITAR", Nombre = "Editar partners externos", Modulo = "CATALOGOS" },
             new() { Id = Guid.NewGuid(), Codigo = "ADMIN_PARAMETROS_FISCALES", Nombre = "Parámetros fiscales (IVA, IGI, DTA)", Modulo = "ADMINISTRACION" },
             new() { Id = Guid.NewGuid(), Codigo = "ADMIN_IMPORTADOR", Nombre = "Importador de datos", Modulo = "ADMINISTRACION" },
             new() { Id = Guid.NewGuid(), Codigo = "ADMIN_PLANTILLAS", Nombre = "Plantillas de mensajes", Modulo = "ADMINISTRACION" },
@@ -473,6 +490,29 @@ public static class DbInitializer
                 ("ADMIN_IMPORTADOR", "Importador de datos", "ADMINISTRACION"),
                 ("ADMIN_PLANTILLAS", "Plantillas de mensajes", "ADMINISTRACION"),
                 ("ADMIN_CATALOGO_PRECIOS", "Catálogo de precios SAT", "ADMINISTRACION"),
+                // Vehículos, Lotes y Pedimentos vivían pegados a TRAMITES_VER:
+                // no había forma de dar "solo Vehículos" sin dar también
+                // Trámites, Lotes y Pedimentos. Se agregan como alternativa
+                // (OR) en cada endpoint, nunca en vez de — ver Permisos.cs.
+                ("VEHICULOS_VER", "Ver vehículos", "VEHICULOS"),
+                ("VEHICULOS_CREAR", "Crear vehículos", "VEHICULOS"),
+                ("VEHICULOS_EDITAR", "Editar vehículos", "VEHICULOS"),
+                ("VEHICULOS_BORRAR", "Borrar vehículos", "VEHICULOS"),
+                ("LOTES_VER", "Ver lotes de importación", "LOTES"),
+                ("LOTES_CREAR", "Crear lotes de importación", "LOTES"),
+                ("LOTES_EDITAR", "Editar lotes de importación", "LOTES"),
+                ("LOTES_BORRAR", "Cancelar lotes de importación", "LOTES"),
+                ("PEDIMENTOS_VER", "Ver pedimentos", "PEDIMENTOS"),
+                // Igual para los catálogos: antes las cuatro pantallas
+                // compartían CATALOGOS_VER/EDITAR entre sí.
+                ("MARCAS_VER", "Ver marcas", "CATALOGOS"),
+                ("MARCAS_EDITAR", "Editar marcas", "CATALOGOS"),
+                ("BANCOS_VER", "Ver bancos", "CATALOGOS"),
+                ("BANCOS_EDITAR", "Editar bancos", "CATALOGOS"),
+                ("TRAMITADORES_VER", "Ver tramitadores", "CATALOGOS"),
+                ("TRAMITADORES_EDITAR", "Editar tramitadores", "CATALOGOS"),
+                ("PARTNERS_VER", "Ver partners externos", "CATALOGOS"),
+                ("PARTNERS_EDITAR", "Editar partners externos", "CATALOGOS"),
             }.Where(x => !existingCodes.Contains(x.Codigo)).ToList();
 
             if (!faltantes.Any())

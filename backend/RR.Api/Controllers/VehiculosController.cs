@@ -19,7 +19,7 @@ public class VehiculosController : ControllerBase
     }
 
     [HttpGet]
-    [RequierePermiso(Permisos.TramitesVer)]
+    [RequierePermiso(Permisos.VehiculosVer, Permisos.TramitesVer)]
     public async Task<IActionResult> GetList(
         [FromQuery] string? search,
         [FromQuery] Guid? clienteId,
@@ -41,7 +41,7 @@ public class VehiculosController : ControllerBase
     [HttpGet("{id:guid}")]
     // Cotizaciones también lo consulta: al cotizar desde un vehículo ya
     // registrado se cargan sus datos, y oficina cotiza sin tener TRAMITES_VER.
-    [RequierePermiso(Permisos.TramitesVer, Permisos.CotizacionesVer, Permisos.CotizacionesCrear)]
+    [RequierePermiso(Permisos.VehiculosVer, Permisos.TramitesVer, Permisos.CotizacionesVer, Permisos.CotizacionesCrear)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var vehiculo = await _vehiculoService.GetByIdAsync(id);
@@ -53,7 +53,7 @@ public class VehiculosController : ControllerBase
     // CampoUsar también entra: registrar un vehículo que llega a la yarda es
     // trabajo de yardero/chofer, no solo de quien crea trámites.
     [HttpPost]
-    [RequierePermiso(Permisos.TramitesCrear, Permisos.CampoUsar)]
+    [RequierePermiso(Permisos.VehiculosCrear, Permisos.TramitesCrear, Permisos.CampoUsar)]
     public async Task<IActionResult> Create([FromBody] CreateVehiculoRequest request)
     {
         try
@@ -74,7 +74,7 @@ public class VehiculosController : ControllerBase
     // Igual que Create: corregir los datos de un vehículo en yarda (color,
     // cliente, etc.) lo hace yardero/chofer, no solo trámites.
     [HttpPut("{id:guid}")]
-    [RequierePermiso(Permisos.TramitesEditar, Permisos.CampoUsar)]
+    [RequierePermiso(Permisos.VehiculosEditar, Permisos.TramitesEditar, Permisos.CampoUsar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateVehiculoRequest request)
     {
         try
@@ -93,7 +93,7 @@ public class VehiculosController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [RequierePermiso(Permisos.TramitesBorrar)]
+    [RequierePermiso(Permisos.VehiculosBorrar, Permisos.TramitesBorrar)]
     public async Task<IActionResult> Delete(Guid id)
     {
         try
@@ -111,7 +111,7 @@ public class VehiculosController : ControllerBase
     // diaria del yardero en la yarda — sin CampoUsar aquí, YARDERO se queda
     // sin poder hacer justo lo que su rol describe.
     [HttpPatch("{id:guid}/inventario")]
-    [RequierePermiso(Permisos.TramitesEditar, Permisos.CampoUsar)]
+    [RequierePermiso(Permisos.VehiculosEditar, Permisos.TramitesEditar, Permisos.CampoUsar)]
     public async Task<IActionResult> UpdateInventario(Guid id, [FromBody] UpdateInventarioRequest request)
     {
         try
@@ -126,7 +126,7 @@ public class VehiculosController : ControllerBase
     }
 
     [HttpGet("inventario")]
-    [RequierePermiso(Permisos.TramitesVer)]
+    [RequierePermiso(Permisos.VehiculosVer, Permisos.TramitesVer)]
     public async Task<IActionResult> GetInventarioActual()
     {
         var result = await _vehiculoService.GetInventarioActualAsync();

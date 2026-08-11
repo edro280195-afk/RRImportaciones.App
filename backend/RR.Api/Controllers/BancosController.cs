@@ -17,7 +17,7 @@ public class BancosController : ControllerBase
     public BancosController(AppDbContext db) => _db = db;
 
     [HttpGet]
-    [RequierePermiso(Permisos.PagosVer, Permisos.PagosRegistrar, Permisos.CatalogosVer)]
+    [RequierePermiso(Permisos.PagosVer, Permisos.PagosRegistrar, Permisos.CatalogosVer, Permisos.BancosVer)]
     public async Task<IActionResult> GetAll([FromQuery] bool soloActivos = true)
     {
         var query = _db.Bancos.AsQueryable();
@@ -43,7 +43,7 @@ public class BancosController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [RequierePermiso(Permisos.PagosVer, Permisos.PagosRegistrar, Permisos.CatalogosVer)]
+    [RequierePermiso(Permisos.PagosVer, Permisos.PagosRegistrar, Permisos.CatalogosVer, Permisos.BancosVer)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var banco = await _db.Bancos
@@ -55,7 +55,7 @@ public class BancosController : ControllerBase
     }
 
     [HttpPost]
-    [RequierePermiso(Permisos.CatalogosEditar)]
+    [RequierePermiso(Permisos.BancosEditar, Permisos.CatalogosEditar)]
     public async Task<IActionResult> Create([FromBody] GuardarBancoRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Identificador) || string.IsNullOrWhiteSpace(request.Nombre))
@@ -86,7 +86,7 @@ public class BancosController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequierePermiso(Permisos.CatalogosEditar)]
+    [RequierePermiso(Permisos.BancosEditar, Permisos.CatalogosEditar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] GuardarBancoRequest request)
     {
         var banco = await _db.Bancos.FindAsync(id);

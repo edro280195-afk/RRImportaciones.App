@@ -30,7 +30,7 @@ public class LotesImportacionController : ControllerBase
     }
 
     [HttpGet]
-    [RequierePermiso(Permisos.TramitesVer)]
+    [RequierePermiso(Permisos.LotesVer, Permisos.TramitesVer)]
     public async Task<IActionResult> GetList(
         [FromQuery] string? search,
         [FromQuery] string? estado,
@@ -43,7 +43,7 @@ public class LotesImportacionController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [RequierePermiso(Permisos.TramitesVer)]
+    [RequierePermiso(Permisos.LotesVer, Permisos.TramitesVer)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await _loteService.GetByIdAsync(id);
@@ -52,7 +52,7 @@ public class LotesImportacionController : ControllerBase
     }
 
     [HttpPost]
-    [RequierePermiso(Permisos.TramitesCrear)]
+    [RequierePermiso(Permisos.LotesCrear, Permisos.TramitesCrear)]
     public async Task<IActionResult> Create([FromBody] CreateLoteRequest request)
     {
         try
@@ -71,7 +71,7 @@ public class LotesImportacionController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [RequierePermiso(Permisos.TramitesEditar)]
+    [RequierePermiso(Permisos.LotesEditar, Permisos.TramitesEditar)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateLoteRequest request)
     {
         try
@@ -89,7 +89,7 @@ public class LotesImportacionController : ControllerBase
     }
 
     [HttpPost("{id:guid}/vehiculos")]
-    [RequierePermiso(Permisos.TramitesEditar)]
+    [RequierePermiso(Permisos.LotesEditar, Permisos.TramitesEditar)]
     public async Task<IActionResult> AgregarVehiculo(Guid id, [FromBody] AgregarVehiculoALoteRequest request)
     {
         try
@@ -107,7 +107,7 @@ public class LotesImportacionController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    [RequierePermiso(Permisos.TramitesBorrar)]
+    [RequierePermiso(Permisos.LotesBorrar, Permisos.TramitesBorrar)]
     public async Task<IActionResult> CancelarLote(Guid id)
     {
         try
@@ -126,7 +126,7 @@ public class LotesImportacionController : ControllerBase
     }
 
     [HttpDelete("{id:guid}/vehiculos/{tramiteId:guid}")]
-    [RequierePermiso(Permisos.TramitesEditar)]
+    [RequierePermiso(Permisos.LotesEditar, Permisos.TramitesEditar)]
     public async Task<IActionResult> RemoverVehiculo(Guid id, Guid tramiteId)
     {
         try
@@ -160,7 +160,7 @@ public class LotesImportacionController : ControllerBase
     }
 
     [HttpPost("{id:guid}/whatsapp")]
-    [RequierePermiso(Permisos.TramitesVer)]
+    [RequierePermiso(Permisos.LotesVer, Permisos.TramitesVer)]
     public async Task<IActionResult> EnviarWhatsApp(Guid id, [FromBody] WhatsAppLinkRequest request)
     {
         try

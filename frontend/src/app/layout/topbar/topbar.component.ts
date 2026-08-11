@@ -27,8 +27,11 @@ interface QuickAction {
   label: string;
   detail: string;
   route: string;
-  /** Permiso requerido. 'ADMIN_ONLY' = administración del sistema (ADMIN y DUEÑO). */
-  permiso?: string | 'ADMIN_ONLY';
+  /**
+   * Permiso requerido. 'ADMIN_ONLY' = administración del sistema (ADMIN y
+   * DUEÑO). Array = basta con tener UNO (OR).
+   */
+  permiso?: string | 'ADMIN_ONLY' | string[];
 }
 
 interface AppNotification {
@@ -36,7 +39,7 @@ interface AppNotification {
   detail: string;
   route: string;
   severity: 'warning' | 'info' | 'success';
-  permiso?: string | 'ADMIN_ONLY';
+  permiso?: string | 'ADMIN_ONLY' | string[];
 }
 
 @Component({
@@ -514,7 +517,7 @@ export class TopbarComponent implements OnInit {
       label: 'Vehiculos',
       detail: 'VIN, marca, modelo e inventario',
       route: '/vehiculos',
-      permiso: 'TRAMITES_VER',
+      permiso: ['VEHICULOS_VER', 'TRAMITES_VER'],
     },
     {
       label: 'Tramites',
@@ -559,7 +562,7 @@ export class TopbarComponent implements OnInit {
       label: 'Bancos',
       detail: 'Cuentas bancarias para registrar pagos',
       route: '/bancos',
-      permiso: 'CATALOGOS_VER',
+      permiso: ['BANCOS_VER', 'CATALOGOS_VER'],
     },
     {
       label: 'Reportes',
@@ -882,8 +885,9 @@ export class TopbarComponent implements OnInit {
     );
   }
 
-  private canSee(permission?: string | 'ADMIN_ONLY'): boolean {
+  private canSee(permission?: string | 'ADMIN_ONLY' | string[]): boolean {
     if (!permission) return true;
+    if (Array.isArray(permission)) return this.auth.canAny(...permission);
     if (permission === 'ADMIN_ONLY') return this.auth.esAdminTotal();
     return this.auth.can(permission);
   }

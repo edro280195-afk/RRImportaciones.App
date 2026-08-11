@@ -21,8 +21,11 @@ interface MenuItem {
    * Permiso requerido. null = siempre visible.
    * 'ADMIN_ONLY' = administración del sistema (ADMIN y DUEÑO).
    * 'DIRECCION_ONLY' = solo ADMIN, DUEÑO y GERENTE (ver dashboard).
+   * Array = basta con tener UNO (OR) — p.ej. Vehículos con VEHICULOS_VER o
+   * TRAMITES_VER, para no obligar a dar el módulo completo de Trámites solo
+   * para ver Vehículos.
    */
-  permiso?: string | null;
+  permiso?: string | string[] | null;
 }
 
 interface MenuGroup {
@@ -194,6 +197,7 @@ export class SidebarComponent implements OnInit {
         ...group,
         items: group.items.filter(item => {
           if (!item.permiso) return true;
+          if (Array.isArray(item.permiso)) return this.auth.canAny(...item.permiso);
           // El dueño tiene acceso total al negocio: si se compara solo contra
           // ADMIN, a él le desaparecen las secciones de administración.
           if (item.permiso === 'ADMIN_ONLY') return this.auth.esAdminTotal();
@@ -370,10 +374,15 @@ export class SidebarComponent implements OnInit {
             label: 'Vehículos',
             icon: icons.vehicles,
             route: '/vehiculos',
-            permiso: 'TRAMITES_VER',
+            permiso: ['VEHICULOS_VER', 'TRAMITES_VER'],
           },
           { label: 'Trámites', icon: icons.tramites, route: '/tramites', permiso: 'TRAMITES_VER' },
-          { label: 'Lotes', icon: icons.inventario, route: '/lotes', permiso: 'TRAMITES_VER' },
+          {
+            label: 'Lotes',
+            icon: icons.inventario,
+            route: '/lotes',
+            permiso: ['LOTES_VER', 'TRAMITES_VER'],
+          },
           { label: 'Campo', icon: icons.personal, route: '/campo', permiso: 'CAMPO_USAR' },
           {
             // La bandeja es para asignar a un trámite lo que capturó el yardero.
@@ -387,13 +396,13 @@ export class SidebarComponent implements OnInit {
             label: 'Pedimentos',
             icon: icons.pedimentos,
             route: '/pedimentos',
-            permiso: 'TRAMITES_VER',
+            permiso: ['PEDIMENTOS_VER', 'TRAMITES_VER'],
           },
           {
             label: 'Inventario',
             icon: icons.inventario,
             route: '/inventario',
-            permiso: 'TRAMITES_VER',
+            permiso: ['VEHICULOS_VER', 'TRAMITES_VER'],
           },
         ],
       },
@@ -435,16 +444,31 @@ export class SidebarComponent implements OnInit {
       {
         label: 'Catálogos',
         items: [
-          { label: 'Marcas', icon: icons.marcas, route: '/marcas', permiso: 'CATALOGOS_VER' },
+          {
+            label: 'Marcas',
+            icon: icons.marcas,
+            route: '/marcas',
+            permiso: ['MARCAS_VER', 'CATALOGOS_VER'],
+          },
           { label: 'Aduanas', icon: icons.aduanas, route: '/aduanas', permiso: 'CATALOGOS_VER' },
-          { label: 'Bancos', icon: icons.pagos, route: '/bancos', permiso: 'CATALOGOS_VER' },
+          {
+            label: 'Bancos',
+            icon: icons.pagos,
+            route: '/bancos',
+            permiso: ['BANCOS_VER', 'CATALOGOS_VER'],
+          },
           {
             label: 'Tramitadores',
             icon: icons.tramitadores,
             route: '/tramitadores',
-            permiso: 'CATALOGOS_VER',
+            permiso: ['TRAMITADORES_VER', 'CATALOGOS_VER'],
           },
-          { label: 'Partners', icon: icons.partners, route: '/partners', permiso: 'CATALOGOS_VER' },
+          {
+            label: 'Partners',
+            icon: icons.partners,
+            route: '/partners',
+            permiso: ['PARTNERS_VER', 'CATALOGOS_VER'],
+          },
         ],
       },
       {

@@ -36,6 +36,7 @@ export function resolveHomeRoute(auth: AuthService): string {
     // Alguien que no es "de campo" pero igual trae CAMPO_USAR (p.ej. oficina
     // con acceso extra): lo manda aquí solo si nada de lo de arriba aplicó.
     { ruta: '/campo', cumple: auth.can('CAMPO_USAR') },
+    { ruta: '/vehiculos', cumple: auth.can('VEHICULOS_VER') },
     { ruta: '/clientes', cumple: auth.can('CLIENTES_VER') },
     { ruta: '/pagos', cumple: auth.can('PAGOS_VER') },
     { ruta: '/usuarios', cumple: auth.can('USUARIOS_VER') }
@@ -51,12 +52,15 @@ export function resolveHomeRoute(auth: AuthService): string {
 }
 
 /**
- * Fábrica de guards de permisos.
+ * Fábrica de guards de permisos. Basta con tener UNO de los códigos (OR) —
+ * útil para pantallas que dos permisos distintos habilitan por separado
+ * (p.ej. Vehículos: VEHICULOS_VER o TRAMITES_VER).
  * Uso: canActivate: [permissionGuard('TRAMITES_VER')]
+ *      canActivate: [permissionGuard('VEHICULOS_VER', 'TRAMITES_VER')]
  */
-export const permissionGuard = (codigo: string) => () => {
+export const permissionGuard = (...codigos: string[]) => () => {
   const auth = inject(AuthService);
-  if (auth.can(codigo)) return true;
+  if (auth.canAny(...codigos)) return true;
   return inject(Router).parseUrl(resolveHomeRoute(auth));
 };
 
