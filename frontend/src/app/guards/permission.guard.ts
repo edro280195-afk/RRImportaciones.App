@@ -33,13 +33,16 @@ export function resolveHomeRoute(auth: AuthService): string {
     { ruta: '/inicio', cumple: auth.puedeVerDashboard() },
     { ruta: '/cotizaciones', cumple: auth.can('COTIZACIONES_VER') },
     { ruta: '/tramites', cumple: auth.can('TRAMITES_VER') },
-    // Alguien que no es "de campo" pero igual trae CAMPO_USAR (p.ej. oficina
-    // con acceso extra): lo manda aquí solo si nada de lo de arriba aplicó.
-    { ruta: '/campo', cumple: auth.can('CAMPO_USAR') },
     { ruta: '/vehiculos', cumple: auth.can('VEHICULOS_VER') },
     { ruta: '/clientes', cumple: auth.can('CLIENTES_VER') },
     { ruta: '/pagos', cumple: auth.can('PAGOS_VER') },
-    { ruta: '/usuarios', cumple: auth.can('USUARIOS_VER') }
+    { ruta: '/usuarios', cumple: auth.can('USUARIOS_VER') },
+    // Alguien que no es "de campo" pero igual trae CAMPO_USAR (p.ej. oficina
+    // con acceso extra, como Javier hoy): va AL FINAL, solo si nada de lo de
+    // arriba aplicó. /campo es una vista aparte sin sidebar — mandar ahí a
+    // alguien que sí tiene pantallas "normales" lo deja sin poder navegar a
+    // nada más, que fue justo lo que le pasó a Javier con este orden invertido.
+    { ruta: '/campo', cumple: auth.can('CAMPO_USAR') }
   );
 
   for (const { ruta, cumple } of candidatos) {
