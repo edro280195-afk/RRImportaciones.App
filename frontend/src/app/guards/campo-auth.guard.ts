@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { Router, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { AuthService } from '../services/auth.service';
+import { resolveHomeRoute } from './permission.guard';
 
 /**
  * Guard específico para rutas de campo: redirige a /campo/pin en vez de /login.
@@ -15,10 +16,10 @@ export const campoAuthGuard = (_route: ActivatedRouteSnapshot, state: RouterStat
     return router.createUrlTree(['/campo/pin'], { queryParams: { returnUrl: state.url } });
   }
 
-  // Con sesión pero sin permiso de campo: mandarlo a su propio inicio en vez de
-  // dejarlo en un login que ya no le aplica.
+  // Con sesión pero sin permiso de campo: mandarlo a donde sí puede entrar en
+  // vez de dejarlo en un login que ya no le aplica.
   if (!auth.can('CAMPO_USAR')) {
-    return router.createUrlTree(['/inicio']);
+    return router.parseUrl(resolveHomeRoute(auth));
   }
 
   return true;

@@ -12,6 +12,7 @@ import {
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
+import { resolveHomeRoute } from '../../guards/permission.guard';
 import { gsap } from 'gsap';
 
 type AuthMode = 'password' | 'pin';
@@ -2095,22 +2096,14 @@ export class LoginComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // ── Navegación post-login ─────────────────────────────────────
 
+  /**
+   * Mismo criterio que usan los guards (resolveHomeRoute): a dónde mandar a
+   * alguien según lo que su rol/permisos SÍ le dejan ver hoy. Escribirlo dos
+   * veces —aquí y en los guards— fue justo lo que causó el loop del 11-ago:
+   * esta lista se desalineó de lo que /cotizaciones exige y quedaron
+   * apuntándose en círculo. Una sola fuente de verdad.
+   */
   private navigateHome(): void {
-    const role = this.auth.user()?.role.toUpperCase();
-    const isFieldRole = role === 'YARDERO' || role === 'CHOFER' || role === 'CAMPO';
-
-    if (this.auth.isDueno()) {
-      this.router.navigate(['/asistente-personal']);
-    } else if (isFieldRole) {
-      this.router.navigate(['/campo']);
-    } else if (this.auth.puedeVerDashboard()) {
-      this.router.navigate(['/inicio']);
-    } else {
-      // Oficina (facturación, coordinación, control de trámites): el
-      // dashboard es exclusivo de dirección, así que aterrizan en
-      // cotizaciones, que todos ellos pueden ver y es el punto de partida
-      // del flujo de trabajo diario.
-      this.router.navigate(['/cotizaciones']);
-    }
+    this.router.navigateByUrl(resolveHomeRoute(this.auth));
   }
 }
