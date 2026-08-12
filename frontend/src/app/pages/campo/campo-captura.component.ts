@@ -1057,10 +1057,11 @@ const MIN_PHOTOS = 3;
       }
 
       /* ── Botones de foto: cámara (rojo) y galería (azul) ────────────── */
-      //
+      /*
       // Van del mismo tamaño y en la misma fila para que el yardero vea de
       // entrada que tiene las dos opciones. El color es lo que las distingue:
       // rojo = abrir la cámara, azul = traer fotos que ya están en el teléfono.
+      */
       .photo-actions {
         display: flex;
         gap: 10px;
