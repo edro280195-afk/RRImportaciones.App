@@ -72,6 +72,110 @@ class CotizacionDetailPage extends ConsumerWidget {
     }
   }
 
+  Future<void> _showAssignClientDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CotizacionOutput cot,
+  ) async {
+    ClienteListDto? selectedClient;
+    final result = await showDialog<_ClientAssignmentResult>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return AlertDialog(
+            title: const Text('Asignar cliente'),
+            content: SizedBox(
+              width: 420,
+              child: Autocomplete<ClienteListDto>(
+                optionsBuilder: (value) async {
+                  final query = value.text.trim();
+                  if (query.length < 2) {
+                    return const Iterable<ClienteListDto>.empty();
+                  }
+                  try {
+                    return await ref
+                        .read(adminApiProvider)
+                        .searchClientesAutocomplete(query);
+                  } catch (_) {
+                    return const Iterable<ClienteListDto>.empty();
+                  }
+                },
+                displayStringForOption: (client) => _clientDisplayName(client),
+                onSelected: (client) {
+                  setDialogState(() => selectedClient = client);
+                },
+                fieldViewBuilder:
+                    (context, controller, focusNode, onFieldSubmitted) {
+                      return TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        onChanged: (_) {
+                          if (selectedClient != null) {
+                            setDialogState(() => selectedClient = null);
+                          }
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Buscar cliente',
+                          hintText: 'Apodo, nombre, teléfono o email',
+                          helperText: 'Escribe al menos 2 caracteres.',
+                          prefixIcon: Icon(Icons.person_search_outlined),
+                        ),
+                      );
+                    },
+              ),
+            ),
+            actions: [
+              if (cot.clienteId != null)
+                TextButton(
+                  onPressed: () => Navigator.of(
+                    dialogContext,
+                  ).pop(const _ClientAssignmentResult(null)),
+                  child: const Text('Quitar cliente'),
+                ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: selectedClient == null
+                    ? null
+                    : () => Navigator.of(
+                        dialogContext,
+                      ).pop(_ClientAssignmentResult(selectedClient!.id)),
+                child: const Text('Guardar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (result == null || !context.mounted) return;
+
+    try {
+      await ref
+          .read(adminApiProvider)
+          .asignarClienteCotizacion(cotizacionId, result.clienteId);
+      if (!context.mounted) return;
+      ref.invalidate(cotizacionDetailProvider(cotizacionId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.clienteId == null
+                ? 'Cliente quitado de la cotización.'
+                : 'Cliente asignado a la cotización.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo actualizar el cliente: $e')),
+        );
+      }
+    }
+  }
+
   void _showConvertToTramiteDialog(
     BuildContext context,
     WidgetRef ref,
@@ -371,6 +475,23 @@ class CotizacionDetailPage extends ConsumerWidget {
                             'Cliente',
                             cot.clienteNombre ?? 'N/A',
                           ),
+                          if (cot.tramiteId == null)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    _showAssignClientDialog(context, ref, cot),
+                                icon: const Icon(
+                                  Icons.person_add_alt_1,
+                                  size: 17,
+                                ),
+                                label: Text(
+                                  cot.clienteId == null
+                                      ? 'Asignar cliente'
+                                      : 'Cambiar cliente',
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -620,6 +741,20 @@ class CotizacionDetailPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _ClientAssignmentResult {
+  const _ClientAssignmentResult(this.clienteId);
+
+  final String? clienteId;
+}
+
+String _clientDisplayName(ClienteListDto client) {
+  final name = client.nombreCompleto?.trim();
+  if (name == null || name.isEmpty || name == client.apodo) {
+    return client.apodo;
+  }
+  return '$name (${client.apodo})';
 }
 
 class _LoadingDialogContent extends StatelessWidget {

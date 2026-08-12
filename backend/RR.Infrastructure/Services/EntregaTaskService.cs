@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using RR.Application.DTOs.Entregas;
+using RR.Application.DTOs.Tramites;
 using RR.Application.Interfaces;
 using RR.Application.Notificaciones;
 using RR.Domain.Entities;
 using RR.Infrastructure.Data;
+using System.Text.RegularExpressions;
 
 namespace RR.Infrastructure.Services;
 
@@ -13,17 +15,20 @@ public class EntregaTaskService : IEntregaTaskService
     private readonly ICurrentUserService _currentUser;
     private readonly IRealtimeNotifier _realtime;
     private readonly INotificacionEventoService _notificaciones;
+    private readonly ITramiteService _tramiteService;
 
     public EntregaTaskService(
         AppDbContext db,
         ICurrentUserService currentUser,
         IRealtimeNotifier realtime,
-        INotificacionEventoService notificaciones)
+        INotificacionEventoService notificaciones,
+        ITramiteService tramiteService)
     {
         _db = db;
         _currentUser = currentUser;
         _realtime = realtime;
         _notificaciones = notificaciones;
+        _tramiteService = tramiteService;
     }
 
     public async Task<List<TareaEntregaDto>> GetTareasAsync(Guid? choferUserId = null, string? estado = null)
@@ -173,6 +178,16 @@ public class EntregaTaskService : IEntregaTaskService
         }
 
         await _db.SaveChangesAsync();
+
+        if (tarea.Estado == "ENTREGADO" && tarea.Tramite.EstadoLogistico != "ENTREGADO_AL_CLIENTE")
+        {
+            await _tramiteService.CambiarEstadoAsync(tarea.TramiteId, new CambiarEstadoRequest
+            {
+                NuevoEstado = "ENTREGADO_AL_CLIENTE",
+                Notas = "Entrega registrada desde el módulo de choferes.",
+            });
+        }
+
         await _realtime.TramiteActualizadoAsync(tarea.TramiteId, "ENTREGA_COMPLETADA");
 
         var dto = (await GetById(id))!;
@@ -186,6 +201,117 @@ public class EntregaTaskService : IEntregaTaskService
                 tarea.Id, tarea.TramiteId, dto.NumeroConsecutivo, tarea.NombreRecibe, operadorNombre));
 
         return dto;
+    }
+
+    public async Task<List<VehiculoEntregaLookupDto>> BuscarVehiculosAsync(string query)
+    {
+        var normalized = NormalizeVin(query);
+        if (string.IsNullOrWhiteSpace(normalized) || normalized.Length < 3)
+            return [];
+
+        var vehicles = await _db.Vehiculos
+            .AsNoTracking()
+            .Include(v => v.Cliente)
+            .Include(v => v.Marca)
+            .Include(v => v.Modelo)
+            .Where(v => v.Vin.Contains(normalized) || (v.VinCorto != null && v.VinCorto.Contains(normalized)))
+            .OrderBy(v => v.Vin)
+            .Take(20)
+            .ToListAsync();
+
+        if (vehicles.Count == 0)
+            return [];
+
+        var vehicleIds = vehicles.Select(v => v.Id).ToArray();
+        var tramites = await _db.Tramites
+            .AsNoTracking()
+            .Where(t => t.VehiculoId.HasValue && vehicleIds.Contains(t.VehiculoId.Value) && t.EstadoLogistico != "CANCELADO")
+            .OrderByDescending(t => t.FechaCreacion)
+            .Select(t => new
+            {
+                t.Id,
+                t.VehiculoId,
+                t.NumeroConsecutivo,
+                t.EstadoLogistico,
+                t.FechaCreacion,
+            })
+            .ToListAsync();
+
+        return vehicles.Select(vehicle =>
+        {
+            var vehicleTramites = tramites
+                .Where(t => t.VehiculoId == vehicle.Id)
+                .OrderBy(t => IsFinalTramiteState(t.EstadoLogistico) ? 1 : 0)
+                .ThenByDescending(t => t.FechaCreacion)
+                .ToList();
+            var tramite = vehicleTramites.FirstOrDefault();
+
+            return new VehiculoEntregaLookupDto
+            {
+                VehiculoId = vehicle.Id,
+                Vin = vehicle.Vin,
+                VinCorto = vehicle.VinCorto,
+                VehiculoResumen = BuildVehiculoResumen(vehicle),
+                ClienteNombre = vehicle.Cliente == null
+                    ? null
+                    : FirstNotEmpty(vehicle.Cliente.NombreCompleto, vehicle.Cliente.Nombre, vehicle.Cliente.Apodo),
+                UbicacionActual = vehicle.UbicacionActual,
+                TramiteId = tramite?.Id,
+                NumeroConsecutivo = tramite?.NumeroConsecutivo,
+                EstadoTramite = tramite?.EstadoLogistico,
+                YaEntregado = tramite != null && IsFinalTramiteState(tramite.EstadoLogistico),
+            };
+        }).ToList();
+    }
+
+    public async Task<TareaEntregaDto> RegistrarEntregaVehiculoAsync(RegistrarEntregaVehiculoRequest request)
+    {
+        var normalized = NormalizeVin(request.Vin);
+        var vehicle = request.VehiculoId.HasValue
+            ? await _db.Vehiculos.FirstOrDefaultAsync(v => v.Id == request.VehiculoId.Value)
+            : await _db.Vehiculos.FirstOrDefaultAsync(v => v.Vin == normalized || v.VinCorto == normalized);
+
+        if (vehicle == null)
+            throw new KeyNotFoundException("Vehículo no encontrado");
+
+        var tramite = await _db.Tramites
+            .Where(t => t.VehiculoId == vehicle.Id && t.EstadoLogistico != "CANCELADO")
+            .OrderBy(t => IsFinalTramiteState(t.EstadoLogistico) ? 1 : 0)
+            .ThenByDescending(t => t.FechaCreacion)
+            .FirstOrDefaultAsync();
+
+        if (tramite == null)
+            throw new InvalidOperationException("El vehículo no tiene un trámite registrado para entregar");
+
+        if (IsFinalTramiteState(tramite.EstadoLogistico))
+            throw new InvalidOperationException("El trámite de este vehículo ya está marcado como entregado");
+
+        var tarea = await _db.TareasEntrega
+            .FirstOrDefaultAsync(t => t.TramiteId == tramite.Id && t.Estado != "ENTREGADO" && t.Estado != "INCIDENCIA");
+
+        if (tarea == null)
+        {
+            tarea = new TareaEntrega
+            {
+                Id = Guid.NewGuid(),
+                TramiteId = tramite.Id,
+                ChoferUserId = _currentUser.UserId,
+                Estado = "PENDIENTE",
+                UbicacionEntrega = request.UbicacionEntrega,
+                NotasChofer = request.NotasChofer,
+                FechaCreacion = DateTime.UtcNow,
+                CreadoPor = _currentUser.UserId ?? Guid.Empty,
+            };
+            _db.TareasEntrega.Add(tarea);
+            await _db.SaveChangesAsync();
+        }
+
+        return await RegistrarEntregaAsync(tarea.Id, new RegistrarEntregaRequest
+        {
+            UbicacionEntrega = request.UbicacionEntrega,
+            NombreRecibe = request.NombreRecibe,
+            NotasChofer = request.NotasChofer,
+        });
     }
 
     public async Task<TareaEntregaDto> AgregarFotoAsync(Guid id, string fotoUrl)
@@ -251,4 +377,31 @@ public class EntregaTaskService : IEntregaTaskService
             FechaEntregado = t.FechaEntregado,
         };
     }
+
+    private static bool IsFinalTramiteState(string estado) => estado is
+        "ENTREGADO_AL_CLIENTE" or "VERDE_ENTREGADO" or "AMARILLO_PENDIENTE_PAGO" or "COBRADO";
+
+    private static string NormalizeVin(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        return Regex.Replace(value.Trim().Trim('*').ToUpperInvariant(), @"[^A-HJ-NPR-Z0-9]", "");
+    }
+
+    private static string BuildVehiculoResumen(Vehiculo vehicle)
+    {
+        var summary = string.Join(" ", new[]
+        {
+            vehicle.Marca?.Nombre,
+            vehicle.Modelo?.Nombre,
+            vehicle.Anno?.ToString(),
+        }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        return FirstNotEmpty(summary, vehicle.VinCorto, vehicle.Vin, "Unidad sin descripción");
+    }
+
+    private static string FirstNotEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+
 }

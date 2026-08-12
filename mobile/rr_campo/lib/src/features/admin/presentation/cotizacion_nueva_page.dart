@@ -239,18 +239,17 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     }
   }
 
-  /// Los vehículos de amparo tienen precio fijo por categoría (tabulador) y no
-  /// usan tipo de cambio ni candidatos del Anexo 2, así que se calcula de
-  /// inmediato con la categoría por defecto y se aterriza en Revisar. Si el
-  /// agente necesita la categoría Lujo, puede volver al paso de Cálculo desde
-  /// ahí y recalcular.
+  /// Los vehículos de amparo usan un tabulador fijo y no requieren valor de
+  /// aduana, candidatos ni configuración adicional: se calculan y aterrizan
+  /// directamente en Revisar. El resto conserva los pasos normales del wizard.
   void _advanceAfterDecode() {
     if (_detectedFiscalRegime == 'AMPARO') {
       _calculateTaxes();
-    } else {
-      _goToPage(1);
-      _fetchCandidates();
+      return;
     }
+
+    _goToPage(1);
+    _fetchCandidates();
   }
 
   Future<void> _fetchCandidates() async {
@@ -356,11 +355,6 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
     final calc = _calculatedOutput;
     if (vehicle == null || calc == null) return;
 
-    if (_selectedCliente == null) {
-      setState(() => _errorMessage = 'Debes seleccionar un cliente.');
-      return;
-    }
-
     setState(() {
       _loading = true;
       _errorMessage = null;
@@ -371,7 +365,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
 
       final request = GuardarCotizacionRequest(
         input: input,
-        clienteId: _selectedCliente!.id,
+        clienteId: _selectedCliente?.id,
         notas: _notasController.text.trim().isEmpty
             ? null
             : _notasController.text.trim(),
@@ -1102,21 +1096,30 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
               ),
               const Divider(height: 24),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSummaryInfoItem(
-                    'Cilindros',
-                    vehicle.engineCylinders?.toString() ?? 'N/A',
+                  Expanded(
+                    child: _buildSummaryInfoItem(
+                      'Cilindros',
+                      vehicle.engineCylinders?.toString() ?? 'N/A',
+                    ),
                   ),
-                  _buildSummaryInfoItem(
-                    'Cilindrada',
-                    vehicle.displacementCC != null
-                        ? '${(vehicle.displacementCC! / 1000).toStringAsFixed(1)}L'
-                        : 'N/A',
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: _buildSummaryInfoItem(
+                      'Cilindrada',
+                      vehicle.displacementCC != null
+                          ? '${(vehicle.displacementCC! / 1000).toStringAsFixed(1)}L'
+                          : 'N/A',
+                    ),
                   ),
-                  _buildSummaryInfoItem(
-                    'Tipo Vehículo',
-                    vehicle.vehicleType?.toString() ?? 'N/A',
+                  const SizedBox(width: 18),
+                  Expanded(
+                    flex: 2,
+                    child: _buildSummaryInfoItem(
+                      'Tipo Vehículo',
+                      vehicle.vehicleType?.toString() ?? 'N/A',
+                    ),
                   ),
                 ],
               ),
@@ -1956,7 +1959,7 @@ class _CotizacionNuevaPageState extends ConsumerState<CotizacionNuevaPage> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Confirma cómo se forma la cotización antes de asignar el cliente.',
+          'Confirma cómo se forma la cotización. El cliente es opcional y puedes asignarlo después desde Cotizaciones.',
           style: TextStyle(color: AppColors.ink2, fontSize: 13, height: 1.4),
         ),
         const SizedBox(height: 16),

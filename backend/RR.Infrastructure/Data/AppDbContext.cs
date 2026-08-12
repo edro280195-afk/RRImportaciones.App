@@ -337,6 +337,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.Ubicacion).HasMaxLength(250);
             e.Property(x => x.VinConfirmado).HasMaxLength(17);
             e.Property(x => x.FotosUrls).HasColumnType("text[]");
+            e.Property(x => x.VideosUrls).HasColumnType("text[]");
             e.Property(x => x.Incidencia).HasMaxLength(700);
             e.Property(x => x.DescripcionVehiculo).HasMaxLength(300);
             e.Property(x => x.ClienteNombreLibre).HasMaxLength(200);

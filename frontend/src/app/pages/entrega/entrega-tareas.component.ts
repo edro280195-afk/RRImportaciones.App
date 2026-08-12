@@ -1,13 +1,16 @@
-import { Component, signal, computed, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, signal, computed, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subscription } from 'rxjs';
-import { EntregaTareaService, TareaEntregaDto } from '../../services/entrega-tarea.service';
+import { firstValueFrom, Subscription } from 'rxjs';
+import { EntregaTareaService, TareaEntregaDto, VehiculoEntregaLookupDto } from '../../services/entrega-tarea.service';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
+import { VinScannerOverlayComponent, VinValidationResult } from '../../shared/vin-scanner-overlay.component';
 
 @Component({
   selector: 'app-entrega-tareas',
   standalone: true,
+  imports: [FormsModule, VinScannerOverlayComponent],
   template: `
     <div class="shell">
       <!-- ── Header ──────────────────────────────────────────────── -->
@@ -71,6 +74,72 @@ import { NotificationService } from '../../services/notification.service';
           </div>
         }
       </div>
+
+      <section class="vehicle-lookup" aria-labelledby="vehicle-lookup-title">
+        <div class="vehicle-lookup__head">
+          <div>
+            <h2 id="vehicle-lookup-title">Entregar vehículo</h2>
+            <p>Elige una unidad o escanea su VIN para cerrar el trámite.</p>
+          </div>
+          <span class="vehicle-lookup__tag">Finaliza trámite</span>
+        </div>
+        <div class="vehicle-search">
+          <input
+            [(ngModel)]="vehicleQuery"
+            (keyup.enter)="buscarVehiculos()"
+            type="search"
+            placeholder="VIN completo, últimos 6 o parte del VIN"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" (click)="abrirVinScanner()">Escanear</button>
+          <button type="button" class="vehicle-search__submit" (click)="buscarVehiculos()" [disabled]="lookupLoading()">
+            {{ lookupLoading() ? 'Buscando…' : 'Buscar' }}
+          </button>
+        </div>
+
+        @if (lookupResults().length > 0) {
+          <div class="vehicle-results">
+            @for (vehicle of lookupResults(); track vehicle.vehiculoId) {
+              <button
+                type="button"
+                class="vehicle-result"
+                [class.vehicle-result--selected]="selectedVehicle()?.vehiculoId === vehicle.vehiculoId"
+                (click)="seleccionarVehiculo(vehicle)"
+              >
+                <span class="vehicle-result__main">
+                  <strong>{{ vehicle.vehiculoResumen }}</strong>
+                  <small>VIN {{ vehicle.vin }}</small>
+                </span>
+                <span class="vehicle-result__meta">
+                  {{ vehicle.numeroConsecutivo || 'Sin trámite' }}
+                  <em>{{ vehicle.estadoTramite || 'Sin estado' }}</em>
+                </span>
+              </button>
+            }
+          </div>
+        }
+
+        @if (selectedVehicle(); as vehicle) {
+          <div class="vehicle-selected">
+            <div>
+              <strong>{{ vehicle.vehiculoResumen }}</strong>
+              <span>VIN {{ vehicle.vin }} · {{ vehicle.numeroConsecutivo }}</span>
+            </div>
+            <label>
+              Recibe (opcional)
+              <input [(ngModel)]="nombreRecibe" type="text" maxlength="200" placeholder="Nombre de quien recibe" />
+            </label>
+            <label>
+              Ubicación de entrega (opcional)
+              <input [(ngModel)]="ubicacionEntrega" type="text" maxlength="300" placeholder="Domicilio o punto de entrega" />
+            </label>
+            <button type="button" class="vehicle-deliver" (click)="confirmarEntregaVehiculo()" [disabled]="delivering() || vehicle.yaEntregado">
+              {{ delivering() ? 'Marcando como entregado…' : vehicle.yaEntregado ? 'Ya está entregado' : 'Marcar como entregado' }}
+            </button>
+          </div>
+        }
+      </section>
 
       <!-- ── Filter chips ──────────────────────────────────────── -->
       <div class="filter-bar" role="tablist">
@@ -225,6 +294,13 @@ import { NotificationService } from '../../services/notification.service';
           </div>
         </div>
       }
+
+      <app-vin-scanner-overlay
+        #vinScanner
+        title="Escanear VIN para entregar"
+        [validate]="validateVin"
+        (vinConfirmed)="onVinConfirmed($event)"
+      />
     </div>
   `,
   styles: [`
@@ -314,6 +390,34 @@ import { NotificationService } from '../../services/notification.service';
     .chip-badge { background:#e5e7eb; color:var(--text-2); border-radius:999px; padding:1px 6px; font-size:11px; font-weight:800; }
     .filter-chip.chip--active .chip-badge { background:rgba(255,255,255,.2); color:#fff; }
 
+    .vehicle-lookup { margin:14px 14px 0; padding:16px; background:var(--surface); border:1.5px solid var(--border); border-radius:20px; box-shadow:0 1px 4px rgba(0,0,0,.04); }
+    .vehicle-lookup__head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px; }
+    .vehicle-lookup h2 { margin:0 0 3px; font-size:16px; }
+    .vehicle-lookup p { margin:0; color:var(--text-3); font-size:12px; }
+    .vehicle-lookup__tag { padding:4px 8px; border-radius:999px; background:var(--green-lt); color:var(--green); font-size:10px; font-weight:800; white-space:nowrap; }
+    .vehicle-search { display:grid; grid-template-columns:1fr auto auto; gap:7px; }
+    .vehicle-search input, .vehicle-selected input { min-width:0; width:100%; min-height:42px; padding:0 11px; border:1.5px solid var(--border); border-radius:10px; background:#fff; color:var(--text-1); font:inherit; font-size:13px; outline:none; }
+    .vehicle-search input:focus, .vehicle-selected input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(29,78,216,.12); }
+    .vehicle-search button, .vehicle-deliver { min-height:42px; padding:0 12px; border:1.5px solid var(--border); border-radius:10px; background:#f9fafb; color:var(--text-2); font:inherit; font-size:12px; font-weight:800; cursor:pointer; white-space:nowrap; }
+    .vehicle-search__submit { background:var(--blue) !important; border-color:var(--blue) !important; color:#fff !important; }
+    .vehicle-search button:disabled, .vehicle-deliver:disabled { opacity:.5; cursor:default; }
+    .vehicle-results { margin-top:10px; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+    .vehicle-result { width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:0; border-bottom:1px solid #f3f4f6; background:#fff; color:var(--text-1); text-align:left; cursor:pointer; }
+    .vehicle-result:last-child { border-bottom:0; }
+    .vehicle-result:hover, .vehicle-result--selected { background:#eff6ff; }
+    .vehicle-result__main strong, .vehicle-result__main small { display:block; }
+    .vehicle-result__main strong { font-size:13px; }
+    .vehicle-result__main small { margin-top:3px; color:var(--text-3); font-family:var(--font-mono); font-size:10px; }
+    .vehicle-result__meta { text-align:right; color:var(--blue); font-size:11px; font-weight:800; }
+    .vehicle-result__meta em { display:block; margin-top:3px; color:var(--text-3); font-size:10px; font-style:normal; font-weight:600; }
+    .vehicle-selected { display:grid; gap:9px; margin-top:10px; padding:12px; border-radius:12px; background:#eff6ff; border:1px solid #bfdbfe; }
+    .vehicle-selected > div strong, .vehicle-selected > div span { display:block; }
+    .vehicle-selected > div strong { color:var(--blue-dk); font-size:14px; }
+    .vehicle-selected > div span { margin-top:3px; color:var(--blue); font-family:var(--font-mono); font-size:10px; }
+    .vehicle-selected label { display:grid; gap:4px; color:var(--text-2); font-size:11px; font-weight:700; }
+    .vehicle-selected input { min-height:38px; background:#fff; }
+    .vehicle-deliver { background:var(--green); border-color:var(--green); color:#fff; }
+
     .task-list { display:flex; flex-direction:column; gap:10px; padding:12px 14px 20px; }
     .task-skeleton { height:108px; border-radius:18px; background:#e5e7eb; animation:pulse 1.6s ease-in-out infinite; }
 
@@ -373,6 +477,7 @@ import { NotificationService } from '../../services/notification.service';
     .sheet-cancel { flex:1; padding:15px; border-radius:14px; background:#f3f4f6; border:1.5px solid var(--border); color:var(--text-2); font-size:15px; font-weight:600; cursor:pointer; }
     .sheet-confirm { flex:1; padding:15px; border-radius:14px; background:var(--red); border:none; color:#fff; font-size:15px; font-weight:700; cursor:pointer; }
 
+    @media (max-width:520px) { .vehicle-search { grid-template-columns:1fr 1fr; } .vehicle-search input { grid-column:1 / -1; } }
     @media (max-width:380px) { .task-vehicle { font-size:15px; } .summary-count { font-size:42px; } }
   `],
 })
@@ -383,10 +488,19 @@ export class EntregaTareasComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private sub?: Subscription;
 
+  @ViewChild('vinScanner') vinScanner?: VinScannerOverlayComponent;
+
   tareas = signal<TareaEntregaDto[]>([]);
   loading = signal(false);
   activeFilter = signal('');
   showLogout = signal(false);
+  vehicleQuery = '';
+  nombreRecibe = '';
+  ubicacionEntrega = '';
+  lookupLoading = signal(false);
+  lookupResults = signal<VehiculoEntregaLookupDto[]>([]);
+  selectedVehicle = signal<VehiculoEntregaLookupDto | null>(null);
+  delivering = signal(false);
 
   filters = [
     { label: 'Todas', value: '' },
@@ -413,6 +527,87 @@ export class EntregaTareasComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
+  }
+
+  async buscarVehiculos(): Promise<void> {
+    const query = this.vehicleQuery.trim();
+    if (query.length < 3) {
+      this.lookupResults.set([]);
+      this.selectedVehicle.set(null);
+      this.notifications.warning('Captura al menos 3 caracteres del VIN.');
+      return;
+    }
+
+    this.lookupLoading.set(true);
+    this.selectedVehicle.set(null);
+    try {
+      const results = await firstValueFrom(this.entregaService.buscarVehiculos(query));
+      this.lookupResults.set(results);
+      if (results.length === 1) this.seleccionarVehiculo(results[0]);
+      if (results.length === 0) this.notifications.info('No se encontró un vehículo con ese VIN.');
+    } catch (error) {
+      this.lookupResults.set([]);
+      this.notifications.fromHttpError(error, 'No se pudo buscar el vehículo');
+    } finally {
+      this.lookupLoading.set(false);
+    }
+  }
+
+  seleccionarVehiculo(vehicle: VehiculoEntregaLookupDto): void {
+    this.selectedVehicle.set(vehicle);
+    this.nombreRecibe = '';
+    this.ubicacionEntrega = vehicle.ubicacionActual || '';
+  }
+
+  abrirVinScanner(): void {
+    this.vinScanner?.show();
+  }
+
+  validateVin = async (vin: string): Promise<VinValidationResult> => {
+    const results = await firstValueFrom(this.entregaService.buscarVehiculos(vin));
+    return results.length > 0
+      ? { ok: true, title: 'Vehículo encontrado', subtitle: 'Confirma para cargar la unidad.' }
+      : { ok: false, title: 'VIN no registrado', subtitle: 'Busca o registra el vehículo antes de entregarlo.' };
+  };
+
+  onVinConfirmed(vin: string): void {
+    this.vehicleQuery = vin;
+    void this.buscarVehiculos();
+  }
+
+  async confirmarEntregaVehiculo(): Promise<void> {
+    const vehicle = this.selectedVehicle();
+    if (!vehicle || vehicle.yaEntregado || this.delivering()) return;
+
+    const confirmed = await this.notifications.confirm({
+      title: 'Confirmar entrega',
+      message: `El vehículo ${vehicle.vehiculoResumen} pasará a ENTREGADO_AL_CLIENTE y se cerrará su trámite.`,
+      confirmText: 'Marcar entregado',
+      cancelText: 'Cancelar',
+    });
+    if (!confirmed) return;
+
+    this.delivering.set(true);
+    this.entregaService.registrarEntregaVehiculo({
+      vehiculoId: vehicle.vehiculoId,
+      ubicacionEntrega: this.ubicacionEntrega.trim() || null,
+      nombreRecibe: this.nombreRecibe.trim() || null,
+    }).subscribe({
+      next: () => {
+        this.notifications.success('Vehículo entregado y trámite finalizado.');
+        this.delivering.set(false);
+        this.selectedVehicle.set(null);
+        this.lookupResults.set([]);
+        this.vehicleQuery = '';
+        this.nombreRecibe = '';
+        this.ubicacionEntrega = '';
+        this.load();
+      },
+      error: error => {
+        this.delivering.set(false);
+        this.notifications.fromHttpError(error, 'No se pudo registrar la entrega');
+      },
+    });
   }
 
   load(): void {

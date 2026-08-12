@@ -11,6 +11,7 @@ public interface ICotizadorService
     Task<CandidatosPrecioOutput> ObtenerCandidatosAsync(CotizacionInput input);
     Task<CotizacionOutput> CrearCotizacionAsync(GuardarCotizacionRequest request);
     Task<CotizacionOutput> ActualizarCotizacionAsync(Guid id, GuardarCotizacionRequest request);
+    Task<CotizacionOutput> AsignarClienteAsync(Guid id, Guid? clienteId);
     Task<PagedResult<CotizacionListDto>> GetListAsync(Guid? clienteId, string? estado, DateTime? fechaDesde, string? search, int page, int pageSize);
     Task<CotizacionOutput?> GetByIdAsync(Guid id);
     Task<CotizacionOutput> RecalcularAsync(Guid id);

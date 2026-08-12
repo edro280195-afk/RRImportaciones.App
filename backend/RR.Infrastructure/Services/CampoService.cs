@@ -525,6 +525,27 @@ public class CampoService : ICampoService
         return (await GetById(id))!;
     }
 
+    public async Task<TareaCampoDto> AgregarVideoAsync(Guid id, string videoUrl)
+    {
+        var tarea = await _db.TareasCampo
+            .FirstOrDefaultAsync(t => t.Id == id)
+            ?? throw new KeyNotFoundException("Tarea de campo no encontrada");
+
+        var videos = (tarea.VideosUrls ?? Array.Empty<string>()).ToList();
+        if (!videos.Contains(videoUrl, StringComparer.Ordinal))
+        {
+            videos.Add(videoUrl);
+            tarea.VideosUrls = videos.ToArray();
+        }
+
+        if (tarea.EstadoLogistico is "ABIERTA" or "TOMADA")
+            tarea.EstadoLogistico = "EN_YARDA";
+
+        await _db.SaveChangesAsync();
+        await _realtime.CampoActualizadoAsync(tarea.Id, tarea.TramiteId, "VIDEO_SUBIDO");
+        return (await GetById(id))!;
+    }
+
     public async Task<TareaCampoDto> EliminarFotoAsync(Guid id, EliminarFotoCampoRequest request)
     {
         var fotoUrl = request.FotoUrl?.Trim();
@@ -732,6 +753,7 @@ public class CampoService : ICampoService
             Ubicacion = t.Ubicacion,
             VinConfirmado = t.VinConfirmado,
             FotosUrls = t.FotosUrls,
+            VideosUrls = t.VideosUrls,
             Incidencia = t.Incidencia,
             FechaCreacion = t.FechaCreacion,
             FechaTomada = t.FechaTomada,

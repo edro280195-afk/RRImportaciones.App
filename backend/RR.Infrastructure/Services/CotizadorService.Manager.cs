@@ -81,6 +81,36 @@ public partial class CotizadorService
         return output;
     }
 
+    public async Task<CotizacionOutput> AsignarClienteAsync(Guid id, Guid? clienteId)
+    {
+        var entity = await _db.Cotizaciones
+            .Include(x => x.Cliente)
+            .Include(x => x.Tramite)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (entity is null)
+            throw new KeyNotFoundException("Cotización no encontrada");
+        if (entity.TramiteId.HasValue || string.Equals(entity.EstadoLogistico, "CONVERTIDA", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("No se puede cambiar el cliente de una cotización convertida");
+
+        if (clienteId.HasValue)
+        {
+            entity.Cliente = await _db.Clientes
+                .FirstOrDefaultAsync(x => x.Id == clienteId.Value && x.DeletedAt == null)
+                ?? throw new KeyNotFoundException("Cliente no encontrado");
+        }
+        else
+        {
+            entity.Cliente = null;
+        }
+
+        entity.ClienteId = clienteId;
+        entity.FechaModificacion = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return ToOutput(entity);
+    }
+
     public async Task<PagedResult<CotizacionListDto>> GetListAsync(Guid? clienteId, string? estado, DateTime? fechaDesde, string? search, int page, int pageSize)
     {
         await ExpirarCotizacionesAsync();

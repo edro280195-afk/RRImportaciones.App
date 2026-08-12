@@ -1,9 +1,10 @@
-import { Component, signal, inject, ViewChild } from '@angular/core';
+import { Component, HostListener, signal, inject, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { VehiculoService, VehiculoListDto } from '../../services/vehiculo.service';
 import { VehiculoFormDialogComponent } from './vehiculo-form-dialog.component';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-vehiculos-list',
@@ -159,6 +160,118 @@ import { VehiculoFormDialogComponent } from './vehiculo-form-dialog.component';
             </button>
           </div>
         </div>
+      } @else if (isMobile()) {
+        <!-- ─────────── Mobile: tarjetas (paridad con inventario_page.dart) ─────────── -->
+        <div class="veh-card-list stagger-item" style="animation-delay: 80ms;">
+          <div class="veh-card-list__summary">
+            <span>{{ vehiculos().length }} de {{ total() }} vehículos</span>
+            @if (sinClienteCount() > 0) {
+              <span class="veh-pill veh-pill--danger">{{ sinClienteCount() }} sin cliente</span>
+            }
+          </div>
+
+          @for (v of vehiculos(); track v.id) {
+            <div class="veh-card" [class.veh-card--alert]="!v.clienteApodo">
+              <div class="veh-card__head" (click)="router.navigate(['/vehiculos', v.id])">
+                <div class="veh-card__title">
+                  <p class="veh-card__name">{{ vehicleLabel(v) }}</p>
+                  <p class="veh-card__vin">{{ v.vinCorto || v.vin }}</p>
+                </div>
+                @if (v.clienteApodo) {
+                  <span class="veh-card__cliente">{{ v.clienteApodo }}</span>
+                } @else {
+                  <span class="veh-pill veh-pill--danger">Sin cliente</span>
+                }
+              </div>
+
+              <div class="veh-card__divider"></div>
+
+              <div class="veh-card__info">
+                <div class="veh-info-chip">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  <div>
+                    <span>Ingreso</span>
+                    <p>{{ v.fechaIngresoPatio ? (v.fechaIngresoPatio | date: 'dd/MM/yyyy') : '—' }}</p>
+                  </div>
+                </div>
+                <div class="veh-info-chip">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  <div>
+                    <span>Ubicación</span>
+                    <p>{{ v.ubicacionActual || '—' }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="veh-card__checkpoints">
+                <span class="veh-dot" [class.veh-dot--on]="v.tieneTramiteActivo" style="--dot-color:#D97706" title="Trámite activo"></span>
+                <span class="veh-dot" [class.veh-dot--on]="v.cumplioRequisitos" style="--dot-color:#16A34A" title="Cumplió requisitos"></span>
+                <span class="veh-dot" [class.veh-dot--on]="v.tieneSelloAduanal" style="--dot-color:#2563EB" title="Sello aduanal"></span>
+              </div>
+
+              <div class="veh-card__actions">
+                <button
+                  type="button"
+                  class="veh-btn veh-btn--ghost"
+                  [disabled]="v.fotosUrls.length === 0"
+                  (click)="openFotos(v)"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
+                  {{ v.fotosUrls.length > 0 ? 'Fotos (' + v.fotosUrls.length + ')' : 'Sin fotos' }}
+                </button>
+                <button
+                  type="button"
+                  class="veh-btn veh-btn--primary"
+                  (click)="cotizar(v)"
+                >
+                  Cotizar
+                </button>
+              </div>
+            </div>
+          }
+
+          <!-- Pagination -->
+          @if (totalPages() > 1) {
+            <div class="veh-pagination">
+              <button (click)="goToPage(page() - 1)" [disabled]="page() <= 1" class="veh-page-btn">Anterior</button>
+              <span>Página {{ page() }} de {{ totalPages() }}</span>
+              <button (click)="goToPage(page() + 1)" [disabled]="page() >= totalPages()" class="veh-page-btn">Siguiente</button>
+            </div>
+          }
+        </div>
+
+        @if (lightboxVehiculo(); as lv) {
+          <div class="veh-lightbox" (click)="closeFotos()">
+            <div class="veh-lightbox__top" (click)="$event.stopPropagation()">
+              <div>
+                <strong>{{ vehicleLabel(lv) }}</strong>
+                <span>{{ lv.vin }}</span>
+              </div>
+              <button type="button" class="veh-lightbox__close" (click)="closeFotos()" aria-label="Cerrar">✕</button>
+            </div>
+
+            <div class="veh-lightbox__body" (click)="$event.stopPropagation()">
+              <img [src]="fileUrl(lv.fotosUrls[lightboxIndex()])" alt="Foto del vehículo" />
+              @if (lv.fotosUrls.length > 1) {
+                <button type="button" class="veh-lightbox__nav veh-lightbox__nav--prev" (click)="prevFoto(lv)" aria-label="Anterior">‹</button>
+                <button type="button" class="veh-lightbox__nav veh-lightbox__nav--next" (click)="nextFoto(lv)" aria-label="Siguiente">›</button>
+              }
+            </div>
+
+            <div class="veh-lightbox__thumbs" (click)="$event.stopPropagation()">
+              @for (foto of lv.fotosUrls; track foto; let i = $index) {
+                <button
+                  type="button"
+                  class="veh-lightbox__thumb"
+                  [class.veh-lightbox__thumb--active]="i === lightboxIndex()"
+                  (click)="lightboxIndex.set(i)"
+                >
+                  <img [src]="fileUrl(foto)" alt="" />
+                </button>
+              }
+            </div>
+          </div>
+        }
       } @else {
         <div
           class="card-elevated rounded-2xl overflow-hidden stagger-item"
@@ -326,10 +439,334 @@ import { VehiculoFormDialogComponent } from './vehiculo-form-dialog.component';
 
     <app-vehiculo-form-dialog #formDialog (saved)="loadVehiculos()" />
   `,
+  styles: [
+    `
+      /* ─── Mobile card list (paridad con inventario_page.dart) ─────────── */
+      .veh-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .veh-card-list__summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #6b717f;
+        padding: 0 2px;
+      }
+      .veh-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 9px;
+        border-radius: 999px;
+        font-size: 10.5px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      .veh-pill--danger {
+        background: #fee2e2;
+        color: #b42318;
+        border: 1px solid rgba(180, 35, 24, 0.25);
+      }
+
+      .veh-card {
+        background: white;
+        border: 1px solid #e4e7ec;
+        border-radius: 16px;
+        padding: 16px;
+      }
+      .veh-card--alert {
+        border-color: rgba(180, 35, 24, 0.25);
+        background: #fffbfb;
+      }
+      .veh-card__head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        cursor: pointer;
+      }
+      .veh-card__title {
+        min-width: 0;
+      }
+      .veh-card__name {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 800;
+        color: #0d1017;
+        line-height: 1.2;
+      }
+      .veh-card__vin {
+        margin: 2px 0 0;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: #98a2b3;
+      }
+      .veh-card__cliente {
+        flex-shrink: 0;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #4b5162;
+        white-space: nowrap;
+      }
+      .veh-card__divider {
+        height: 1px;
+        background: #eceff3;
+        margin: 14px 0;
+      }
+      .veh-card__info {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .veh-info-chip {
+        display: flex;
+        align-items: flex-start;
+        gap: 7px;
+        min-width: 0;
+        color: #98a2b3;
+      }
+      .veh-info-chip span {
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        color: #98a2b3;
+      }
+      .veh-info-chip p {
+        margin: 1px 0 0;
+        font-size: 12.5px;
+        color: #475467;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .veh-card__checkpoints {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .veh-dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: #e4e7ec;
+      }
+      .veh-dot--on {
+        background: var(--dot-color);
+      }
+      .veh-card__actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .veh-btn {
+        flex: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 42px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .veh-btn--ghost {
+        background: transparent;
+        border: 1.5px solid #c61d26;
+        color: #c61d26;
+      }
+      .veh-btn--ghost:disabled {
+        border-color: #e4e7ec;
+        color: #98a2b3;
+        cursor: not-allowed;
+      }
+      .veh-btn--primary {
+        background: #0d1017;
+        color: white;
+        border: none;
+      }
+
+      .veh-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 4px 4px;
+        font-size: 12.5px;
+        color: #6b717f;
+      }
+      .veh-page-btn {
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: 1px solid #e4e7ec;
+        background: white;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #475467;
+      }
+      .veh-page-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      /* ─── Photo lightbox ─────────────────────────── */
+      .veh-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 500;
+        background: rgba(2, 6, 23, 0.92);
+        display: flex;
+        flex-direction: column;
+      }
+      .veh-lightbox__top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: max(16px, env(safe-area-inset-top, 16px)) 16px 12px;
+        color: white;
+      }
+      .veh-lightbox__top strong {
+        display: block;
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .veh-lightbox__top span {
+        display: block;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11.5px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 2px;
+      }
+      .veh-lightbox__close {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+        border: none;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .veh-lightbox__body {
+        flex: 1;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 0;
+        padding: 0 12px;
+      }
+      .veh-lightbox__body img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+      }
+      .veh-lightbox__nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255, 255, 255, 0.14);
+        color: white;
+        font-size: 22px;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+      .veh-lightbox__nav--prev {
+        left: 8px;
+      }
+      .veh-lightbox__nav--next {
+        right: 8px;
+      }
+      .veh-lightbox__thumbs {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 12px 16px max(16px, env(safe-area-inset-bottom, 16px));
+      }
+      .veh-lightbox__thumb {
+        flex-shrink: 0;
+        width: 52px;
+        height: 52px;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px solid transparent;
+        padding: 0;
+        cursor: pointer;
+        opacity: 0.55;
+      }
+      .veh-lightbox__thumb--active {
+        border-color: #c61d26;
+        opacity: 1;
+      }
+      .veh-lightbox__thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+    `,
+  ],
 })
 export class VehiculosListComponent {
   private service = inject(VehiculoService);
   router = inject(Router);
+
+  /** Breakpoint móvil, igual convención que app-layout.component.ts. */
+  isMobile = signal(window.innerWidth < 768);
+  lightboxVehiculo = signal<VehiculoListDto | null>(null);
+  lightboxIndex = signal(0);
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.isMobile.set(window.innerWidth < 768);
+  }
+
+  sinClienteCount(): number {
+    return this.vehiculos().filter(v => !v.clienteApodo).length;
+  }
+
+  vehicleLabel(v: VehiculoListDto): string {
+    return [v.marcaNombre, v.modeloNombre, v.anno ? String(v.anno) : null]
+      .filter((part): part is string => !!part)
+      .join(' ') || 'Sin datos de marca';
+  }
+
+  fileUrl(url: string): string {
+    return url.startsWith('http') ? url : `${environment.apiUrl}${url}`;
+  }
+
+  openFotos(v: VehiculoListDto): void {
+    if (v.fotosUrls.length === 0) return;
+    this.lightboxIndex.set(0);
+    this.lightboxVehiculo.set(v);
+  }
+
+  closeFotos(): void {
+    this.lightboxVehiculo.set(null);
+  }
+
+  nextFoto(v: VehiculoListDto): void {
+    this.lightboxIndex.set((this.lightboxIndex() + 1) % v.fotosUrls.length);
+  }
+
+  prevFoto(v: VehiculoListDto): void {
+    this.lightboxIndex.set((this.lightboxIndex() - 1 + v.fotosUrls.length) % v.fotosUrls.length);
+  }
+
+  cotizar(v: VehiculoListDto): void {
+    this.router.navigate(['/cotizaciones/nueva'], { queryParams: { vehiculoId: v.id } });
+  }
 
   @ViewChild('formDialog') formDialog!: VehiculoFormDialogComponent;
 

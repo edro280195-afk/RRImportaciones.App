@@ -3,7 +3,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AduanaDto, AduanaService } from '../../services/aduana.service';
-import { ClienteDetailDto, ClienteService } from '../../services/cliente.service';
+import { ClienteDetailDto, ClienteListDto, ClienteService } from '../../services/cliente.service';
 import {
   CotizacionOutput,
   CotizacionService,
@@ -233,6 +233,40 @@ import {
           </div>
         }
 
+        <section class="mb-5 rounded-2xl border border-[#D8DEE8] bg-white p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.8px] text-[#9EA3AE]">
+                Cliente
+              </p>
+              @if (c.clienteId) {
+                <p class="mt-1 text-[14px] font-semibold text-[#0D1017]">
+                  {{ c.clienteNombre || c.clienteApodo || 'Cliente asignado' }}
+                </p>
+                @if (c.clienteTelefono || c.clienteEmail) {
+                  <p class="mt-0.5 text-[12px] text-[#6B717F]">
+                    {{ c.clienteTelefono || c.clienteEmail }}
+                  </p>
+                }
+              } @else {
+                <p class="mt-1 text-[14px] font-semibold text-[#6B717F]">Sin cliente asignado</p>
+                <p class="mt-0.5 text-[12px] text-[#9EA3AE]">
+                  Puedes agregarlo ahora o después.
+                </p>
+              }
+            </div>
+            @if (!c.tramiteId) {
+              <button
+                type="button"
+                (click)="openClienteAssignment()"
+                class="rounded-xl border border-[#D8DEE8] bg-[#F8FAFC] px-4 py-2 text-[13px] font-semibold text-[#1E2330] hover:border-[#C61D26]"
+              >
+                {{ c.clienteId ? 'Cambiar cliente' : 'Asignar cliente' }}
+              </button>
+            }
+          </div>
+        </section>
+
         <div class="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px]">
           <div class="card-elevated rounded-2xl p-5">
             <h2 class="mb-4 text-[15px] font-semibold">Desglose</h2>
@@ -361,6 +395,94 @@ import {
             </div>
           </div>
         </div>
+
+        @if (clienteAssignmentOpen()) {
+          <div
+            class="fixed inset-0 z-40 flex items-start justify-center bg-black/35 px-4 pt-[12vh] overflow-y-auto"
+            (click)="closeClienteAssignment()"
+          >
+            <div
+              class="w-full max-w-[520px] rounded-2xl bg-white p-5 shadow-2xl"
+              (click)="$event.stopPropagation()"
+            >
+              <div class="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h2 class="text-[18px] font-semibold text-[#0D1017]">Asignar cliente</h2>
+                  <p class="text-[13px] text-[#6B717F]">
+                    La cotización puede guardarse sin cliente y asignarse después.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  (click)="closeClienteAssignment()"
+                  class="rounded-lg px-2 py-1 text-[13px] text-[#6B717F] hover:bg-[#F3F4F6]"
+                >
+                  Cerrar
+                </button>
+              </div>
+              <label class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.6px] text-[#6B717F]">
+                Buscar cliente
+              </label>
+              <div class="relative">
+                <input
+                  [(ngModel)]="clienteAssignmentText"
+                  (input)="searchClienteAssignment()"
+                  placeholder="Apodo, nombre, teléfono o email"
+                  autocomplete="off"
+                  class="w-full rounded-xl border border-[#E4E7EC] px-3 py-2.5 text-[13px] outline-none focus:border-[#C61D26]"
+                />
+                @if (clienteAssignmentResults().length > 0) {
+                  <div class="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#E4E7EC] bg-white shadow-xl">
+                    @for (cliente of clienteAssignmentResults(); track cliente.id) {
+                      <button
+                        type="button"
+                        (mousedown)="selectClienteAssignment(cliente)"
+                        class="block w-full px-3 py-2.5 text-left text-[13px] hover:bg-[#F8FAFC]"
+                      >
+                        <span class="font-semibold text-[#1E2330]">{{ cliente.apodo }}</span>
+                        @if (cliente.nombreCompleto) {
+                          <span class="text-[#6B717F]"> / {{ cliente.nombreCompleto }}</span>
+                        }
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+              @if (clienteAssignmentId) {
+                <p class="mt-2 text-[12px] text-[#166534]">
+                  Cliente seleccionado: {{ clienteAssignmentText }}
+                </p>
+              }
+              <div class="mt-5 flex flex-wrap justify-end gap-2">
+                @if (c.clienteId) {
+                  <button
+                    type="button"
+                    (click)="assignCliente(null)"
+                    [disabled]="clienteAssigning()"
+                    class="mr-auto rounded-xl border border-[#FECACA] px-4 py-2 text-[13px] font-semibold text-[#991B1B] disabled:opacity-40"
+                  >
+                    Quitar cliente
+                  </button>
+                }
+                <button
+                  type="button"
+                  (click)="closeClienteAssignment()"
+                  class="rounded-xl border border-[#D8DEE8] px-4 py-2 text-[13px] font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  (click)="assignCliente(clienteAssignmentId)"
+                  [disabled]="!clienteAssignmentId || clienteAssigning()"
+                  class="rounded-xl bg-[#0D1017] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+                >
+                  {{ clienteAssigning() ? 'Guardando...' : 'Guardar cliente' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        }
 
         @if (emailOpen()) {
           <div
@@ -775,6 +897,12 @@ export class CotizacionDetailComponent {
   sending = signal(false);
   accepting = signal(false);
   clienteDetail = signal<ClienteDetailDto | null>(null);
+  clienteAssignmentOpen = signal(false);
+  clienteAssignmentResults = signal<ClienteListDto[]>([]);
+  clienteAssigning = signal(false);
+  clienteAssignmentId: string | null = null;
+  clienteAssignmentText = '';
+  private clienteAssignmentSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   convertOpen = signal(false);
   converting = signal(false);
   aduanas = signal<AduanaDto[]>([]);
@@ -964,6 +1092,74 @@ export class CotizacionDetailComponent {
       error: err => {
         this.sending.set(false);
         this.actionError.set(err?.error?.message || 'No se pudo recalcular la cotizacion.');
+      },
+    });
+  }
+
+  openClienteAssignment(): void {
+    const c = this.cotizacion();
+    this.clienteAssignmentId = null;
+    this.clienteAssignmentText = c?.clienteNombre || c?.clienteApodo || '';
+    this.clienteAssignmentResults.set([]);
+    this.clienteAssignmentOpen.set(true);
+  }
+
+  closeClienteAssignment(): void {
+    if (this.clienteAssignmentSearchTimeout) {
+      clearTimeout(this.clienteAssignmentSearchTimeout);
+      this.clienteAssignmentSearchTimeout = null;
+    }
+    this.clienteAssignmentOpen.set(false);
+    this.clienteAssignmentResults.set([]);
+  }
+
+  searchClienteAssignment(): void {
+    if (this.clienteAssignmentSearchTimeout) {
+      clearTimeout(this.clienteAssignmentSearchTimeout);
+    }
+    this.clienteAssignmentId = null;
+    const query = this.clienteAssignmentText.trim();
+    if (query.length < 2) {
+      this.clienteAssignmentResults.set([]);
+      return;
+    }
+    this.clienteAssignmentSearchTimeout = setTimeout(() => {
+      this.clienteService.searchAutocomplete(query).subscribe({
+        next: results => this.clienteAssignmentResults.set(results),
+        error: () => this.clienteAssignmentResults.set([]),
+      });
+    }, 220);
+  }
+
+  selectClienteAssignment(cliente: ClienteListDto): void {
+    this.clienteAssignmentId = cliente.id;
+    this.clienteAssignmentText = cliente.nombreCompleto
+      ? `${cliente.apodo} / ${cliente.nombreCompleto}`
+      : cliente.apodo;
+    this.clienteAssignmentResults.set([]);
+  }
+
+  assignCliente(clienteId: string | null): void {
+    const c = this.cotizacion();
+    if (!c?.id || (!clienteId && !c.clienteId)) return;
+    this.clienteAssigning.set(true);
+    this.service.asignarCliente(c.id, clienteId).subscribe({
+      next: updated => {
+        this.cotizacion.set(updated);
+        this.clienteAssigning.set(false);
+        this.closeClienteAssignment();
+        this.actionMessage.set(
+          clienteId ? 'Cliente asignado a la cotización.' : 'Cliente quitado de la cotización.',
+        );
+        if (updated.clienteId) {
+          this.clienteService.getById(updated.clienteId).subscribe(cliente => this.clienteDetail.set(cliente));
+        } else {
+          this.clienteDetail.set(null);
+        }
+      },
+      error: err => {
+        this.clienteAssigning.set(false);
+        this.actionError.set(err?.error?.message || 'No se pudo actualizar el cliente.');
       },
     });
   }

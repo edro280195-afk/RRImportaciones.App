@@ -192,6 +192,10 @@ export class CotizacionService {
     return this.http.post<CotizacionOutput>(this.baseUrl, request);
   }
 
+  asignarCliente(id: string, clienteId: string | null): Observable<CotizacionOutput> {
+    return this.http.put<CotizacionOutput>(`${this.baseUrl}/${id}/cliente`, { clienteId });
+  }
+
   getList(params: {
     search?: string;
     estado?: string;

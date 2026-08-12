@@ -39,6 +39,34 @@ public class EntregaTasksController : ControllerBase
         return Ok(await _service.GetTareasAsync(userId));
     }
 
+    [HttpGet("vehiculos")]
+    [RequierePermiso(Permisos.CampoUsar)]
+    public async Task<IActionResult> BuscarVehiculos([FromQuery] string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return Ok(Array.Empty<VehiculoEntregaLookupDto>());
+
+        return Ok(await _service.BuscarVehiculosAsync(query));
+    }
+
+    [HttpPost("vehiculos/registrar-entrega")]
+    [RequierePermiso(Permisos.CampoUsar)]
+    public async Task<IActionResult> RegistrarEntregaVehiculo([FromBody] RegistrarEntregaVehiculoRequest request)
+    {
+        try
+        {
+            return Ok(await _service.RegistrarEntregaVehiculoAsync(request));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("{id:guid}")]
     [RequierePermiso(Permisos.CampoUsar, Permisos.TramitesAsignar)]
     public async Task<IActionResult> GetById(Guid id)

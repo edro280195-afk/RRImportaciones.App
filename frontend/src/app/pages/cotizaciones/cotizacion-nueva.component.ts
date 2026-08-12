@@ -1,7 +1,8 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { Component, computed, HostListener, inject, signal, ViewChild } from '@angular/core';
+import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { ClienteListDto, ClienteService } from '../../services/cliente.service';
 import {
   CandidatoPrecio,
@@ -9,46 +10,128 @@ import {
   CotizacionInput,
   CotizacionOutput,
   CotizacionService,
+  VehicleDecodedDto,
 } from '../../services/cotizacion.service';
 import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
+import { NotificationService } from '../../services/notification.service';
+import { VinScannerOverlayComponent, VinValidationResult } from '../../shared/vin-scanner-overlay.component';
+
+/** Los 3 pasos del wizard móvil: identificar vehículo, cotizar, asignar cliente. */
+const MOBILE_STEP_LABELS = ['Vehículo', 'Cálculo', 'Cliente opcional'] as const;
 
 @Component({
   selector: 'app-cotizacion-nueva',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, DatePipe],
+  imports: [FormsModule, DecimalPipe, DatePipe, NgTemplateOutlet, VinScannerOverlayComponent],
   template: `
-    <div class="cot-shell">
-      <!-- ─────────── Header ─────────── -->
-      <header class="cot-header">
-        <div>
-          <p class="eyebrow">Cotizador automático</p>
-          <h1 class="title">Nueva cotización</h1>
-        </div>
-        <div class="tc-chip" [class.tc-chip--stale]="!tipoCambio()">
-          <div class="tc-chip__label">
-            <span class="tc-dot" [class.tc-dot--live]="!!tipoCambio()"></span>
-            TC Banxico DOF
+    <div class="cot-shell" [class.cot-shell--mobile]="isMobile()">
+      @if (isMobile()) {
+        <!-- ─────────── Mobile app bar (paridad con el AppBar del wizard Flutter) ─────────── -->
+        <header class="mob-appbar">
+          <button class="mob-icon-btn" type="button" (click)="cancelWizard()" aria-label="Cancelar cotización">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+          <div class="mob-appbar__text">
+            <p class="mob-appbar__title">Nueva Cotización</p>
+            <p class="mob-appbar__ctx">{{ wizardContextLabel() }}</p>
           </div>
-          <div class="tc-chip__value">
-            {{ tipoCambio()?.tipoCambio?.toFixed(4) || '— — — —' }}
-            <small>MXN/USD</small>
+          <div class="mob-menu">
+            <button class="mob-icon-btn" type="button" (click)="mobMenuOpen.set(!mobMenuOpen())" aria-label="Más opciones">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="12" cy="19" r="1.7" />
+              </svg>
+            </button>
+            @if (mobMenuOpen()) {
+              <div class="mob-menu__pop" (mouseleave)="mobMenuOpen.set(false)">
+                <button type="button" (click)="resetWizard(true)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h4v4H4zM16 4h4v4h-4zM4 16h4v4H4zM12 4v16M8 12h8"/></svg>
+                  Buscar otro VIN
+                </button>
+                <button type="button" (click)="resetWizard(false)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
+                  Reiniciar cotización
+                </button>
+                <hr />
+                <button type="button" class="mob-menu__danger" (click)="cancelWizard()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                  Cancelar y salir
+                </button>
+              </div>
+            }
           </div>
-          @if (tipoCambio()?.fetchedAt) {
-            <p class="tc-chip__time">Consultado {{ tipoCambio()?.fetchedAt | date: 'HH:mm' }}</p>
+        </header>
+
+        <!-- ─────────── Progress steps (VIN → Cálculo → Cliente) ─────────── -->
+        <div class="mob-progress">
+          @for (label of mobileStepLabels; track label; let i = $index) {
+            <button
+              type="button"
+              class="mob-step"
+              [class.mob-step--active]="mobileStep() === i"
+              [class.mob-step--done]="isStepComplete(i)"
+              [disabled]="!canOpenStep(i)"
+              (click)="openStepFromChip(i)"
+            >
+              <span class="mob-step__num">
+                @if (isStepComplete(i) && mobileStep() !== i) {
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>
+                } @else {
+                  {{ i + 1 }}
+                }
+              </span>
+              <span class="mob-step__label">{{ label }}</span>
+            </button>
+            @if (i < mobileStepLabels.length - 1) {
+              <span class="mob-step__connector" [class.mob-step__connector--done]="isStepComplete(i)"></span>
+            }
           }
         </div>
-      </header>
+      } @else {
+        <!-- ─────────── Header (desktop) ─────────── -->
+        <header class="cot-header">
+          <div>
+            <p class="eyebrow">Cotizador automático</p>
+            <h1 class="title">Nueva cotización</h1>
+          </div>
+          <div class="tc-chip" [class.tc-chip--stale]="!tipoCambio()">
+            <div class="tc-chip__label">
+              <span class="tc-dot" [class.tc-dot--live]="!!tipoCambio()"></span>
+              TC Banxico DOF
+            </div>
+            <div class="tc-chip__value">
+              {{ tipoCambio()?.tipoCambio?.toFixed(4) || '— — — —' }}
+              <small>MXN/USD</small>
+            </div>
+            @if (tipoCambio()?.fetchedAt) {
+              <p class="tc-chip__time">Consultado {{ tipoCambio()?.fetchedAt | date: 'HH:mm' }}</p>
+            }
+          </div>
+        </header>
+      }
+
+      @if (calcError() && isMobile()) {
+        <div class="mob-error">{{ calcError() }}</div>
+      }
 
       <!-- ─────────── Workspace grid ─────────── -->
       <div class="cot-grid">
         <!-- LEFT — formulario -->
         <div class="cot-form">
+          @if (!isMobile() || mobileStep() === 0) {
           <!-- VIN hero -->
           <section class="card vin-card" [class.vin-card--decoded]="decodeOk()">
             <div class="step-pill">
               <span class="step-num">1</span>
               <span>Identifica el vehículo</span>
             </div>
+            @if (isMobile()) {
+              <p class="mob-step-help">
+                Escanea el VIN o escríbelo. Al continuar buscaremos el vehículo y su valor en el
+                catálogo del SAT.
+              </p>
+            }
             <label class="big-label">VIN del vehículo</label>
             <div class="vin-input-row">
               <input
@@ -62,6 +145,15 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
                 {{ (form.vin || '').length }}/17
               </div>
             </div>
+
+            @if (isMobile()) {
+              <button type="button" class="btn-scan-vin" (click)="openScanner()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 4h4v4H4zM16 4h4v4h-4zM4 16h4v4H4zM12 4v16M8 12h8"/>
+                </svg>
+                Escanear VIN
+              </button>
+            }
 
             @if (decoding()) {
               <div class="vin-status vin-status--decoding">
@@ -164,7 +256,9 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
               </div>
             }
           </section>
+          }
 
+          @if (!isMobile() || mobileStep() === 1) {
           <!-- Parámetros de cálculo -->
           <section class="card">
             <div class="step-pill">
@@ -286,34 +380,44 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
               </div>
             }
 
-            <div class="calc-row">
-              <button
-                (click)="buscarOCalcular()"
-                [disabled]="cargando() || !canCalculate()"
-                class="btn-calc"
-              >
-                @if (cargando()) {
-                  <span class="spinner spinner--white"></span>
-                  {{ buscandoCandidatos() ? 'Buscando en catálogo…' : 'Calculando…' }}
-                } @else {
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path
-                      d="M3 7l3 3 5-6"
-                      stroke="white"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                  Calcular cotización
+            @if (!isMobile()) {
+              <div class="calc-row">
+                <button
+                  (click)="buscarOCalcular()"
+                  [disabled]="cargando() || !canCalculate()"
+                  class="btn-calc"
+                >
+                  @if (cargando()) {
+                    <span class="spinner spinner--white"></span>
+                    {{ buscandoCandidatos() ? 'Buscando en catálogo…' : 'Calculando…' }}
+                  } @else {
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path
+                        d="M3 7l3 3 5-6"
+                        stroke="white"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    Calcular cotización
+                  }
+                </button>
+                @if (calcError()) {
+                  <p class="err-msg">{{ calcError() }}</p>
                 }
-              </button>
-              @if (calcError()) {
-                <p class="err-msg">{{ calcError() }}</p>
-              }
-            </div>
+              </div>
+            }
           </section>
 
+          @if (isMobile() && (cargando() || candidatos())) {
+            <section class="card mob-inline-result">
+              <ng-container *ngTemplateOutlet="resultPanelTpl"></ng-container>
+            </section>
+          }
+          }
+
+          @if (!isMobile() || mobileStep() === 2) {
           <!-- Cliente y guardado -->
           <section class="card">
             <div class="step-pill">
@@ -321,9 +425,15 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
               <span>Cliente y guardado</span>
             </div>
 
+            @if (isMobile() && resultado()) {
+              <div class="mob-inline-result mob-inline-result--summary">
+                <ng-container *ngTemplateOutlet="resultPanelTpl"></ng-container>
+              </div>
+            }
+
             <div class="grid-2">
               <div class="field relative">
-                <label>Cliente</label>
+                <label>Cliente <span style="color:#9ea3ae;font-weight:500;letter-spacing:0;text-transform:none">(opcional)</span></label>
                 <input
                   [(ngModel)]="clienteText"
                   (input)="onClienteSearch()"
@@ -360,19 +470,27 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
               </div>
             </div>
 
-            <button (click)="guardar()" [disabled]="!resultado() || saving()" class="btn-save">
-              @if (saving()) {
-                <span class="spinner spinner--white"></span>
-                Guardando…
-              } @else {
-                Guardar borrador
-              }
-            </button>
+            @if (!isMobile()) {
+              <button (click)="guardar()" [disabled]="!resultado() || saving()" class="btn-save">
+                @if (saving()) {
+                  <span class="spinner spinner--white"></span>
+                  Guardando…
+                } @else {
+                  Guardar borrador
+                }
+              </button>
+            }
           </section>
+          }
         </div>
 
-        <!-- RIGHT — panel de resultado (sticky) -->
-        <aside class="cot-result">
+        <!-- RIGHT — panel de resultado (sticky, solo desktop; en móvil se reinyecta por paso) -->
+        @if (!isMobile()) {
+          <aside class="cot-result">
+            <ng-container *ngTemplateOutlet="resultPanelTpl"></ng-container>
+          </aside>
+        }
+        <ng-template #resultPanelTpl>
           @if (cargando()) {
             <div class="result-loading">
               <p class="eyebrow">{{ buscandoCandidatos() ? 'Buscando' : 'Cotizando' }}</p>
@@ -753,16 +871,308 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
               </p>
             </div>
           }
-        </aside>
+        </ng-template>
       </div>
+
+      @if (isMobile()) {
+        <!-- ─────────── Bottom action bar (paridad con el wizard Flutter) ─────────── -->
+        <div class="mob-bottombar">
+          @if (mobileStep() > 0) {
+            <button class="mob-back-btn" type="button" (click)="previousStep()" aria-label="Paso anterior">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+          }
+          <div class="mob-bottombar__info">
+            <p class="mob-bottombar__helper">{{ stepHelperLabel() }}</p>
+            <p class="mob-bottombar__amount">{{ bottomAmountLabel() }}</p>
+          </div>
+          <button
+            class="mob-bottombar__action"
+            type="button"
+            [disabled]="!canRunStepAction()"
+            (click)="nextStepAction()"
+          >
+            {{ stepActionLabel() }}
+          </button>
+        </div>
+      }
+
+      <app-vin-scanner-overlay
+        #scanner
+        title="Escanear VIN"
+        [validate]="validateScannedVin"
+        (vinConfirmed)="onScanConfirmed($event)"
+      ></app-vin-scanner-overlay>
     </div>
   `,
   styles: [
     `
       /* ─── Layout shell ─────────────────────────── */
-      .cot-shell {
-        padding-bottom: 40px;
+      .cot-shell--mobile {
+        padding-bottom: 92px; /* espacio para la barra de acción inferior fija */
       }
+
+      /* ─── Mobile app bar + progress steps (paridad con el wizard Flutter) ─── */
+      .mob-appbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: -4px -4px 14px;
+        padding: 4px;
+      }
+      .mob-icon-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        background: transparent;
+        border: 1px solid #e4e7ec;
+        color: #1e2330;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .mob-appbar__text {
+        flex: 1;
+        min-width: 0;
+      }
+      .mob-appbar__title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 800;
+        color: #0d1017;
+        line-height: 1.15;
+      }
+      .mob-appbar__ctx {
+        margin: 1px 0 0;
+        font-size: 11px;
+        font-weight: 700;
+        color: #8b93a1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mob-menu {
+        position: relative;
+      }
+      .mob-menu__pop {
+        position: absolute;
+        right: 0;
+        top: 44px;
+        z-index: 40;
+        width: 220px;
+        background: white;
+        border: 1px solid #e4e7ec;
+        border-radius: 12px;
+        box-shadow: 0 12px 32px rgba(13, 16, 23, 0.14);
+        padding: 6px;
+      }
+      .mob-menu__pop button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 9px 10px;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1e2330;
+        text-align: left;
+        cursor: pointer;
+      }
+      .mob-menu__pop button:hover {
+        background: #f8fafc;
+      }
+      .mob-menu__pop hr {
+        margin: 5px 4px;
+        border: none;
+        border-top: 1px solid #eceff3;
+      }
+      .mob-menu__danger {
+        color: #c61d26 !important;
+      }
+
+      .mob-progress {
+        display: flex;
+        align-items: center;
+        margin: 0 0 16px;
+        padding: 12px 4px;
+        border-top: 1px solid #eceff3;
+        border-bottom: 1px solid #eceff3;
+      }
+      .mob-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        flex: 1;
+        min-width: 0;
+        padding: 2px 0;
+      }
+      .mob-step:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+      .mob-step__num {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: #f1f3f6;
+        color: #6b717f;
+        font-size: 11px;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .mob-step--active .mob-step__num {
+        background: #c61d26;
+        color: white;
+      }
+      .mob-step--done .mob-step__num {
+        background: #dcfce7;
+        color: #15803d;
+      }
+      .mob-step__label {
+        font-size: 10px;
+        font-weight: 700;
+        color: #8b93a1;
+        white-space: nowrap;
+      }
+      .mob-step--active .mob-step__label {
+        color: #0d1017;
+      }
+      .mob-step__connector {
+        height: 1.5px;
+        flex: 0 0 16px;
+        background: #e4e7ec;
+        margin-bottom: 15px;
+      }
+      .mob-step__connector--done {
+        background: #16a34a;
+      }
+
+      .mob-error {
+        margin-bottom: 14px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: #fef2f2;
+        border: 1px solid rgba(198, 29, 38, 0.2);
+        color: #991b1b;
+        font-size: 12.5px;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      .mob-step-help {
+        margin: -8px 0 16px;
+        color: #6b717f;
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .btn-scan-vin {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        height: 50px;
+        margin-top: 12px;
+        border-radius: 12px;
+        border: none;
+        background: linear-gradient(135deg, #c61d26 0%, #a91720 100%);
+        color: white;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .mob-inline-result {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px dashed #eceff3;
+      }
+      .mob-inline-result--summary {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+        margin-bottom: 20px;
+        padding-bottom: 18px;
+        border-bottom: 1px dashed #eceff3;
+      }
+
+      /* ─── Mobile bottom action bar ─────────────── */
+      .mob-bottombar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 60;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px max(10px, env(safe-area-inset-bottom, 10px));
+        background: white;
+        border-top: 1px solid #eceff3;
+        box-shadow: 0 -4px 20px rgba(13, 16, 23, 0.06);
+      }
+      .mob-back-btn {
+        width: 48px;
+        height: 48px;
+        flex-shrink: 0;
+        border-radius: 12px;
+        border: 1px solid #e4e7ec;
+        background: white;
+        color: #1e2330;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+      }
+      .mob-bottombar__info {
+        flex: 1;
+        min-width: 0;
+      }
+      .mob-bottombar__helper {
+        margin: 0;
+        font-size: 10.5px;
+        font-weight: 700;
+        color: #8b93a1;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+      }
+      .mob-bottombar__amount {
+        margin: 2px 0 0;
+        font-size: 15px;
+        font-weight: 800;
+        color: #0d1017;
+        font-family: 'JetBrains Mono', monospace;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mob-bottombar__action {
+        flex-shrink: 0;
+        min-width: 150px;
+        height: 48px;
+        padding: 0 18px;
+        border-radius: 12px;
+        border: none;
+        background: linear-gradient(135deg, #c61d26 0%, #a91720 100%);
+        color: white;
+        font-size: 13.5px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .mob-bottombar__action:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
       .cot-header {
         display: flex;
         align-items: flex-end;
@@ -788,7 +1198,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         line-height: 1.1;
       }
 
-      /* TC chip top right */
       .tc-chip {
         display: flex;
         flex-direction: column;
@@ -836,12 +1245,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         margin-left: 6px;
         letter-spacing: 0.3px;
       }
-      .tc-chip__time {
-        font-size: 10.5px;
-        color: #8b93a1;
-        margin: 0;
-      }
-
       /* ─── Grid ─────────────────────────── */
       .cot-grid {
         display: grid;
@@ -1100,11 +1503,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         font-weight: 600;
         color: #0d1017;
       }
-      .field .hint {
-        font-size: 11px;
-        color: #8b93a1;
-        margin-top: 2px;
-      }
       .advanced {
         margin-top: 14px;
         padding-top: 14px;
@@ -1319,7 +1717,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         }
       }
 
-      /* Total card */
       .total-card {
         margin: -6px -6px 16px;
         padding: 18px 18px 16px;
@@ -1378,7 +1775,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         color: rgba(255, 255, 255, 0.65);
       }
 
-      /* Proportion bar */
       .bar-wrap {
         margin-bottom: 14px;
       }
@@ -1432,7 +1828,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         background: #16a34a;
       }
 
-      /* Math toggle */
       .math-toggle {
         display: inline-flex;
         align-items: center;
@@ -1457,7 +1852,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         color: currentColor;
       }
 
-      /* Line items */
       .lines {
         display: flex;
         flex-direction: column;
@@ -1562,7 +1956,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         font-weight: 700;
       }
 
-      /* Evidence */
       .evidence {
         margin-top: 14px;
         padding: 14px;
@@ -1643,7 +2036,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         color: #6b717f;
       }
 
-      /* Empty state */
       .empty {
         padding: 60px 20px;
         text-align: center;
@@ -1672,7 +2064,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         font-weight: 600;
       }
 
-      /* Loading state */
       .result-loading {
         padding: 20px 4px;
       }
@@ -1907,7 +2298,6 @@ import { MarcaDto, VehiculoService } from '../../services/vehiculo.service';
         color: #78350f;
       }
 
-      /* Spinner */
       .spinner {
         width: 12px;
         height: 12px;
@@ -1933,9 +2323,23 @@ export class CotizacionNuevaComponent {
   private cotizacionService = inject(CotizacionService);
   private vehiculoService = inject(VehiculoService);
   private clienteService = inject(ClienteService);
+  private notifications = inject(NotificationService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private calcTimer: number | null = null;
+
+  @ViewChild('scanner') private scannerRef?: VinScannerOverlayComponent;
+
+  /** Breakpoint móvil, igual convención que app-layout.component.ts. */
+  isMobile = signal(window.innerWidth < 768);
+  mobileStep = signal(0);
+  mobMenuOpen = signal(false);
+  mobileStepLabels = MOBILE_STEP_LABELS;
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.isMobile.set(window.innerWidth < 768);
+  }
 
   marcas = signal<MarcaDto[]>([]);
   clienteResults = signal<ClienteListDto[]>([]);
@@ -2025,6 +2429,7 @@ export class CotizacionNuevaComponent {
     const vehiculoId = qp.get('vehiculoId');
     const vinParam = qp.get('vin');
     const clienteIdParam = qp.get('clienteId');
+    const scanParam = qp.get('scan');
 
     if (vehiculoId) {
       this.vehiculoService.getById(vehiculoId).subscribe({
@@ -2040,6 +2445,9 @@ export class CotizacionNuevaComponent {
       // Pre-rellenado desde bandeja de campo: arranca el flujo con el VIN del yardero.
       this.form.vin = vinParam.toUpperCase();
       this.decodeVin();
+    } else if (scanParam === '1') {
+      // Entrada "escanear primero", igual a startWithScan en el wizard Flutter.
+      setTimeout(() => this.openScanner(), 60);
     }
 
     if (clienteIdParam) {
@@ -2142,20 +2550,9 @@ export class CotizacionNuevaComponent {
     this.decodeMessage.set('');
     this.cotizacionService.decodeVin(this.form.vin).subscribe({
       next: v => {
-        this.form.marca = v.make;
-        this.form.modelo = v.model;
-        this.form.anno = v.modelYear;
-        this.form.cilindradaCm3 = v.displacementCC
-          ? Math.round(v.displacementCC)
-          : this.form.cilindradaCm3;
-        const make = (v.make || '').toUpperCase();
-        const found = this.marcas().find(
-          m => m.nombre.toUpperCase() === make || m.aliases.some(a => a.toUpperCase() === make)
-        );
-        this.form.marcaId = found?.id || null;
-        this.decodeOk.set(true);
-        this.decodeMessage.set(`${v.make || ''} ${v.model || ''} ${v.modelYear || ''}`.trim());
+        this.applyDecodedVehicle(v);
         this.decoding.set(false);
+        this.afterDecodeSuccess();
       },
       error: () => {
         this.decodeOk.set(false);
@@ -2164,6 +2561,244 @@ export class CotizacionNuevaComponent {
         this.detailsOpen.set(true);
       },
     });
+  }
+
+  /** Aplica el resultado de NHTSA al formulario — usado por decodeVin() y por el escáner de VIN. */
+  private applyDecodedVehicle(v: VehicleDecodedDto): void {
+    this.form.marca = v.make;
+    this.form.modelo = v.model;
+    this.form.anno = v.modelYear;
+    this.form.cilindradaCm3 = v.displacementCC
+      ? Math.round(v.displacementCC)
+      : this.form.cilindradaCm3;
+    const make = (v.make || '').toUpperCase();
+    const found = this.marcas().find(
+      m => m.nombre.toUpperCase() === make || m.aliases.some(a => a.toUpperCase() === make)
+    );
+    this.form.marcaId = found?.id || null;
+    this.decodeOk.set(true);
+    this.decodeMessage.set(`${v.make || ''} ${v.model || ''} ${v.modelYear || ''}`.trim());
+  }
+
+  /** Igual a _advanceAfterDecode en el wizard Flutter: en móvil, avanza al paso de cálculo. */
+  private afterDecodeSuccess(): void {
+    if (this.isMobile()) this.mobileStep.set(1);
+  }
+
+  // ── Escáner de VIN a pantalla completa (paridad con mlkit_vin_scanner_page.dart) ──
+
+  openScanner(): void {
+    this.mobMenuOpen.set(false);
+    this.scannerRef?.show();
+  }
+
+  /** Se pasa como [validate] al escáner: decodifica el VIN antes de aceptarlo, igual a onValidateVin en Flutter. */
+  validateScannedVin = async (vin: string): Promise<VinValidationResult> => {
+    try {
+      const decoded = await firstValueFrom(this.cotizacionService.decodeVin(vin));
+      this.form.vin = vin;
+      this.applyDecodedVehicle(decoded);
+      const label = [decoded.make, decoded.model, decoded.modelYear ? String(decoded.modelYear) : null]
+        .filter((part): part is string => !!part)
+        .join(' ');
+      return {
+        ok: true,
+        title: 'Vehículo encontrado',
+        subtitle: label || 'VIN validado correctamente.',
+      };
+    } catch {
+      this.decodeOk.set(false);
+      return {
+        ok: false,
+        title: 'VIN no validado',
+        subtitle: 'No encontramos un vehículo con ese VIN. Escanéalo nuevamente.',
+      };
+    }
+  };
+
+  /** El escáner ya validó y decodificó el VIN — solo falta confirmar el estado del wizard. */
+  onScanConfirmed(vin: string): void {
+    this.form.vin = vin;
+    this.calcError.set('');
+    this.candidatos.set(null);
+    this.resultado.set(null);
+    this.afterDecodeSuccess();
+  }
+
+  // ── Wizard móvil: navegación, menú y barra de acción inferior ──
+
+  /** Hay información capturada que se perdería al salir o reiniciar. */
+  private hasProgress(): boolean {
+    return !!(
+      this.form.vin ||
+      this.decodeOk() ||
+      this.form.modelo ||
+      this.candidatos() ||
+      this.resultado() ||
+      this.clienteId
+    );
+  }
+
+  /** Texto de contexto en el app bar móvil, igual a _wizardContextLabel en Flutter. */
+  wizardContextLabel(): string {
+    const parts = [this.form.marca, this.form.modelo, this.form.anno ? String(this.form.anno) : null].filter(
+      (part): part is string => !!part
+    );
+    if (parts.length) return parts.join(' · ');
+    if ((this.form.vin || '').trim()) return 'VIN ' + this.form.vin;
+    return `Paso ${this.mobileStep() + 1} de ${this.mobileStepLabels.length}`;
+  }
+
+  async cancelWizard(): Promise<void> {
+    this.mobMenuOpen.set(false);
+    if (this.hasProgress()) {
+      const confirmed = await this.notifications.confirm({
+        title: '¿Cancelar cotización?',
+        message: 'Se descartará la información capturada y volverás al listado.',
+        confirmText: 'Sí, cancelar',
+        cancelText: 'Volver',
+      });
+      if (!confirmed) return;
+    }
+    this.router.navigate(['/cotizaciones']);
+  }
+
+  /** Limpia todo y regresa al paso del VIN. Con scan=true reabre la cámara de inmediato. */
+  async resetWizard(scan: boolean): Promise<void> {
+    this.mobMenuOpen.set(false);
+    if (this.hasProgress()) {
+      const confirmed = await this.notifications.confirm({
+        title: scan ? '¿Buscar otro vehículo?' : '¿Reiniciar cotización?',
+        message: 'Se borrarán los datos capturados y volverás al paso del VIN.',
+        confirmText: scan ? 'Buscar otro' : 'Reiniciar',
+        cancelText: 'Volver',
+      });
+      if (!confirmed) return;
+    }
+
+    this.form.vin = null;
+    this.form.marcaId = null;
+    this.form.marca = null;
+    this.form.modelo = null;
+    this.form.anno = null;
+    this.form.cilindradaCm3 = null;
+    this.form.tipoVehiculo = 'AUTOMOVIL';
+    this.form.valorAduanaUsdOverride = null;
+    this.form.precioEstimadoIdOverride = null;
+    this.form.honorariosOverride = null;
+    this.form.categoriaAmparoOverride = null;
+    this.decodeOk.set(false);
+    this.decodeMessage.set('');
+    this.candidatos.set(null);
+    this.resultado.set(null);
+    this.calcError.set('');
+    this.manualMode.set(false);
+    this.detailsOpen.set(false);
+    this.clienteId = null;
+    this.clienteText = '';
+    this.notas = '';
+    this.mobileStep.set(0);
+
+    if (scan) {
+      setTimeout(() => this.openScanner(), 60);
+    }
+  }
+
+  canOpenStep(step: number): boolean {
+    switch (step) {
+      case 0:
+        return true;
+      case 1:
+        return this.decodeOk() || this.canCalculate();
+      case 2:
+        return !!this.resultado();
+      default:
+        return false;
+    }
+  }
+
+  isStepComplete(step: number): boolean {
+    switch (step) {
+      case 0:
+        return this.decodeOk() || !!(this.form.modelo && this.form.anno && (this.form.marcaId || this.form.marca));
+      case 1:
+        return !!this.resultado();
+      case 2:
+        return !!this.resultado();
+      default:
+        return false;
+    }
+  }
+
+  openStepFromChip(step: number): void {
+    if (!this.canOpenStep(step)) return;
+    this.mobileStep.set(step);
+  }
+
+  previousStep(): void {
+    if (this.mobileStep() > 0) this.mobileStep.set(this.mobileStep() - 1);
+  }
+
+  stepHelperLabel(): string {
+    if (this.resultado()) return 'Total estimado';
+    if (this.decodeOk() || this.canCalculate()) return 'Vehículo listo';
+    return 'Pendiente';
+  }
+
+  bottomAmountLabel(): string {
+    const r = this.resultado();
+    if (r) {
+      return '$' + r.total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MXN';
+    }
+    if (this.form.marca || this.form.modelo) {
+      return `${this.form.marca || 'Marca'} ${this.form.modelo || 'Modelo'}`.trim();
+    }
+    return 'Sin calcular';
+  }
+
+  stepActionLabel(): string {
+    switch (this.mobileStep()) {
+      case 0:
+        return (this.form.vin || '').length === 17 && !this.decodeOk() ? 'Decodificar VIN' : 'Continuar';
+      case 1:
+        if (this.cargando()) return this.buscandoCandidatos() ? 'Buscando…' : 'Calculando…';
+        return 'Calcular cotización';
+      case 2:
+        return this.saving() ? 'Guardando…' : 'Guardar cotización';
+      default:
+        return 'Continuar';
+    }
+  }
+
+  canRunStepAction(): boolean {
+    switch (this.mobileStep()) {
+      case 0:
+        return this.canCalculate();
+      case 1:
+        return !this.cargando() && this.canCalculate();
+      case 2:
+        return !!this.resultado() && !this.saving();
+      default:
+        return false;
+    }
+  }
+
+  nextStepAction(): void {
+    switch (this.mobileStep()) {
+      case 0:
+        if ((this.form.vin || '').length === 17 && !this.decodeOk()) {
+          this.decodeVin();
+        } else {
+          this.mobileStep.set(1);
+        }
+        break;
+      case 1:
+        this.buscarOCalcular();
+        break;
+      case 2:
+        this.guardar();
+        break;
+    }
   }
 
   /** Punto de entrada del botón. Busca candidatos primero; si hay ambigüedad, muestra el picker. */
@@ -2242,6 +2877,8 @@ export class CotizacionNuevaComponent {
         this.resultado.set(r);
         // Limpiar el override de ID para que al recalcular no use el mismo candidato
         this.form.precioEstimadoIdOverride = null;
+        // Igual a _calculateTaxes en Flutter: en móvil, avanza directo a Revisar/Cliente.
+        if (this.isMobile()) this.mobileStep.set(2);
       },
       error: err => {
         this.stopCalcProgress();

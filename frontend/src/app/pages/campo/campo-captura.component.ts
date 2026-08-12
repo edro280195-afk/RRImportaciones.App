@@ -19,11 +19,20 @@ import { RealtimeService } from '../../services/realtime.service';
 import { VinScannerService, VinScanSession } from '../../services/vin-scanner.service';
 
 type CaptureState = 'loading' | 'ready' | 'sending' | 'error';
-type CameraMode = 'photo' | 'vin';
+type CameraMode = 'photo' | 'vin' | 'video';
 
 interface LocalPhoto {
   id: string;
   dataUrl: string;
+  uploading: boolean;
+  uploaded: boolean;
+  err: boolean;
+}
+
+interface LocalVideo {
+  id: string;
+  file: File;
+  objectUrl: string;
   uploading: boolean;
   uploaded: boolean;
   err: boolean;
@@ -259,6 +268,50 @@ const MIN_PHOTOS = 3;
           (change)="onFilesSelected($event)"
         />
 
+        <section class="video-card">
+          <div class="video-card__head">
+            <div>
+              <strong>Video de la unidad</strong>
+              <span>Opcional · máximo 120 MB</span>
+            </div>
+            <span class="video-card__count">{{ videos().length + (t?.videosUrls?.length ?? 0) }}</span>
+          </div>
+
+          @if ((t?.videosUrls?.length ?? 0) > 0 || videos().length > 0) {
+            <div class="video-list">
+              @for (url of t?.videosUrls || []; track url) {
+                <video class="video-preview" [src]="fileUrl(url)" controls preload="metadata"></video>
+              }
+              @for (video of videos(); track video.id) {
+                <div class="video-local">
+                  <video class="video-preview" [src]="video.objectUrl" controls preload="metadata"></video>
+                  @if (video.uploading) {
+                    <span class="video-status">Subiendo…</span>
+                  } @else if (video.uploaded) {
+                    <span class="video-status video-status--ok">Listo</span>
+                  } @else if (video.err) {
+                    <span class="video-status video-status--err">Reintentar al guardar</span>
+                  }
+                  @if (!video.uploading && !video.uploaded && state() !== 'sending') {
+                    <button type="button" class="video-remove" (click)="removeVideo(video.id)">Quitar</button>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <div class="video-actions">
+            <button type="button" class="video-action video-action--record" (click)="openVideoRecorder()" [disabled]="state() === 'sending'">
+              <span>●</span> Grabar video
+            </button>
+            <button type="button" class="video-action" (click)="openVideoPicker()" [disabled]="state() === 'sending'">
+              Elegir archivo
+            </button>
+          </div>
+        </section>
+
+        <input #videoInput type="file" accept="video/*" class="file-input-hidden" (change)="onVideoSelected($event)" />
+
         <p class="photo-hint">
           @if (totalPhotoCount() === 0) {
             Mínimo {{ MIN_PHOTOS }} fotos de la unidad.
@@ -457,7 +510,7 @@ const MIN_PHOTOS = 3;
           @if (state() === 'sending') {
             <div class="send-progress">
               <div class="send-progress__bar" [style.width.%]="sendProgressPct()"></div>
-              <span>Subiendo {{ uploadedCount() }} de {{ photos().length }} fotos…</span>
+              <span>Subiendo {{ uploadedCount() }} de {{ totalUploadCount() }} archivos…</span>
             </div>
           } @else {
             @if (!canSend()) {
@@ -513,8 +566,10 @@ const MIN_PHOTOS = 3;
                 </svg>
                 {{ photos().length }} foto{{ photos().length !== 1 ? 's' : '' }}
               </div>
-            } @else {
+            } @else if (cameraMode() === 'vin') {
               <div class="cam-counter">Escaneando VIN...</div>
+            } @else {
+              <div class="cam-counter">{{ videoRecording() ? 'Grabando video' : 'Video listo' }}</div>
             }
             @if (cameraMode() === 'vin' && torchSupported()) {
               <button class="cam-pill-btn" (click)="toggleTorch()" type="button">
@@ -533,7 +588,7 @@ const MIN_PHOTOS = 3;
           }
 
           <!-- Viewfinder guide -->
-          <div class="cam-guide" [class.cam-guide--vin]="cameraMode() === 'vin'">
+          <div class="cam-guide" [class.cam-guide--vin]="cameraMode() === 'vin'" [class.cam-guide--video]="cameraMode() === 'video'">
             <div class="corner corner--tl"></div>
             <div class="corner corner--tr"></div>
             <div class="corner corner--bl"></div>
@@ -571,6 +626,26 @@ const MIN_PHOTOS = 3;
                     Listo<br />
                     <small>{{ photos().length }} fotos</small>
                   </button>
+                }
+              </div>
+            </div>
+          } @else if (cameraMode() === 'video') {
+            <div class="cam-bottom cam-bottom--video">
+              <div class="cam-bottom__side">
+                <span class="record-time">{{ formatRecordingTime(videoSeconds()) }}</span>
+              </div>
+              @if (!videoRecording()) {
+                <button class="shutter shutter--video" (click)="startRecording()" [disabled]="!cameraReady()" type="button" aria-label="Iniciar grabación">
+                  <span class="shutter__inner"></span>
+                </button>
+              } @else {
+                <button class="record-stop" (click)="stopRecording()" type="button" aria-label="Detener grabación">
+                  <span></span>
+                </button>
+              }
+              <div class="cam-bottom__side cam-bottom__side--right">
+                @if (!videoRecording()) {
+                  <button class="cam-done-btn" (click)="closeCamera()" type="button">Cerrar</button>
                 }
               </div>
             </div>
@@ -768,6 +843,10 @@ const MIN_PHOTOS = 3;
       }
       .cam-guide--vin {
         height: 140px !important;
+      }
+      .cam-guide--video {
+        width: min(84vw, 360px);
+        aspect-ratio: 16 / 9;
       }
       .scan-line {
         position: absolute;
@@ -1091,6 +1170,23 @@ const MIN_PHOTOS = 3;
       .file-input-hidden {
         display: none;
       }
+
+      .video-card { margin: 12px 0; padding: 14px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius-md); }
+      .video-card__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+      .video-card__head strong { font-size: 14px; }
+      .video-card__head div span { margin-top: 3px; color: var(--text-3); font-size: 11px; }
+      .video-card__count { min-width: 26px; padding: 4px 7px; border-radius: 999px; background: var(--amber-lt); color: var(--amber); text-align: center; font-size: 11px; font-weight: 800; }
+      .video-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .video-action { min-height: 42px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: #f9fafb; color: var(--text-2); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+      .video-action--record { background: #fff1f2; border-color: #fecdd3; color: var(--red); }
+      .video-action--record span { font-size: 18px; vertical-align: -1px; }
+      .video-action:disabled { opacity: .5; cursor: default; }
+      .video-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
+      .video-local { position: relative; min-width: 0; }
+      .video-preview { width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; background: #111827; object-fit: cover; display: block; }
+      .video-status { display: block; margin-top: 4px; color: var(--text-3); font-size: 10px; }
+      .video-status--ok { color: var(--green); }
+      .video-remove { margin-top: 4px; border: 0; padding: 0; background: none; color: var(--red); font-size: 11px; cursor: pointer; }
 
       .photo-hint {
         font-size: 12.5px;
@@ -1787,6 +1883,12 @@ const MIN_PHOTOS = 3;
       .shutter:active:not(:disabled) .shutter__inner {
         transform: scale(0.9);
       }
+      .shutter--video { border-color: rgba(239, 68, 68, 0.9); }
+      .shutter--video .shutter__inner { background: #ef4444; }
+      .cam-bottom--video { grid-template-columns: 1fr auto 1fr; }
+      .record-time { color: #fff; font-family: var(--font-mono); font-size: 14px; font-weight: 800; }
+      .record-stop { width: 82px; height: 82px; border: 4px solid rgba(255,255,255,.85); border-radius: 50%; background: transparent; display: grid; place-items: center; cursor: pointer; }
+      .record-stop span { width: 34px; height: 34px; border-radius: 7px; background: #ef4444; display: block; }
 
       /* Done button inside camera */
       .cam-done-btn {
@@ -1889,12 +1991,14 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvas') canvasRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('fileInput') fileInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('videoInput') videoInputRef?: ElementRef<HTMLInputElement>;
 
   readonly MIN_PHOTOS = MIN_PHOTOS;
 
   readonly state = signal<CaptureState>('loading');
   readonly tarea = signal<TareaCampoDto | null>(null);
   readonly photos = signal<LocalPhoto[]>([]);
+  readonly videos = signal<LocalVideo[]>([]);
   readonly cameraOpen = signal(false);
   readonly cameraReady = signal(false);
   readonly cameraMode = signal<CameraMode>('photo');
@@ -1910,6 +2014,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   readonly storageFull = signal(false);
   /** True mientras se leen y redimensionan las fotos elegidas del teléfono. */
   readonly importingPhotos = signal(false);
+  readonly videoRecording = signal(false);
+  readonly videoSeconds = signal(0);
 
   ubicacion = '';
   vinConfirmado = '';
@@ -1917,11 +2023,17 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   readonly incidencia = signal('');
 
   private stream: MediaStream | null = null;
+  private mediaRecorder: MediaRecorder | null = null;
+  private mediaChunks: Blob[] = [];
+  private recordingTimer?: ReturnType<typeof setInterval>;
   private vinScanSession: VinScanSession | null = null;
   private taskId = '';
   private touchStartX = 0;
 
-  readonly uploadedCount = computed(() => this.photos().filter(p => p.uploaded).length);
+  readonly uploadedCount = computed(
+    () => this.photos().filter(p => p.uploaded).length + this.videos().filter(v => v.uploaded).length
+  );
+  readonly totalUploadCount = computed(() => this.photos().length + this.videos().length);
   readonly totalPhotoCount = computed(
     () => this.photos().length + (this.tarea()?.fotosUrls?.length ?? 0)
   );
@@ -1959,7 +2071,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     return this.totalPhotoCount() >= MIN_PHOTOS;
   });
   readonly sendProgressPct = computed(() => {
-    const total = this.photos().length;
+    const total = this.totalUploadCount();
     return total === 0 ? 0 : Math.round((this.uploadedCount() / total) * 100);
   });
 
@@ -1991,6 +2103,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.closeCamera();
     this.closeGallery();
+    this.revokeVideoUrls();
     this.sub?.unsubscribe();
     this.fotosSub?.unsubscribe();
   }
@@ -2033,6 +2146,15 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   openCamera(): void {
     if (this.state() === 'sending') return;
     this.cameraMode.set('photo');
+    this.cameraOpen.set(true);
+    this.cameraError.set('');
+    this.cameraReady.set(false);
+    window.setTimeout(() => void this.startCamera(), 0);
+  }
+
+  openVideoRecorder(): void {
+    if (this.state() === 'sending') return;
+    this.cameraMode.set('video');
     this.cameraOpen.set(true);
     this.cameraError.set('');
     this.cameraReady.set(false);
@@ -2089,10 +2211,83 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     }
   }
 
+  startRecording(): void {
+    if (!this.stream || !this.cameraReady() || this.videoRecording()) return;
+    if (typeof MediaRecorder === 'undefined') {
+      this.notifications.warning('Este navegador no permite grabar video. Elige un archivo del teléfono.');
+      return;
+    }
+
+    const mimeType = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm',
+      'video/mp4',
+    ].find(type => MediaRecorder.isTypeSupported(type));
+
+    try {
+      this.mediaChunks = [];
+      this.mediaRecorder = new MediaRecorder(this.stream, mimeType ? { mimeType } : undefined);
+      this.mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) this.mediaChunks.push(event.data);
+      };
+      this.mediaRecorder.onerror = () => {
+        this.videoRecording.set(false);
+        this.notifications.warning('No se pudo grabar el video. Intenta de nuevo.');
+      };
+      this.mediaRecorder.onstop = () => this.finishRecording(mimeType ?? 'video/webm');
+      this.mediaRecorder.start(500);
+      this.videoRecording.set(true);
+      this.videoSeconds.set(0);
+      this.recordingTimer = setInterval(() => {
+        const next = this.videoSeconds() + 1;
+        this.videoSeconds.set(next);
+        if (next >= 60) this.stopRecording();
+      }, 1000);
+    } catch {
+      this.mediaRecorder = null;
+      this.notifications.warning('No se pudo iniciar la grabación. Elige un archivo del teléfono.');
+    }
+  }
+
+  stopRecording(): void {
+    if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') return;
+    this.mediaRecorder.stop();
+    this.videoRecording.set(false);
+    if (this.recordingTimer) clearInterval(this.recordingTimer);
+    this.recordingTimer = undefined;
+  }
+
+  removeVideo(id: string): void {
+    if (this.state() === 'sending') return;
+    const video = this.videos().find(item => item.id === id);
+    if (video) URL.revokeObjectURL(video.objectUrl);
+    this.videos.update(items => items.filter(item => item.id !== id));
+  }
+
   /** Abre la galería/archivos del dispositivo. */
   openFilePicker(): void {
     if (this.state() === 'sending' || this.importingPhotos()) return;
     this.fileInputRef?.nativeElement.click();
+  }
+
+  openVideoPicker(): void {
+    if (this.state() === 'sending') return;
+    this.videoInputRef?.nativeElement.click();
+  }
+
+  onVideoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []).filter(file => file.type.startsWith('video/'));
+    input.value = '';
+
+    for (const file of files) {
+      if (file.size > 120 * 1024 * 1024) {
+        this.notifications.warning(`El video ${file.name} excede 120 MB.`);
+        continue;
+      }
+      this.addVideo(file);
+    }
   }
 
   /**
@@ -2187,6 +2382,38 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     this.persistLocalPhotos();
     this.realignGalleryIndex();
     this.vibrate([8]);
+  }
+
+  formatRecordingTime(seconds: number): string {
+    const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const remaining = (seconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${remaining}`;
+  }
+
+  private finishRecording(mimeType: string): void {
+    const blob = new Blob(this.mediaChunks, { type: mimeType });
+    this.mediaChunks = [];
+    this.mediaRecorder = null;
+    if (blob.size === 0) return;
+
+    const extension = mimeType.includes('mp4') ? 'mp4' : 'webm';
+    const file = new File([blob], `campo-${this.taskId}-${crypto.randomUUID()}.${extension}`, {
+      type: mimeType,
+    });
+    this.addVideo(file);
+    this.notifications.success('Video listo para subir al guardar la captura.');
+  }
+
+  private addVideo(file: File): void {
+    const objectUrl = URL.createObjectURL(file);
+    this.videos.update(items => [
+      ...items,
+      { id: crypto.randomUUID(), file, objectUrl, uploading: false, uploaded: false, err: false },
+    ]);
+  }
+
+  private revokeVideoUrls(): void {
+    this.videos().forEach(video => URL.revokeObjectURL(video.objectUrl));
   }
 
   openGalleryByServerUrl(url: string): void {
@@ -2302,6 +2529,19 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
         );
       }
 
+      for (const video of this.videos()) {
+        if (video.uploaded) continue;
+        this.videos.update(items =>
+          items.map(item => (item.id === video.id ? { ...item, uploading: true, err: false } : item))
+        );
+
+        const response = await firstValueFrom(this.campoService.uploadVideo(current.id, video.file));
+        current = response.tarea;
+        this.videos.update(items =>
+          items.map(item => (item.id === video.id ? { ...item, uploading: false, uploaded: true } : item))
+        );
+      }
+
       // Si esta pasada no subió nada (reintento donde solo había fallado el
       // completar), `current` sigue siendo el estado con el que se abrió la
       // pantalla y su lista de fotos está vieja. Completar con esa lista
@@ -2331,6 +2571,9 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
       this.tarea.set(current);
       this.photos.update(items =>
         items.map(p => (p.uploading ? { ...p, uploading: false, err: true } : p))
+      );
+      this.videos.update(items =>
+        items.map(video => (video.uploading ? { ...video, uploading: false, err: true } : video))
       );
       this.state.set('ready');
       this.notifications.fromHttpError(err, 'No se pudo guardar la captura');
@@ -2410,7 +2653,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
             };
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: videoConstraints,
-        audio: false,
+        audio: this.cameraMode() === 'video',
       });
       if (this.cameraMode() === 'vin') {
         await this.vinScanner.prepareStream(this.stream);
@@ -2441,6 +2684,10 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   }
 
   private stopCamera(): void {
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive')
+      this.stopRecording();
+    if (this.recordingTimer) clearInterval(this.recordingTimer);
+    this.recordingTimer = undefined;
     this.vinScanSession?.stop();
     this.vinScanSession = null;
     this.stream?.getTracks().forEach(t => t.stop());
@@ -2523,6 +2770,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     localStorage.removeItem(this.photosKey(this.taskId));
     localStorage.removeItem(this.draftKey(this.taskId));
     this.photos.set([]);
+    this.revokeVideoUrls();
+    this.videos.set([]);
   }
 
   private readonly photosKey = (id: string) => `rr_campo_fotos_${id}`;

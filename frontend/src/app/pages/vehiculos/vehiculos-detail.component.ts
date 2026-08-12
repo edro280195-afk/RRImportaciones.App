@@ -49,6 +49,26 @@ import { environment } from '../../../environments/environment';
             }
           </div>
           <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              (click)="router.navigate(['/cotizaciones/nueva'], { queryParams: { vehiculoId: v.id } })"
+              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all duration-150"
+              style="background: #0D1017; color: #fff;"
+            >
+              <svg
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 stroke-2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"
+                />
+              </svg>
+              Cotizar
+            </button>
             <a
               routerLink="/vehiculos"
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-medium transition-all duration-150 no-underline"
@@ -176,13 +196,12 @@ import { environment } from '../../../environments/environment';
             </div>
           } @else {
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 p-5">
-              @for (foto of v.fotosUrls; track foto) {
-                <a
-                  [href]="fileUrl(foto)"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="group block aspect-[4/3] overflow-hidden rounded-xl border border-[#E4E7EC] bg-[#F8FAFC]"
-                  aria-label="Abrir foto del vehiculo"
+              @for (foto of v.fotosUrls; track foto; let i = $index) {
+                <button
+                  type="button"
+                  (click)="openLightbox(i)"
+                  class="group block aspect-[4/3] overflow-hidden rounded-xl border border-[#E4E7EC] bg-[#F8FAFC] p-0"
+                  aria-label="Ver foto del vehiculo en pantalla completa"
                 >
                   <img
                     [src]="fileUrl(foto)"
@@ -190,11 +209,43 @@ import { environment } from '../../../environments/environment';
                     class="h-full w-full object-cover transition-transform duration-150 group-hover:scale-[1.03]"
                     loading="lazy"
                   />
-                </a>
+                </button>
               }
             </div>
           }
         </div>
+
+        <!-- Photo lightbox (paridad con el zoom InteractiveViewer de Flutter) -->
+        @if (lightboxOpen()) {
+          <div class="veh-lightbox" (click)="closeLightbox()">
+            <div class="veh-lightbox__top" (click)="$event.stopPropagation()">
+              <div>
+                <strong>{{ v.marcaNombre }} {{ v.modeloNombre }}</strong>
+                <span>{{ v.vin }}</span>
+              </div>
+              <button type="button" class="veh-lightbox__close" (click)="closeLightbox()" aria-label="Cerrar">✕</button>
+            </div>
+            <div class="veh-lightbox__body" (click)="$event.stopPropagation()">
+              <img [src]="fileUrl(v.fotosUrls[lightboxIndex()])" alt="Foto del vehículo" />
+              @if (v.fotosUrls.length > 1) {
+                <button type="button" class="veh-lightbox__nav veh-lightbox__nav--prev" (click)="prevFoto(v)" aria-label="Anterior">‹</button>
+                <button type="button" class="veh-lightbox__nav veh-lightbox__nav--next" (click)="nextFoto(v)" aria-label="Siguiente">›</button>
+              }
+            </div>
+            <div class="veh-lightbox__thumbs" (click)="$event.stopPropagation()">
+              @for (foto of v.fotosUrls; track foto; let i = $index) {
+                <button
+                  type="button"
+                  class="veh-lightbox__thumb"
+                  [class.veh-lightbox__thumb--active]="i === lightboxIndex()"
+                  (click)="lightboxIndex.set(i)"
+                >
+                  <img [src]="fileUrl(foto)" alt="" />
+                </button>
+              }
+            </div>
+          </div>
+        }
 
         <div
           class="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-item"
@@ -430,6 +481,112 @@ import { environment } from '../../../environments/environment';
       }
     </div>
   `,
+  styles: [
+    `
+      /* ─── Photo lightbox (paridad con inventario_page.dart) ─────────── */
+      .veh-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 500;
+        background: rgba(2, 6, 23, 0.92);
+        display: flex;
+        flex-direction: column;
+      }
+      .veh-lightbox__top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: max(16px, env(safe-area-inset-top, 16px)) 16px 12px;
+        color: white;
+      }
+      .veh-lightbox__top strong {
+        display: block;
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .veh-lightbox__top span {
+        display: block;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11.5px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 2px;
+      }
+      .veh-lightbox__close {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+        border: none;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .veh-lightbox__body {
+        flex: 1;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 0;
+        padding: 0 12px;
+      }
+      .veh-lightbox__body img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
+      }
+      .veh-lightbox__nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255, 255, 255, 0.14);
+        color: white;
+        font-size: 22px;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+      .veh-lightbox__nav--prev {
+        left: 8px;
+      }
+      .veh-lightbox__nav--next {
+        right: 8px;
+      }
+      .veh-lightbox__thumbs {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 12px 16px max(16px, env(safe-area-inset-bottom, 16px));
+      }
+      .veh-lightbox__thumb {
+        flex-shrink: 0;
+        width: 52px;
+        height: 52px;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px solid transparent;
+        padding: 0;
+        cursor: pointer;
+        opacity: 0.55;
+      }
+      .veh-lightbox__thumb--active {
+        border-color: #c61d26;
+        opacity: 1;
+      }
+      .veh-lightbox__thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+    `,
+  ],
 })
 export class VehiculosDetailComponent {
   private route = inject(ActivatedRoute);
@@ -443,6 +600,8 @@ export class VehiculosDetailComponent {
   deleting = signal(false);
   savingInv = signal(false);
   inventarioSaved = signal(false);
+  lightboxOpen = signal(false);
+  lightboxIndex = signal(0);
   private currentId = '';
 
   infoItems: { label: string; value: string }[] = [];
@@ -563,5 +722,22 @@ export class VehiculosDetailComponent {
 
   fileUrl(url: string): string {
     return url.startsWith('http') ? url : `${environment.apiUrl}${url}`;
+  }
+
+  openLightbox(index: number): void {
+    this.lightboxIndex.set(index);
+    this.lightboxOpen.set(true);
+  }
+
+  closeLightbox(): void {
+    this.lightboxOpen.set(false);
+  }
+
+  nextFoto(v: VehiculoDetailDto): void {
+    this.lightboxIndex.set((this.lightboxIndex() + 1) % v.fotosUrls.length);
+  }
+
+  prevFoto(v: VehiculoDetailDto): void {
+    this.lightboxIndex.set((this.lightboxIndex() - 1 + v.fotosUrls.length) % v.fotosUrls.length);
   }
 }

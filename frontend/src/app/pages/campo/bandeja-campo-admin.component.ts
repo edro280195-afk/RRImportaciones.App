@@ -2,9 +2,9 @@ import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { CampoService, TareaCampoDto } from '../../services/campo.service';
+import { CampoService, CampoShareResponse, TareaCampoDto } from '../../services/campo.service';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
@@ -95,6 +95,12 @@ type AccionModal =
                 <button class="btn-link" (click)="abrir({ kind: 'detalle', tarea: t })">
                   Ver detalles
                 </button>
+                <button class="btn-secondary" (click)="compartirWhatsApp(t)" [disabled]="compartiendoId() === t.id">
+                  {{ compartiendoId() === t.id ? 'Preparando…' : 'WhatsApp manual' }}
+                </button>
+                <button class="btn-secondary" (click)="copiarEnlace(t)" [disabled]="compartiendoId() === t.id">
+                  Copiar enlace
+                </button>
                 <button class="btn-primary" (click)="abrir({ kind: 'asignar', tarea: t })">
                   Asignar trámite
                 </button>
@@ -157,6 +163,13 @@ type AccionModal =
                 }
               </div>
             }
+            @if (m.tarea.videosUrls.length > 0) {
+              <p class="media-summary">{{ m.tarea.videosUrls.length }} video{{ m.tarea.videosUrls.length === 1 ? '' : 's' }} opcional{{ m.tarea.videosUrls.length === 1 ? '' : 'es' }} guardado{{ m.tarea.videosUrls.length === 1 ? '' : 's' }}.</p>
+            }
+            <div class="share-actions">
+              <button class="btn-secondary" type="button" (click)="compartirWhatsApp(m.tarea)">WhatsApp manual</button>
+              <button class="btn-primary" type="button" (click)="copiarEnlace(m.tarea)">Copiar enlace de descarga</button>
+            </div>
           </div>
         </div>
       </div>
@@ -628,6 +641,8 @@ type AccionModal =
         font-size: 13px;
         color: #374151;
       }
+      .media-summary { color: #6b7280 !important; font-size: 12px !important; }
+      .share-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f3f4f6; }
       .hint {
         color: #6b7280;
         font-size: 12px;
@@ -826,6 +841,7 @@ export class BandejaCampoAdminComponent implements OnInit, OnDestroy {
 
   loading = signal(false);
   ejecutando = signal(false);
+  compartiendoId = signal<string | null>(null);
   tareas = signal<TareaCampoDto[]>([]);
   modal = signal<AccionModal | null>(null);
 
@@ -1012,6 +1028,81 @@ export class BandejaCampoAdminComponent implements OnInit, OnDestroy {
         this.notify.fromHttpError(err, 'No se pudo eliminar la foto');
       },
     });
+  }
+
+  async compartirWhatsApp(tarea: TareaCampoDto): Promise<void> {
+    this.compartiendoId.set(tarea.id);
+    try {
+      const share = await firstValueFrom(this.campoService.createShareLink(tarea.id));
+      const files = await this.prepareShareFiles(share);
+
+      if (files.length > 0 && navigator.share && navigator.canShare?.({ files })) {
+        await navigator.share({
+          title: `Fotos de ${share.vehicle}`,
+          text: share.shareText,
+          files,
+        });
+      } else {
+        if (files.length > 0) this.downloadShareFiles(files);
+        window.open(`https://wa.me/?text=${encodeURIComponent(share.shareText)}`, '_blank', 'noopener,noreferrer');
+        this.notify.info('Fotos descargadas. Adjunta los archivos en WhatsApp y envía también el enlace.');
+      }
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError'))
+        this.notify.fromHttpError(error, 'No se pudieron preparar las fotos para WhatsApp');
+    } finally {
+      this.compartiendoId.set(null);
+    }
+  }
+
+  async copiarEnlace(tarea: TareaCampoDto): Promise<void> {
+    this.compartiendoId.set(tarea.id);
+    try {
+      const share = await firstValueFrom(this.campoService.createShareLink(tarea.id));
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(share.downloadUrl);
+        this.notify.success('Enlace de descarga copiado. Es válido durante 7 días.');
+      } else {
+        this.notify.notify({
+          severity: 'info',
+          title: 'Enlace de descarga',
+          message: 'Copia este enlace y compártelo con el cliente. Es válido durante 7 días.',
+          detail: share.downloadUrl,
+          forceModal: true,
+        });
+      }
+    } catch (error) {
+      this.notify.fromHttpError(error, 'No se pudo copiar el enlace de descarga');
+    } finally {
+      this.compartiendoId.set(null);
+    }
+  }
+
+  private async prepareShareFiles(share: CampoShareResponse): Promise<File[]> {
+    const files: File[] = [];
+    for (const [index, url] of share.photoUrls.entries()) {
+      try {
+        const response = await fetch(this.fileUrl(url));
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        const extension = blob.type.split('/')[1] || 'jpeg';
+        files.push(new File([blob], `foto-${index + 1}.${extension}`, { type: blob.type || 'image/jpeg' }));
+      } catch {
+        // Si el almacenamiento no permite CORS, el enlace sigue funcionando como respaldo.
+      }
+    }
+    return files;
+  }
+
+  private downloadShareFiles(files: File[]): void {
+    for (const file of files) {
+      const url = URL.createObjectURL(file);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = file.name;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
   }
 
   onLightboxTouchStart(event: TouchEvent): void {

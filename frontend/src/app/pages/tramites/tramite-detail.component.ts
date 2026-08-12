@@ -1,4 +1,4 @@
-import { Component, computed, signal, inject, OnInit } from '@angular/core';
+import { Component, computed, HostListener, signal, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DatePipe, CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -17,7 +17,7 @@ import { environment } from '../../../environments/environment';
   standalone: true,
   imports: [DatePipe, CurrencyPipe, FormsModule],
   template: `
-    <div style="font-family: var(--font-body);">
+    <div [style]="'font-family: var(--font-body);' + (isMobile() ? ' padding-bottom: 84px;' : '')">
       <!-- Back -->
       <button
         (click)="router.navigate(['/tramites'])"
@@ -35,7 +35,7 @@ import { environment } from '../../../environments/environment';
         <!-- Header -->
         <div class="flex items-start justify-between mb-6 gap-4">
           <div>
-            <div class="flex items-center gap-3 mb-1">
+            <div class="flex items-center gap-3 mb-1 flex-wrap">
               <h1 class="text-[28px] font-bold text-[#0D1017] tracking-[-0.8px]">
                 {{ t.numeroConsecutivo }}
               </h1>
@@ -44,91 +44,131 @@ import { environment } from '../../../environments/environment';
                 [style]="estadoPill(t.estadoLogistico)"
                 >{{ t.estadoLogistico }}</span
               >
-              <span class="text-[12px] text-[#9EA3AE] font-mono-data"
-                >{{ t.diasEnEstado }} días en este estado</span
-              >
+              @if (!isMobile()) {
+                <span class="text-[12px] text-[#9EA3AE] font-mono-data"
+                  >{{ t.diasEnEstado }} días en este estado</span
+                >
+              }
             </div>
             <p class="text-[13px] text-[#6B717F]">
-              Creado {{ t.fechaCreacion | date: 'dd/MM/yyyy HH:mm' }}
+              @if (isMobile()) {
+                {{ t.diasEnEstado }} días en este estado
+              } @else {
+                Creado {{ t.fechaCreacion | date: 'dd/MM/yyyy HH:mm' }}
+              }
             </p>
           </div>
 
-          <!-- Actions -->
-          <div class="flex items-center gap-2 flex-wrap">
-            <button
-              (click)="openPortal(t.id)"
-              class="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-[#FFF1F1] text-[#A31820] border border-[#FFC5C5] hover:bg-[#FFE0E0] transition-colors"
-            >
-              Portal cliente
-            </button>
-            @if (!esTerminal(t.estadoLogistico)) {
-              @if (auth.can('TRAMITES_EDITAR') && esFinalizable(t.estadoLogistico)) {
-                <button
-                  (click)="showFinalizarModal = true"
-                  class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-[#16A34A] text-white hover:bg-[#15803D] transition-colors shadow-sm"
-                >
-                  <svg
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    class="w-3.5 h-3.5 stroke-2"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  Entregar vehículo
-                </button>
+          @if (isMobile()) {
+            <!-- Mobile: menú de acciones secundarias (paridad con el patrón compacto de Flutter) -->
+            <div class="relative shrink-0">
+              <button
+                type="button"
+                class="w-10 h-10 rounded-xl border border-[#E4E7EC] grid place-items-center text-[#1E2330]"
+                (click)="mobMenuOpen.set(!mobMenuOpen())"
+                aria-label="Más opciones"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="5" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="12" cy="19" r="1.7" />
+                </svg>
+              </button>
+              @if (mobMenuOpen()) {
+                <div class="absolute right-0 top-11 z-40 w-64 bg-white border border-[#E4E7EC] rounded-xl shadow-lg p-1.5" (mouseleave)="mobMenuOpen.set(false)">
+                  <button type="button" class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-semibold text-[#A31820] hover:bg-[#FFF1F1]" (click)="mobMenuOpen.set(false); openPortal(t.id)">
+                    Portal cliente
+                  </button>
+                  @if (!esTerminal(t.estadoLogistico) && auth.can('TRAMITES_EDITAR')) {
+                    <button type="button" class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium text-[#1E2330] hover:bg-[#F8FAFC] disabled:opacity-40" [disabled]="hasPedimento(t)" (click)="mobMenuOpen.set(false); showPedimento = true">
+                      {{ hasPedimento(t) ? 'Pedimento listo ✓' : '+ Pedimento' }}
+                    </button>
+                    <button type="button" class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium text-[#1E2330] hover:bg-[#F8FAFC] disabled:opacity-40" [disabled]="hasEntrega(t)" (click)="mobMenuOpen.set(false); showEntrega = true">
+                      {{ hasEntrega(t) ? 'Entrega lista ✓' : '+ Entrega' }}
+                    </button>
+                    @if (hasCampo(t)) {
+                      <div class="px-3 py-2 text-[12px] font-semibold text-[#A31820]">Campo listo</div>
+                    }
+                  }
+                </div>
               }
-              @if (auth.can('TRAMITES_EDITAR')) {
-                <button
-                  (click)="showCambiarEstado = true"
-                  class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#0D1017] text-white hover:bg-[#1E2330] transition-colors"
-                >
-                  Cambiar estado
-                </button>
-                <button
-                  (click)="showPedimento = true"
-                  [disabled]="hasPedimento(t)"
-                  class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors disabled:opacity-45"
-                  [title]="
-                    hasPedimento(t)
-                      ? 'Este trámite ya tiene pedimento registrado'
-                      : 'Agregar pedimento'
-                  "
-                >
-                  {{ hasPedimento(t) ? 'Pedimento listo' : '+ Pedimento' }}
-                </button>
-                <button
-                  (click)="showEntrega = true"
-                  [disabled]="hasEntrega(t)"
-                  class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors disabled:opacity-45"
-                  [title]="
-                    hasEntrega(t) ? 'Este trámite ya tiene entrega registrada' : 'Registrar entrega'
-                  "
-                >
-                  {{ hasEntrega(t) ? 'Entrega lista' : '+ Entrega' }}
-                </button>
-                @if (hasCampo(t)) {
-                  <span
-                    class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#FFF1F1] text-[#A31820] border border-[#FFC5C5]"
+            </div>
+          } @else {
+            <!-- Actions (desktop) -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <button
+                (click)="openPortal(t.id)"
+                class="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-[#FFF1F1] text-[#A31820] border border-[#FFC5C5] hover:bg-[#FFE0E0] transition-colors"
+              >
+                Portal cliente
+              </button>
+              @if (!esTerminal(t.estadoLogistico)) {
+                @if (auth.can('TRAMITES_EDITAR') && esFinalizable(t.estadoLogistico)) {
+                  <button
+                    (click)="showFinalizarModal = true"
+                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-[#16A34A] text-white hover:bg-[#15803D] transition-colors shadow-sm"
                   >
-                    Campo listo
-                  </span>
+                    <svg
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      class="w-3.5 h-3.5 stroke-2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    Entregar vehículo
+                  </button>
+                }
+                @if (auth.can('TRAMITES_EDITAR')) {
+                  <button
+                    (click)="showCambiarEstado = true"
+                    class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#0D1017] text-white hover:bg-[#1E2330] transition-colors"
+                  >
+                    Cambiar estado
+                  </button>
+                  <button
+                    (click)="showPedimento = true"
+                    [disabled]="hasPedimento(t)"
+                    class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors disabled:opacity-45"
+                    [title]="
+                      hasPedimento(t)
+                        ? 'Este trámite ya tiene pedimento registrado'
+                        : 'Agregar pedimento'
+                    "
+                  >
+                    {{ hasPedimento(t) ? 'Pedimento listo' : '+ Pedimento' }}
+                  </button>
+                  <button
+                    (click)="showEntrega = true"
+                    [disabled]="hasEntrega(t)"
+                    class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors disabled:opacity-45"
+                    [title]="
+                      hasEntrega(t) ? 'Este trámite ya tiene entrega registrada' : 'Registrar entrega'
+                    "
+                  >
+                    {{ hasEntrega(t) ? 'Entrega lista' : '+ Entrega' }}
+                  </button>
+                  @if (hasCampo(t)) {
+                    <span
+                      class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#FFF1F1] text-[#A31820] border border-[#FFC5C5]"
+                    >
+                      Campo listo
+                    </span>
+                  }
+                }
+                @if (auth.can('EVENTOS_CREAR')) {
+                  <button
+                    (click)="showNota = true"
+                    class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors"
+                  >
+                    + Nota
+                  </button>
                 }
               }
-              @if (auth.can('EVENTOS_CREAR')) {
-                <button
-                  (click)="showNota = true"
-                  class="px-3.5 py-2 rounded-xl text-[12px] font-medium bg-[#F3F4F6] text-[#4B5162] border border-[#E4E7EC] hover:bg-[#E4E7EC] transition-colors"
-                >
-                  + Nota
-                </button>
-              }
-            }
-          </div>
+            </div>
+          }
         </div>
 
         <!-- Banner estado terminal -->
@@ -934,6 +974,43 @@ import { environment } from '../../../environments/environment';
         </div>
       }
 
+      @if (isMobile()) {
+        @if (tramite(); as t) {
+          <!-- Barra de acción inferior móvil (paridad con el bottomNavigationBar de Flutter) -->
+          <div
+            class="fixed left-0 right-0 bottom-0 z-50 flex items-center gap-3 px-4 py-3 bg-white border-t border-[#E4E7EC]"
+            style="padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));"
+          >
+            @if (!esTerminal(t.estadoLogistico) && auth.can('TRAMITES_EDITAR')) {
+              <button
+                type="button"
+                class="flex-1 h-12 rounded-xl text-[13.5px] font-bold border border-[#E4E7EC] text-[#1E2330] bg-white"
+                (click)="showCambiarEstado = true"
+              >
+                Cambiar estado
+              </button>
+            }
+            @if (!esTerminal(t.estadoLogistico) && auth.can('TRAMITES_EDITAR') && esFinalizable(t.estadoLogistico)) {
+              <button
+                type="button"
+                class="flex-1 h-12 rounded-xl text-[13.5px] font-bold text-white bg-[#16A34A]"
+                (click)="showFinalizarModal = true"
+              >
+                Entregar vehículo
+              </button>
+            } @else if (!esTerminal(t.estadoLogistico) && auth.can('EVENTOS_CREAR')) {
+              <button
+                type="button"
+                class="flex-1 h-12 rounded-xl text-[13.5px] font-bold text-white bg-[#C61D26]"
+                (click)="showNota = true"
+              >
+                + Nota
+              </button>
+            }
+          </div>
+        }
+      }
+
       <!-- Modal: Cambiar estado -->
       @if (showCambiarEstado) {
         <div
@@ -1625,6 +1702,15 @@ export class TramiteDetailComponent implements OnInit {
   tramite = signal<TramiteDetailDto | null>(null);
   activeTab = signal('timeline');
   estadosPermitidos: string[] = [];
+
+  /** Breakpoint móvil, igual convención que app-layout.component.ts. */
+  isMobile = signal(window.innerWidth < 768);
+  mobMenuOpen = signal(false);
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.isMobile.set(window.innerWidth < 768);
+  }
 
   showCambiarEstado = false;
   showPedimento = false;

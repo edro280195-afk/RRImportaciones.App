@@ -22,6 +22,7 @@ public class TareaCampoDto
     public string? Ubicacion { get; set; }
     public string? VinConfirmado { get; set; }
     public string[] FotosUrls { get; set; } = [];
+    public string[] VideosUrls { get; set; } = [];
     public string? Incidencia { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime? FechaTomada { get; set; }

@@ -193,6 +193,26 @@ public class CotizacionesController : ControllerBase
         }
     }
 
+    [HttpPut("{id:guid}/cliente")]
+    [RequierePermiso(Permisos.CotizacionesEditar)]
+    public async Task<IActionResult> AssignClient(
+        Guid id,
+        [FromBody] AsignarClienteCotizacionRequest request)
+    {
+        try
+        {
+            return Ok(await _cotizador.AsignarClienteAsync(id, request.ClienteId));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("{id:guid}/marcar-enviada")]
     [RequierePermiso(Permisos.CotizacionesEditar)]
     public async Task<IActionResult> MarcarEnviada(Guid id, [FromBody] MarcarEnviadaRequest request)

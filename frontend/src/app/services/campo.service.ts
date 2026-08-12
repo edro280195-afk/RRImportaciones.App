@@ -23,10 +23,22 @@ export interface TareaCampoDto {
   ubicacion: string | null;
   vinConfirmado: string | null;
   fotosUrls: string[];
+  videosUrls: string[];
   incidencia: string | null;
   fechaCreacion: string;
   fechaTomada: string | null;
   fechaCompletada: string | null;
+}
+
+export interface CampoShareResponse {
+  id: string;
+  vehicle: string;
+  vin: string | null;
+  downloadUrl: string;
+  shareText: string;
+  expiresAt: string;
+  photoUrls: string[];
+  videoUrls: string[];
 }
 
 import { environment } from '../../environments/environment';
@@ -101,6 +113,19 @@ export class CampoService {
       `${this.baseUrl}/tareas/${id}/fotos`,
       form
     );
+  }
+
+  uploadVideo(id: string, file: File): Observable<{ videoUrl: string; tarea: TareaCampoDto }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<{ videoUrl: string; tarea: TareaCampoDto }>(
+      `${this.baseUrl}/tareas/${id}/videos`,
+      form
+    );
+  }
+
+  createShareLink(id: string): Observable<CampoShareResponse> {
+    return this.http.get<CampoShareResponse>(`${this.baseUrl}/tareas/${id}/compartir`);
   }
 
   deleteFoto(id: string, fotoUrl: string): Observable<TareaCampoDto> {

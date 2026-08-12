@@ -14,6 +14,7 @@ public class TareaCampo : ITenantEntity
     public string? Ubicacion { get; set; }
     public string? VinConfirmado { get; set; }
     public string[] FotosUrls { get; set; } = [];
+    public string[] VideosUrls { get; set; } = [];
     public string? Incidencia { get; set; }
     /// <summary>Descripción libre del vehículo para pre-inspecciones sin trámite.</summary>
     public string? DescripcionVehiculo { get; set; }

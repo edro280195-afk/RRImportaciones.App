@@ -57,5 +57,28 @@ void main() {
         '3FA6P0LU7HR105186',
       );
     });
+
+    test(
+      'corrige confusiones OCR I, O y Q cuando el VIN sigue siendo valido',
+      () {
+        expect(extractVinFromOcrLine('3FA6P0LU7HRI05186'), '3FA6P0LU7HR105186');
+      },
+    );
+
+    test(
+      'recupera un caracter adicional de OCR usando el digito verificador',
+      () {
+        expect(
+          extractVinFromOcrLine('3FA6P0LU7XHR105186'),
+          '3FA6P0LU7HR105186',
+        );
+      },
+    );
+
+    test('genera candidatos cuando OCR omitio un caracter', () {
+      final candidates = extractVinCandidatesFromOcrLine('3FA6P0LU7R105186');
+
+      expect(candidates, contains('3FA6P0LU7HR105186'));
+    });
   });
 }

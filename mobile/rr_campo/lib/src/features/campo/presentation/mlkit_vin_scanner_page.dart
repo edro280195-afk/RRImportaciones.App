@@ -11,7 +11,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import '../domain/vin_parser.dart';
 import '../domain/vin_scan_consensus.dart';
 
-enum _ScannerMode { barcode, text }
+enum _ScannerMode { smart, barcode, text }
 
 typedef VinScannerValidator =
     Future<VinScannerValidationResult> Function(String vin);
@@ -43,9 +43,12 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     with WidgetsBindingObserver {
   static const _brandRed = Color(0xFFC61D26);
   static const _surfaceDark = Color(0xFF0D1017);
-  static const _scanAmber = Color(0xFFF59E0B);
   static const _scanBlue = Color(0xFF38BDF8);
   static const _scanGreen = Color(0xFF32D583);
+  static const _ocrInterval = Duration(milliseconds: 280);
+  static const _ocrIntervalWithBarcodeSignal = Duration(milliseconds: 460);
+  static const _highResolutionCaptureDelay = Duration(milliseconds: 900);
+  static const _highResolutionCaptureCooldown = Duration(milliseconds: 2600);
   static const _orientations = {
     DeviceOrientation.portraitUp: 0,
     DeviceOrientation.landscapeLeft: 90,
@@ -54,15 +57,9 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
   };
 
   final _barcodeScanner = BarcodeScanner(
-    formats: [
-      BarcodeFormat.code39,
-      BarcodeFormat.code93,
-      BarcodeFormat.code128,
-      BarcodeFormat.dataMatrix,
-      BarcodeFormat.pdf417,
-      BarcodeFormat.qrCode,
-      BarcodeFormat.aztec,
-    ],
+    // Las etiquetas de vehículos no usan un único estándar. ML Kit puede
+    // identificar todos los formatos soportados y el parser filtrará el VIN.
+    formats: [BarcodeFormat.all],
     enableAllPotentialBarcodes: true,
     maxZoomRatio: 5,
   );
@@ -70,17 +67,15 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
 
   CameraDescription? _camera;
   CameraController? _controller;
+  Future<void> _cameraOperation = Future<void>.value();
+  int _cameraRequestId = 0;
+  bool _initializingCamera = false;
   DateTime _lastOcrAt = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastDetectionFocusAt = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastAutoZoomAt = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastDetectionAt = DateTime.fromMillisecondsSinceEpoch(0);
   final _stabilityLock = VinStabilityLock();
-  final _barcodeLock = VinStabilityLock(
-    window: const Duration(milliseconds: 900),
-    minVotes: 2,
-    strongVotes: 1,
-  );
-  _ScannerMode _mode = _ScannerMode.barcode;
+  _ScannerMode _mode = _ScannerMode.smart;
   bool _cameraReady = false;
   bool _processingFrame = false;
   bool _finishing = false;
@@ -94,7 +89,12 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
   Offset? _focusPoint;
   Timer? _focusTimer;
   Timer? _detectionTimer;
+  Timer? _highResolutionTimer;
   _ScanDetection? _activeDetection;
+  DateTime _lastHighResolutionCaptureAt = DateTime.fromMillisecondsSinceEpoch(
+    0,
+  );
+  bool _highResolutionCaptureInFlight = false;
   double _minZoom = 1;
   double _maxZoom = 1;
   double _zoomLevel = 1;
@@ -122,9 +122,11 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
 
   @override
   void dispose() {
+    _finishing = true;
     WidgetsBinding.instance.removeObserver(this);
     _focusTimer?.cancel();
     _detectionTimer?.cancel();
+    _highResolutionTimer?.cancel();
     unawaited(_disposeCamera());
     unawaited(_barcodeScanner.close());
     unawaited(_textRecognizer.close());
@@ -220,6 +222,33 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
                             status: _status,
                             detection: _activeDetection,
                           ),
+                          if (_mode != _ScannerMode.barcode) ...[
+                            const SizedBox(height: 4),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed:
+                                    _cameraReady &&
+                                        !_highResolutionCaptureInFlight
+                                    ? () => unawaited(
+                                        _captureHighResolutionText(),
+                                      )
+                                    : null,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white70,
+                                  disabledForegroundColor: Colors.white30,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.photo_camera_outlined,
+                                  size: 17,
+                                ),
+                                label: const Text('Captura precisa'),
+                              ),
+                            ),
+                          ],
                         ],
                       ],
                     ),
@@ -240,10 +269,18 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     );
   }
 
-  Future<void> _initializeCamera() async {
-    if (_controller != null || _finishing) return;
+  Future<void> _initializeCamera() {
+    return _enqueueCameraOperation(_initializeCameraNow);
+  }
+
+  Future<void> _initializeCameraNow() async {
+    if (_controller != null || _initializingCamera || _finishing) return;
+
+    final requestId = ++_cameraRequestId;
+    _initializingCamera = true;
 
     _setStatus('Preparando cámara...');
+    CameraController? controller;
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -255,9 +292,12 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
         (item) => item.lensDirection == CameraLensDirection.back,
         orElse: () => cameras.first,
       );
-      final controller = CameraController(
+      controller = CameraController(
         camera,
-        ResolutionPreset.high,
+        // 1080p deja más píxeles por carácter para etiquetas pequeñas. ML Kit
+        // puede descartar frames mientras termina el OCR, y la captura HD
+        // utiliza el mismo sensor sin llevar el stream a resolución 4K.
+        ResolutionPreset.veryHigh,
         enableAudio: false,
         imageFormatGroup: Platform.isAndroid
             ? ImageFormatGroup.nv21
@@ -265,8 +305,13 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
       );
 
       _camera = camera;
-      _controller = controller;
       await controller.initialize();
+
+      if (!mounted || _finishing || requestId != _cameraRequestId) {
+        await controller.dispose();
+        return;
+      }
+
       await controller.setFocusMode(FocusMode.auto).catchError((_) {});
       await controller.setExposureMode(ExposureMode.auto).catchError((_) {});
 
@@ -283,20 +328,30 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
       await controller.setZoomLevel(initialZoom).catchError((_) {});
       await controller.startImageStream(_processCameraImage);
 
-      if (!mounted) {
+      if (!mounted || _finishing || requestId != _cameraRequestId) {
         await controller.dispose();
         return;
       }
+
+      _controller = controller;
       setState(() {
         _cameraReady = true;
         _status = _statusForMode(_mode);
       });
     } on CameraException catch (error) {
-      _controller = null;
-      _setStatus(_cameraErrorMessage(error));
+      if (requestId == _cameraRequestId) {
+        _controller = null;
+        _setStatus(_cameraErrorMessage(error));
+      }
     } catch (_) {
-      _controller = null;
-      _setStatus('No se pudo abrir la cámara. Revisa los permisos.');
+      if (requestId == _cameraRequestId) {
+        _controller = null;
+        _setStatus('No se pudo abrir la cámara. Revisa los permisos.');
+      }
+    } finally {
+      if (requestId == _cameraRequestId) {
+        _initializingCamera = false;
+      }
     }
   }
 
@@ -309,7 +364,13 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     };
   }
 
-  Future<void> _disposeCamera({bool updateUi = false}) async {
+  Future<void> _disposeCamera({bool updateUi = false}) {
+    return _enqueueCameraOperation(() => _disposeCameraNow(updateUi: updateUi));
+  }
+
+  Future<void> _disposeCameraNow({bool updateUi = false}) async {
+    _cameraRequestId++;
+    _initializingCamera = false;
     final controller = _controller;
     _controller = null;
     if (updateUi && mounted) {
@@ -329,6 +390,21 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     }
 
     await controller.dispose().catchError((_) {});
+  }
+
+  /// Serializa la inicialización y el cierre de la cámara.
+  ///
+  /// Android puede emitir varios eventos inactive/resumed mientras cambia la
+  /// orientación. Si cada evento abre o cierra la cámara por separado, una
+  /// inicialización vieja puede terminar después de la nueva y dejar el
+  /// escáner sin stream o con un controlador inválido.
+  Future<void> _enqueueCameraOperation(Future<void> Function() operation) {
+    final next = _cameraOperation.then(
+      (_) => operation(),
+      onError: (Object error, StackTrace stackTrace) => operation(),
+    );
+    _cameraOperation = next.catchError((_) {});
+    return next;
   }
 
   Future<void> _toggleTorch() async {
@@ -367,16 +443,21 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     if (_mode == mode) return;
     _stabilityLock.reset();
     _detectionTimer?.cancel();
+    _highResolutionTimer?.cancel();
+    _highResolutionTimer = null;
+    _lastOcrAt = DateTime.fromMillisecondsSinceEpoch(0);
     setState(() {
       _mode = mode;
       _activeDetection = null;
       _status = _statusForMode(mode);
     });
     _stabilityLock.reset();
-    _barcodeLock.reset();
   }
 
   String _statusForMode(_ScannerMode mode) {
+    if (mode == _ScannerMode.smart) {
+      return 'Apunta al código o al VIN impreso';
+    }
     return mode == _ScannerMode.barcode
         ? 'Apunta al código de barras del VIN'
         : 'Apunta únicamente al VIN impreso';
@@ -394,13 +475,27 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     try {
       if (_mode == _ScannerMode.barcode) {
         await _processBarcodeFrame(preparedImage);
-      } else {
+      } else if (_mode == _ScannerMode.text) {
         // El OCR corre de forma continua (igual que en PMMovil). Un throttle
         // pequeño solo evita saturar la CPU; la decisión la toma la votación.
         final now = DateTime.now();
-        if (now.difference(_lastOcrAt).inMilliseconds < 120) return;
+        if (now.difference(_lastOcrAt) < _ocrInterval) return;
         _lastOcrAt = now;
         await _processTextFrame(preparedImage);
+      } else {
+        final barcodeSignal = await _processBarcodeFrame(preparedImage);
+        if (_mode != _ScannerMode.smart || _detectedVin != null) return;
+
+        final now = DateTime.now();
+        final ocrInterval = barcodeSignal
+            ? _ocrIntervalWithBarcodeSignal
+            : _ocrInterval;
+        if (now.difference(_lastOcrAt) < ocrInterval) return;
+        _lastOcrAt = now;
+        await _processTextFrame(
+          preparedImage,
+          preserveBarcodeStatus: barcodeSignal,
+        );
       }
     } catch (_) {
       _setStatus('Mantén la etiqueta visible mientras se enfoca.');
@@ -409,11 +504,13 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     }
   }
 
-  Future<void> _processBarcodeFrame(_PreparedInputImage prepared) async {
+  Future<bool> _processBarcodeFrame(_PreparedInputImage prepared) async {
     final scanResult = await _barcodeScanner.processImageWithResult(
       prepared.inputImage,
     );
-    if (_mode != _ScannerMode.barcode) return;
+    if (_mode != _ScannerMode.barcode && _mode != _ScannerMode.smart) {
+      return false;
+    }
 
     // ML Kit puede sugerir un zoom para acercar un código que ve lejano.
     final suggestedZoom = scanResult.zoomSuggestion;
@@ -424,6 +521,7 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     _ScanDetection? potential;
     Rect? potentialBox;
     var shortestDistance = double.infinity;
+    final preferredVin = _bestBarcodeVin(scanResult.barcodes, prepared);
 
     for (final barcode in scanResult.barcodes) {
       final rawText = barcode.rawValue ?? barcode.displayValue ?? '';
@@ -442,8 +540,9 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
       );
 
       if (vin != null) {
+        if (vin != preferredVin) continue;
         final strong = hasValidVinCheckDigit(vin);
-        final locked = _barcodeLock.offer(
+        final locked = _stabilityLock.offer(
           vin: vin,
           strong: strong,
           now: DateTime.now(),
@@ -456,11 +555,11 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
 
         if (locked != null) {
           await _onVinDetected(locked, detection);
-          return;
+          return true;
         }
 
         _setStatus('Mantén el código estable...');
-        return;
+        return true;
       }
 
       if (bounds.isEmpty) continue;
@@ -484,7 +583,9 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     } else {
       _maybeZoomOutWhenIdle();
       _setStatus(_statusForMode(_mode));
+      return false;
     }
+    return true;
   }
 
   Rect _barcodeBounds(Barcode barcode) {
@@ -505,21 +606,73 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     return cornerBounds.isEmpty ? barcode.boundingBox : cornerBounds;
   }
 
+  String? _bestBarcodeVin(
+    List<Barcode> barcodes,
+    _PreparedInputImage prepared,
+  ) {
+    String? bestVin;
+    var bestScore = double.negativeInfinity;
+
+    for (final barcode in barcodes) {
+      final rawText = barcode.rawValue ?? barcode.displayValue ?? '';
+      final vin = extractVinFromBarcode(rawText);
+      if (vin == null) continue;
+
+      final detection = _ScanDetection(
+        bounds: _barcodeBounds(barcode),
+        imageSize: prepared.imageSize,
+        rotation: prepared.rotation,
+        label: '',
+        source: VinScanSource.barcode,
+        vin: vin,
+      );
+      final coordinateSize = detection.coordinateSize;
+      final distance =
+          (detection.bounds.center -
+                  Offset(coordinateSize.width / 2, coordinateSize.height / 2))
+              .distance;
+      final longestSide = coordinateSize.longestSide;
+      final centerScore = longestSide == 0
+          ? 0.0
+          : 1 - (distance / longestSide).clamp(0.0, 1.0);
+      final area = detection.bounds.width * detection.bounds.height;
+      final normalizedArea = coordinateSize.isEmpty
+          ? 0.0
+          : area / (coordinateSize.width * coordinateSize.height);
+      final score =
+          (hasValidVinCheckDigit(vin) ? 100.0 : 0.0) +
+          centerScore * 5 +
+          normalizedArea.clamp(0.0, 1.0);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestVin = vin;
+      }
+    }
+
+    return bestVin;
+  }
+
   Future<void> _applyMlKitZoom(double suggestedZoom) async {
     final targetZoom = suggestedZoom.clamp(_minZoom, _maxZoom).toDouble();
     if ((targetZoom - _zoomLevel).abs() < 0.05) return;
     await _setZoomLevel(targetZoom);
   }
 
-  Future<void> _processTextFrame(_PreparedInputImage prepared) async {
+  Future<void> _processTextFrame(
+    _PreparedInputImage prepared, {
+    bool preserveBarcodeStatus = false,
+  }) async {
     final recognizedText = await _textRecognizer.processImage(
       prepared.inputImage,
     );
-    if (_mode != _ScannerMode.text) return;
+    if (_mode != _ScannerMode.text && _mode != _ScannerMode.smart) return;
 
     final detection = _bestVinDetection(recognizedText, prepared);
     if (detection == null) {
-      _setStatus(_statusForMode(_mode));
+      if (!preserveBarcodeStatus) {
+        _setStatus(_statusForMode(_mode));
+      }
       return;
     }
 
@@ -538,6 +691,8 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
       return;
     }
 
+    if (!strong) _scheduleHighResolutionCapture();
+
     final required = strong ? 2 : 3;
     final votes = _stabilityLock.votesFor(vin).clamp(0, required);
     _setStatus('Leyendo VIN $votes/$required...');
@@ -553,37 +708,148 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     _ScanDetection? best;
     var bestScore = -1.0;
 
-    for (final block in recognizedText.blocks) {
-      for (final line in block.lines) {
-        final vin = extractVinFromOcrLine(line.text);
-        if (vin == null) continue;
+    for (final candidate in _ocrVinCandidates(recognizedText)) {
+      final detection = _ScanDetection(
+        bounds: candidate.bounds,
+        imageSize: prepared.imageSize,
+        rotation: prepared.rotation,
+        label: 'Texto VIN',
+        source: VinScanSource.ocr,
+        vin: candidate.vin,
+      );
 
-        final detection = _ScanDetection(
-          bounds: line.boundingBox,
-          imageSize: prepared.imageSize,
-          rotation: prepared.rotation,
-          label: 'Texto VIN',
-          source: VinScanSource.ocr,
-          vin: vin,
-        );
-
-        final coordinateSize = detection.coordinateSize;
-        final longestSide = coordinateSize.longestSide;
-        final distance =
-            (line.boundingBox.center -
-                    Offset(coordinateSize.width / 2, coordinateSize.height / 2))
-                .distance;
-        final centerScore = longestSide == 0
-            ? 0.0
-            : 1 - (distance / longestSide).clamp(0.0, 1.0);
-        final score = (hasValidVinCheckDigit(vin) ? 1.0 : 0.0) + centerScore;
-        if (score > bestScore) {
-          bestScore = score;
-          best = detection;
-        }
+      final coordinateSize = detection.coordinateSize;
+      final longestSide = coordinateSize.longestSide;
+      final distance =
+          (candidate.bounds.center -
+                  Offset(coordinateSize.width / 2, coordinateSize.height / 2))
+              .distance;
+      final centerScore = longestSide == 0
+          ? 0.0
+          : 1 - (distance / longestSide).clamp(0.0, 1.0);
+      final score =
+          (hasValidVinCheckDigit(candidate.vin) ? 4.0 : 0.0) +
+          (candidate.compactLength == 17 ? 1.0 : 0.0) +
+          (candidate.confidence * 2) +
+          centerScore;
+      if (score > bestScore) {
+        bestScore = score;
+        best = detection;
       }
     }
     return best;
+  }
+
+  String? _bestVinFromRecognizedText(RecognizedText recognizedText) {
+    String? bestVin;
+    var bestScore = -1.0;
+
+    for (final candidate in _ocrVinCandidates(recognizedText)) {
+      final score =
+          (hasValidVinCheckDigit(candidate.vin) ? 4.0 : 0.0) +
+          (candidate.compactLength == 17 ? 1.0 : 0.0) +
+          (candidate.confidence * 2);
+      if (score > bestScore) {
+        bestScore = score;
+        bestVin = candidate.vin;
+      }
+    }
+
+    return bestVin;
+  }
+
+  List<_OcrVinCandidate> _ocrVinCandidates(RecognizedText recognizedText) {
+    final candidates = <_OcrVinCandidate>[];
+
+    for (final block in recognizedText.blocks) {
+      final lines = block.lines;
+      for (var index = 0; index < lines.length; index++) {
+        final line = lines[index];
+        _addOcrVinCandidates(
+          candidates,
+          text: line.text,
+          bounds: line.boundingBox,
+          confidence: line.confidence ?? 0.5,
+        );
+
+        final elementText = line.elements.map((element) => element.text).join();
+        if (elementText.isNotEmpty && elementText != line.text) {
+          _addOcrVinCandidates(
+            candidates,
+            text: elementText,
+            bounds: line.boundingBox,
+            confidence: line.confidence ?? 0.5,
+          );
+        }
+
+        if (index + 1 < lines.length) {
+          final nextLine = lines[index + 1];
+          _addOcrVinCandidates(
+            candidates,
+            text: '${line.text} ${nextLine.text}',
+            bounds: _unionRects([line.boundingBox, nextLine.boundingBox]),
+            confidence:
+                ((line.confidence ?? 0.5) + (nextLine.confidence ?? 0.5)) / 2,
+          );
+        }
+      }
+
+      if (lines.isNotEmpty) {
+        _addOcrVinCandidates(
+          candidates,
+          text: block.text,
+          bounds: _unionRects(lines.map((line) => line.boundingBox)),
+          confidence:
+              lines
+                  .map((line) => line.confidence ?? 0.5)
+                  .fold<double>(0, (sum, value) => sum + value) /
+              lines.length,
+        );
+      }
+    }
+
+    return candidates;
+  }
+
+  void _addOcrVinCandidates(
+    List<_OcrVinCandidate> candidates, {
+    required String text,
+    required Rect bounds,
+    required double confidence,
+  }) {
+    final compactLength = text.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').length;
+    for (final vin in extractVinCandidatesFromOcrLine(text)) {
+      if (candidates.any(
+        (candidate) => candidate.vin == vin && candidate.bounds == bounds,
+      )) {
+        continue;
+      }
+      candidates.add(
+        _OcrVinCandidate(
+          vin: vin,
+          bounds: bounds,
+          confidence: confidence.clamp(0.0, 1.0),
+          compactLength: compactLength,
+        ),
+      );
+    }
+  }
+
+  Rect _unionRects(Iterable<Rect> rects) {
+    final values = rects.where((rect) => !rect.isEmpty).toList();
+    if (values.isEmpty) return Rect.zero;
+
+    var left = values.first.left;
+    var top = values.first.top;
+    var right = values.first.right;
+    var bottom = values.first.bottom;
+    for (final rect in values.skip(1)) {
+      left = math.min(left, rect.left);
+      top = math.min(top, rect.top);
+      right = math.max(right, rect.right);
+      bottom = math.max(bottom, rect.bottom);
+    }
+    return Rect.fromLTRB(left, top, right, bottom);
   }
 
   String _barcodeFormatLabel(BarcodeFormat format) {
@@ -609,7 +875,7 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     if (mounted) {
       setState(() => _activeDetection = smoothed);
     }
-    _detectionTimer = Timer(const Duration(milliseconds: 900), () {
+    _detectionTimer = Timer(const Duration(milliseconds: 1400), () {
       if (!mounted || _detectedVin != null) return;
       setState(() => _activeDetection = null);
     });
@@ -666,6 +932,131 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
     if (now.difference(_lastAutoZoomAt).inMilliseconds < 600) return;
     _lastAutoZoomAt = now;
     unawaited(_setZoomLevel(1.0.clamp(_minZoom, _maxZoom).toDouble()));
+  }
+
+  void _scheduleHighResolutionCapture() {
+    if (_mode == _ScannerMode.barcode || _finishing || _detectedVin != null) {
+      return;
+    }
+    if (_highResolutionCaptureInFlight || _highResolutionTimer != null) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (now.difference(_lastHighResolutionCaptureAt) <
+        _highResolutionCaptureCooldown) {
+      return;
+    }
+
+    _highResolutionTimer = Timer(_highResolutionCaptureDelay, () {
+      _highResolutionTimer = null;
+      unawaited(_captureHighResolutionText());
+    });
+  }
+
+  Future<void> _captureHighResolutionText() async {
+    if (_highResolutionCaptureInFlight ||
+        _finishing ||
+        _detectedVin != null ||
+        _mode == _ScannerMode.barcode) {
+      return;
+    }
+
+    final controller = _controller;
+    if (controller == null ||
+        !_cameraReady ||
+        controller.value.isTakingPicture) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (now.difference(_lastHighResolutionCaptureAt) <
+        _highResolutionCaptureCooldown) {
+      return;
+    }
+
+    _highResolutionCaptureInFlight = true;
+    _lastHighResolutionCaptureAt = now;
+    var shouldResumeStream = false;
+    String? capturedPath;
+
+    try {
+      if (controller.value.isStreamingImages) {
+        await controller.stopImageStream();
+        shouldResumeStream = true;
+      }
+
+      if (!mounted || _finishing || _detectedVin != null) return;
+
+      _setStatus('Capturando el VIN con mayor detalle...');
+      await controller.setFocusMode(FocusMode.auto).catchError((_) {});
+      await controller.setExposureMode(ExposureMode.auto).catchError((_) {});
+      await controller.setFocusPoint(const Offset(0.5, 0.5)).catchError((_) {});
+      await controller
+          .setExposurePoint(const Offset(0.5, 0.5))
+          .catchError((_) {});
+      await Future<void>.delayed(const Duration(milliseconds: 220));
+
+      final photo = await controller.takePicture();
+      capturedPath = photo.path;
+      final recognizedText = await _textRecognizer.processImage(
+        InputImage.fromFilePath(photo.path),
+      );
+
+      if (!mounted || _finishing || _detectedVin != null) return;
+
+      final vin = _bestVinFromRecognizedText(recognizedText);
+      if (vin == null) {
+        _setStatus('Acerca el VIN y mantén el teléfono estable...');
+        return;
+      }
+
+      final strong = hasValidVinCheckDigit(vin);
+      final locked = _stabilityLock.offer(
+        vin: vin,
+        strong: strong,
+        now: DateTime.now(),
+      );
+      if (locked == null) {
+        final required = strong ? 2 : 3;
+        final votes = _stabilityLock.votesFor(vin).clamp(0, required);
+        _setStatus('Validando captura HD $votes/$required...');
+        return;
+      }
+
+      final detection = _ScanDetection(
+        bounds: Rect.zero,
+        imageSize: Size.zero,
+        rotation: InputImageRotation.rotation0deg,
+        label: 'Captura precisa',
+        source: VinScanSource.ocr,
+        vin: vin,
+      );
+      await _onVinDetected(locked, detection);
+    } catch (_) {
+      if (mounted && _detectedVin == null) {
+        _setStatus('No se pudo mejorar la captura. Inténtalo nuevamente.');
+      }
+    } finally {
+      if (capturedPath != null) {
+        try {
+          await File(capturedPath).delete();
+        } catch (_) {}
+      }
+
+      if (shouldResumeStream &&
+          mounted &&
+          !_finishing &&
+          _detectedVin == null &&
+          identical(_controller, controller) &&
+          controller.value.isInitialized &&
+          !controller.value.isStreamingImages) {
+        await controller
+            .startImageStream(_processCameraImage)
+            .catchError((_) {});
+      }
+      _highResolutionCaptureInFlight = false;
+    }
   }
 
   Future<void> _onVinDetected(String vin, _ScanDetection detection) async {
@@ -766,7 +1157,6 @@ class _MlkitVinScannerPageState extends State<MlkitVinScannerPage>
       _status = _statusForMode(_mode);
     });
     _stabilityLock.reset();
-    _barcodeLock.reset();
 
     try {
       if (!controller.value.isStreamingImages) {
@@ -1153,6 +1543,20 @@ class _PreparedInputImage {
   final InputImageRotation rotation;
 }
 
+class _OcrVinCandidate {
+  const _OcrVinCandidate({
+    required this.vin,
+    required this.bounds,
+    required this.confidence,
+    required this.compactLength,
+  });
+
+  final String vin;
+  final Rect bounds;
+  final double confidence;
+  final int compactLength;
+}
+
 class _ScanDetection {
   const _ScanDetection({
     required this.bounds,
@@ -1250,16 +1654,30 @@ class _CameraPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final size = controller.value.previewSize;
-        if (size == null) return CameraPreview(controller);
+        final previewSize = controller.value.previewSize;
+        if (previewSize == null || constraints.biggest.isEmpty) {
+          return CameraPreview(controller);
+        }
 
-        final previewAspectRatio = size.height / size.width;
-        final screenAspectRatio = constraints.maxWidth / constraints.maxHeight;
-        final scale = previewAspectRatio / screenAspectRatio;
+        // CameraPreview ya rota y conserva la proporción del sensor. Se le
+        // entrega un tamaño natural orientado y FittedBox se encarga de
+        // cubrir la pantalla sin una Transform anidada que pueda dejar la
+        // textura fuera del viewport en algunos Android.
+        final isPortrait = constraints.maxHeight >= constraints.maxWidth;
+        final orientedSize = isPortrait
+            ? Size(previewSize.height, previewSize.width)
+            : previewSize;
 
-        return Transform.scale(
-          scale: scale < 1 ? 1 / scale : scale,
-          child: Center(child: CameraPreview(controller)),
+        return ClipRect(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            clipBehavior: Clip.hardEdge,
+            child: SizedBox(
+              width: orientedSize.width,
+              height: orientedSize.height,
+              child: CameraPreview(controller),
+            ),
+          ),
         );
       },
     );
@@ -1336,9 +1754,14 @@ class _ScannerModeControl extends StatelessWidget {
     return Align(
       alignment: Alignment.center,
       child: SizedBox(
-        width: 274,
+        width: 360,
         child: SegmentedButton<_ScannerMode>(
           segments: const [
+            ButtonSegment(
+              value: _ScannerMode.smart,
+              icon: Icon(Icons.auto_awesome, size: 18),
+              label: Text('Auto'),
+            ),
             ButtonSegment(
               value: _ScannerMode.barcode,
               icon: Icon(Icons.qr_code_scanner, size: 18),
@@ -1500,8 +1923,9 @@ class _ScannerOverlay extends StatefulWidget {
 }
 
 class _ScannerOverlayState extends State<_ScannerOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+    with TickerProviderStateMixin {
+  late final AnimationController _geometryController;
+  late final AnimationController _visibilityController;
   _ScanDetection? _fromDetection;
   _ScanDetection? _toDetection;
 
@@ -1509,10 +1933,16 @@ class _ScannerOverlayState extends State<_ScannerOverlay>
   void initState() {
     super.initState();
     _toDetection = widget.detection;
-    _controller = AnimationController(
+    _geometryController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 230),
       value: 1,
+    );
+    _visibilityController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      reverseDuration: const Duration(milliseconds: 150),
+      value: widget.detection == null ? 0 : 1,
     );
   }
 
@@ -1524,19 +1954,30 @@ class _ScannerOverlayState extends State<_ScannerOverlay>
       return;
     }
 
+    final hadDetection = _toDetection != null;
     _fromDetection = _currentDetection;
     _toDetection = widget.detection;
-    _controller.forward(from: 0);
+
+    // La geometría puede actualizarse frame a frame, pero la opacidad sólo
+    // entra/sale cuando cambia la presencia del objetivo. Esto evita el
+    // parpadeo que ocurría al reiniciar un fade en cada lectura de ML Kit.
+    _geometryController.forward(from: 0);
+    if (!hadDetection && widget.detection != null) {
+      _visibilityController.forward();
+    } else if (hadDetection && widget.detection == null) {
+      _visibilityController.reverse();
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _geometryController.dispose();
+    _visibilityController.dispose();
     super.dispose();
   }
 
   _ScanDetection? get _currentDetection {
-    final t = Curves.easeOutCubic.transform(_controller.value);
+    final t = Curves.easeOutCubic.transform(_geometryController.value);
     final from = _fromDetection;
     final to = _toDetection;
     if (from == null && to == null) return null;
@@ -1550,20 +1991,20 @@ class _ScannerOverlayState extends State<_ScannerOverlay>
     return IgnorePointer(
       child: RepaintBoundary(
         child: AnimatedBuilder(
-          animation: _controller,
+          animation: Listenable.merge([
+            _geometryController,
+            _visibilityController,
+          ]),
           builder: (context, child) {
-            final appearing = _toDetection != null;
             final animationValue = Curves.easeOutCubic.transform(
-              _controller.value,
+              _geometryController.value,
             );
             return CustomPaint(
               painter: _ScannerOverlayPainter(
                 detection: _currentDetection,
                 viewportSize: widget.viewportSize,
                 progress: animationValue,
-                detectionOpacity: appearing
-                    ? animationValue.clamp(0.0, 1.0)
-                    : (1 - animationValue).clamp(0.0, 1.0),
+                detectionOpacity: _visibilityController.value,
               ),
             );
           },
@@ -1574,10 +2015,15 @@ class _ScannerOverlayState extends State<_ScannerOverlay>
 }
 
 Color _scannerToneForDetection(_ScanDetection detection) {
-  if (detection.locked) return _MlkitVinScannerPageState._scanGreen;
-  if (detection.vin != null) return _MlkitVinScannerPageState._scanBlue;
-  if (detection.isPotential) return _MlkitVinScannerPageState._scanAmber;
-  return Colors.white;
+  // Tonos desaturados para que el overlay no compita con la etiqueta ni
+  // produzca destellos de color mientras llegan nuevos frames.
+  if (detection.locked) return const Color(0xFFB7CDBD);
+  if (detection.source == VinScanSource.ocr) {
+    return const Color(0xFFC3D0D9);
+  }
+  if (detection.vin != null) return const Color(0xFFD2C1A5);
+  if (detection.isPotential) return const Color(0xFFB7B5AE);
+  return const Color(0xFFD3D8DA);
 }
 
 class _ScannerOverlayPainter extends CustomPainter {
@@ -1596,72 +2042,134 @@ class _ScannerOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final currentDetection = detection;
-    if (currentDetection == null) return;
     final opacity = detectionOpacity.clamp(0.0, 1.0).toDouble();
-    if (opacity <= 0.01) return;
 
-    var detectedRect = currentDetection.mapToViewport(viewportSize).inflate(8);
+    // Guía de reposo: permanece casi invisible y evita que el usuario tenga
+    // que perseguir una caja que salta de tamaño antes de una detección.
+    final guideOpacity = (0.22 * (1 - opacity)).clamp(0.0, 1.0).toDouble();
+    _drawIdleGuide(canvas, size, guideOpacity);
+
+    if (currentDetection == null || opacity <= 0.01) return;
+
+    var detectedRect = currentDetection.mapToViewport(viewportSize);
     detectedRect = _clampDetectionRect(detectedRect, size);
     if (detectedRect.isEmpty) return;
 
     final color = _scannerToneForDetection(currentDetection);
-    final detectedRRect = RRect.fromRectAndRadius(
-      detectedRect,
-      const Radius.circular(8),
-    );
-    canvas.drawRRect(
-      detectedRRect,
-      Paint()
-        ..style = PaintingStyle.fill
-        ..color = color.withValues(
-          alpha: (currentDetection.locked ? 0.14 : 0.09) * opacity,
-        ),
-    );
-    canvas.drawRRect(
-      detectedRRect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = color.withValues(alpha: 0.32 * opacity),
+    if (currentDetection.source == VinScanSource.ocr) {
+      _drawTextHighlight(canvas, detectedRect, size, color, opacity);
+    } else {
+      _drawBarcodeReticle(canvas, detectedRect, color, opacity);
+    }
+  }
+
+  void _drawIdleGuide(Canvas canvas, Size size, double opacity) {
+    if (opacity <= 0.01 || size.isEmpty) return;
+
+    final guideWidth = math.min(size.width * 0.82, 360.0);
+    final guideHeight = math.min(math.max(size.height * 0.12, 96.0), 168.0);
+    final guideRect = Rect.fromCenter(
+      center: Offset(size.width / 2, size.height * 0.46),
+      width: guideWidth,
+      height: guideHeight,
     );
     _drawCornerBrackets(
       canvas,
-      detectedRect,
+      guideRect,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
-        ..strokeWidth = currentDetection.locked ? 3 : 2.4
-        ..color = color.withValues(alpha: 0.96 * opacity),
-      math.min(34, detectedRect.shortestSide * 0.32),
-    );
-
-    final label = currentDetection.locked
-        ? 'VIN confirmado'
-        : currentDetection.label;
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final labelWidth = math.min(textPainter.width + 16, size.width - 16);
-    final labelLeft = detectedRect.left.clamp(8.0, size.width - labelWidth - 8);
-    final labelRect = Rect.fromLTWH(
-      labelLeft.toDouble(),
-      math.max(76, detectedRect.top - 27),
-      labelWidth,
+        ..strokeWidth = 1.4
+        ..color = const Color(0xFFE1E5E7).withValues(alpha: opacity),
       24,
     );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(labelRect, const Radius.circular(5)),
-      Paint()..color = color.withValues(alpha: 0.88 * opacity),
+  }
+
+  void _drawBarcodeReticle(
+    Canvas canvas,
+    Rect rect,
+    Color color,
+    double opacity,
+  ) {
+    final insetRect = rect.inflate(7);
+    final cornerLength = math.min(32.0, insetRect.shortestSide * 0.30);
+
+    // Una sombra muy suave mantiene las esquinas legibles sobre carrocerías
+    // claras sin convertir el overlay en un rectángulo luminoso.
+    _drawCornerBrackets(
+      canvas,
+      insetRect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 5
+        ..color = Colors.black.withValues(alpha: 0.20 * opacity),
+      cornerLength,
     );
-    textPainter.paint(canvas, Offset(labelRect.left + 8, labelRect.top + 5));
+    _drawCornerBrackets(
+      canvas,
+      insetRect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 1.9
+        ..color = color.withValues(alpha: 0.82 * opacity),
+      cornerLength,
+    );
+
+    final guideY = insetRect.center.dy;
+    canvas.drawLine(
+      Offset(insetRect.left + cornerLength * 0.25, guideY),
+      Offset(insetRect.left + cornerLength * 0.78, guideY),
+      Paint()
+        ..strokeWidth = 1
+        ..strokeCap = StrokeCap.round
+        ..color = color.withValues(alpha: 0.28 * opacity),
+    );
+  }
+
+  void _drawTextHighlight(
+    Canvas canvas,
+    Rect rawRect,
+    Size size,
+    Color color,
+    double opacity,
+  ) {
+    final rect = _clampDetectionRect(rawRect.inflate(7), size);
+    if (rect.isEmpty) return;
+
+    final highlightRect = RRect.fromRectAndRadius(
+      rect,
+      const Radius.circular(10),
+    );
+    canvas.drawRRect(
+      highlightRect,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = color.withValues(alpha: 0.055 * opacity),
+    );
+
+    final baseline = rect.bottom - 1;
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.7
+      ..color = color.withValues(alpha: 0.72 * opacity);
+    canvas.drawLine(
+      Offset(rect.left + 5, baseline),
+      Offset(rect.right - 5, baseline),
+      linePaint,
+    );
+    canvas.drawLine(
+      Offset(rect.left + 1, baseline - 5),
+      Offset(rect.left + 1, baseline + 1),
+      linePaint,
+    );
+    canvas.drawLine(
+      Offset(rect.right - 1, baseline - 5),
+      Offset(rect.right - 1, baseline + 1),
+      linePaint,
+    );
   }
 
   Rect _clampDetectionRect(Rect rect, Size size) {

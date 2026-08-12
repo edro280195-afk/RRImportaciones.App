@@ -42,3 +42,26 @@ public class RegistrarEntregaRequest
     public string? NotasChofer { get; set; }
     public string? Incidencia { get; set; }
 }
+
+public class VehiculoEntregaLookupDto
+{
+    public Guid VehiculoId { get; set; }
+    public string Vin { get; set; } = string.Empty;
+    public string? VinCorto { get; set; }
+    public string VehiculoResumen { get; set; } = string.Empty;
+    public string? ClienteNombre { get; set; }
+    public string? UbicacionActual { get; set; }
+    public Guid? TramiteId { get; set; }
+    public string? NumeroConsecutivo { get; set; }
+    public string? EstadoTramite { get; set; }
+    public bool YaEntregado { get; set; }
+}
+
+public class RegistrarEntregaVehiculoRequest
+{
+    public Guid? VehiculoId { get; set; }
+    public string? Vin { get; set; }
+    public string? UbicacionEntrega { get; set; }
+    public string? NombreRecibe { get; set; }
+    public string? NotasChofer { get; set; }
+}

@@ -357,6 +357,18 @@ class AdminApi {
     return CotizacionOutput.fromJson(response);
   }
 
+  Future<CotizacionOutput> asignarClienteCotizacion(
+    String id,
+    String? clienteId,
+  ) async {
+    final response =
+        await _api.putJson('/api/cotizaciones/$id/cliente', {
+              'clienteId': clienteId,
+            })
+            as Map<String, dynamic>;
+    return CotizacionOutput.fromJson(response);
+  }
+
   Future<WhatsAppLinkResponse> getWhatsAppLink(String id) async {
     final response =
         await _api.postJson('/api/cotizaciones/$id/whatsapp-link', {})

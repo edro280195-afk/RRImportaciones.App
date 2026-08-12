@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -25,6 +25,19 @@ export interface TareaEntregaDto {
   fechaEntregado: string | null;
 }
 
+export interface VehiculoEntregaLookupDto {
+  vehiculoId: string;
+  vin: string;
+  vinCorto: string | null;
+  vehiculoResumen: string;
+  clienteNombre: string | null;
+  ubicacionActual: string | null;
+  tramiteId: string | null;
+  numeroConsecutivo: string | null;
+  estadoTramite: string | null;
+  yaEntregado: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EntregaTareaService {
   private http = inject(HttpClient);
@@ -41,6 +54,22 @@ export class EntregaTareaService {
 
   getById(id: string): Observable<TareaEntregaDto> {
     return this.http.get<TareaEntregaDto>(`${this.baseUrl}/${id}`);
+  }
+
+  buscarVehiculos(query: string): Observable<VehiculoEntregaLookupDto[]> {
+    return this.http.get<VehiculoEntregaLookupDto[]>(`${this.baseUrl}/vehiculos`, {
+      params: new HttpParams().set('query', query),
+    });
+  }
+
+  registrarEntregaVehiculo(request: {
+    vehiculoId?: string | null;
+    vin?: string | null;
+    ubicacionEntrega?: string | null;
+    nombreRecibe?: string | null;
+    notasChofer?: string | null;
+  }): Observable<TareaEntregaDto> {
+    return this.http.post<TareaEntregaDto>(`${this.baseUrl}/vehiculos/registrar-entrega`, request);
   }
 
   crear(request: {

@@ -1,4 +1,4 @@
-import { Component, signal, inject } from '@angular/core';
+import { Component, HostListener, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
@@ -89,13 +89,14 @@ interface EstadoTab {
 
       <!-- State tabs -->
       <div
-        class="flex items-center gap-1.5 mb-5 stagger-item flex-wrap"
-        style="animation-delay: 40ms;"
+        class="flex items-center gap-1.5 mb-5 stagger-item"
+        [class.flex-wrap]="!isMobile()"
+        [style]="isMobile() ? 'overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; -ms-overflow-style: none; scrollbar-width: none; animation-delay: 40ms;' : 'animation-delay: 40ms;'"
       >
         @for (tab of tabs; track tab.value) {
           <button
             (click)="selectedTab.set(tab.value); page.set(1); loadTramites()"
-            class="px-3.5 py-2 rounded-xl text-[12px] font-medium transition-all duration-150"
+            class="px-3.5 py-2 rounded-xl text-[12px] font-medium transition-all duration-150 shrink-0"
             [style]="
               selectedTab() === tab.value
                 ? 'background: ' + tab.color + '; color: #fff;'
@@ -112,7 +113,7 @@ interface EstadoTab {
         class="flex items-center gap-3 mb-5 stagger-item flex-wrap"
         style="animation-delay: 60ms;"
       >
-        <div class="relative flex-1 max-w-[280px]">
+        <div class="relative flex-1" [class]="isMobile() ? 'min-w-full' : 'max-w-[280px]'">
           <svg
             fill="none"
             stroke="currentColor"
@@ -133,26 +134,66 @@ interface EstadoTab {
             class="w-full pl-9 pr-3 py-2.5 text-[13.5px] rounded-xl outline-none transition-all duration-150 bg-[#F9FAFB] border border-[#E4E7EC] text-[#0D1017] placeholder:text-[#9EA3AE] focus:bg-white focus:border-[#C61D26] focus:shadow-[0_0_0_3px_rgba(198,29,38,0.10)]"
           />
         </div>
-        <select
-          [(ngModel)]="tramitadorFiltro"
-          (change)="page.set(1); loadTramites()"
-          class="px-3 py-2.5 text-[13px] rounded-xl outline-none bg-[#F9FAFB] border border-[#E4E7EC] text-[#4B5162] focus:bg-white focus:border-[#C61D26]"
-        >
-          <option value="">Todos los tramitadores</option>
-          @for (t of tramitadores; track t.id) {
-            <option [value]="t.id">{{ t.nombre }}</option>
+        @if (isMobile()) {
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-[12.5px] font-medium"
+            [style]="tramitadorFiltro() || aduanaFiltro()
+              ? 'background: #0D1017; color: #fff;'
+              : 'background: #F3F4F6; color: #4B5162; border: 1px solid #E4E7EC;'"
+            (click)="mobFiltersOpen.set(!mobFiltersOpen())"
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M6 8h12M10 12h4" />
+            </svg>
+            Filtros
+          </button>
+          @if (mobFiltersOpen()) {
+            <div class="flex flex-col gap-2 w-full">
+              <select
+                [(ngModel)]="tramitadorFiltro"
+                (change)="page.set(1); loadTramites()"
+                class="w-full px-3 py-2.5 text-[13px] rounded-xl outline-none bg-[#F9FAFB] border border-[#E4E7EC] text-[#4B5162] focus:bg-white focus:border-[#C61D26]"
+              >
+                <option value="">Todos los tramitadores</option>
+                @for (t of tramitadores; track t.id) {
+                  <option [value]="t.id">{{ t.nombre }}</option>
+                }
+              </select>
+              <select
+                [(ngModel)]="aduanaFiltro"
+                (change)="page.set(1); loadTramites()"
+                class="w-full px-3 py-2.5 text-[13px] rounded-xl outline-none bg-[#F9FAFB] border border-[#E4E7EC] text-[#4B5162] focus:bg-white focus:border-[#C61D26]"
+              >
+                <option value="">Todas las aduanas</option>
+                @for (a of aduanas; track a.id) {
+                  <option [value]="a.id">{{ a.nombre }}</option>
+                }
+              </select>
+            </div>
           }
-        </select>
-        <select
-          [(ngModel)]="aduanaFiltro"
-          (change)="page.set(1); loadTramites()"
-          class="px-3 py-2.5 text-[13px] rounded-xl outline-none bg-[#F9FAFB] border border-[#E4E7EC] text-[#4B5162] focus:bg-white focus:border-[#C61D26]"
-        >
-          <option value="">Todas las aduanas</option>
-          @for (a of aduanas; track a.id) {
-            <option [value]="a.id">{{ a.nombre }}</option>
-          }
-        </select>
+        } @else {
+          <select
+            [(ngModel)]="tramitadorFiltro"
+            (change)="page.set(1); loadTramites()"
+            class="px-3 py-2.5 text-[13px] rounded-xl outline-none bg-[#F9FAFB] border border-[#E4E7EC] text-[#4B5162] focus:bg-white focus:border-[#C61D26]"
+          >
+            <option value="">Todos los tramitadores</option>
+            @for (t of tramitadores; track t.id) {
+              <option [value]="t.id">{{ t.nombre }}</option>
+            }
+          </select>
+          <select
+            [(ngModel)]="aduanaFiltro"
+            (change)="page.set(1); loadTramites()"
+            class="px-3 py-2.5 text-[13px] rounded-xl outline-none bg-[#F9FAFB] border border-[#E4E7EC] text-[#4B5162] focus:bg-white focus:border-[#C61D26]"
+          >
+            <option value="">Todas las aduanas</option>
+            @for (a of aduanas; track a.id) {
+              <option [value]="a.id">{{ a.nombre }}</option>
+            }
+          </select>
+        }
       </div>
 
       <!-- Loading -->
@@ -210,6 +251,93 @@ interface EstadoTab {
               Nueva cotización
             </button>
           </div>
+        </div>
+      } @else if (isMobile()) {
+        <!-- ─────────── Mobile: tarjetas (paridad con tramite_list_page.dart) ─────────── -->
+        <div class="flex flex-col gap-3 stagger-item" style="animation-delay: 80ms;">
+          @for (t of tramites(); track t.id) {
+            <div
+              class="rounded-2xl p-4 bg-white border border-[#E4E7EC] cursor-pointer active:bg-[#FAFBFC]"
+              (click)="router.navigate(['/tramites', t.id])"
+            >
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <span class="text-[15px] font-extrabold text-[#0D1017]">
+                  Trámite #{{ t.numeroConsecutivo }}
+                </span>
+                <span
+                  class="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-extrabold shrink-0"
+                  [style]="estadoPill(t.estadoLogistico)"
+                >
+                  {{ t.estadoLogistico }}
+                </span>
+              </div>
+
+              <div class="flex items-center gap-2 mb-1.5">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2 text-[#98A2B3] shrink-0">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 17a2 2 0 100-4 2 2 0 000 4zM16 17a2 2 0 100-4 2 2 0 000 4z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 17h1m4 0h6m4 0h1M5 17V9l2-4h8l3 4h1a2 2 0 012 2v6" />
+                </svg>
+                <span class="text-[13.5px] font-bold text-[#1E2330] truncate">
+                  {{ t.vehiculoMarcaModelo || 'Vehículo' }}
+                </span>
+              </div>
+              @if (t.vehiculoVinCorto) {
+                <div class="flex items-center gap-2 mb-1.5">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2 text-[#98A2B3] shrink-0">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m1 5H8a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span class="text-[12.5px] text-[#475467] font-mono-data">VIN (corto): {{ t.vehiculoVinCorto }}</span>
+                </div>
+              }
+              <div class="flex items-center gap-2">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" class="w-4 h-4 stroke-2 text-[#98A2B3] shrink-0">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span class="text-[12.5px] text-[#475467]">Cliente: {{ t.clienteApodo || '—' }}</span>
+              </div>
+
+              <div class="h-px bg-[#EFF1F4] my-3.5"></div>
+
+              <div class="flex items-end justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-[11.5px] font-extrabold text-[#98A2B3] mb-0.5">{{ t.tipoTramite }}</p>
+                  <p class="text-[11.5px] text-[#98A2B3] truncate">Aduana: {{ t.aduanaNombre || 'N/A' }}</p>
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="text-[16px] font-extrabold text-[#0D1017] font-mono-data">
+                    \${{ t.cobroTotal | number: '1.2-2' }}
+                  </p>
+                  @if (t.saldoPendiente > 0) {
+                    <p class="text-[11px] font-bold text-[#B42318]">
+                      Saldo: \${{ t.saldoPendiente | number: '1.2-2' }}
+                    </p>
+                  } @else {
+                    <p class="text-[11px] font-bold text-[#087443]">Pagado</p>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+
+          @if (totalPages() > 1) {
+            <div class="flex items-center justify-between px-1 py-2">
+              <button
+                (click)="goToPage(page() - 1)"
+                [disabled]="page() <= 1"
+                class="px-3 py-2 rounded-lg text-[12.5px] font-medium disabled:opacity-30 bg-[#F3F4F6] text-[#4B5162]"
+              >
+                Anterior
+              </button>
+              <span class="text-[12.5px] text-[#9EA3AE]">Página {{ page() }} de {{ totalPages() }}</span>
+              <button
+                (click)="goToPage(page() + 1)"
+                [disabled]="page() >= totalPages()"
+                class="px-3 py-2 rounded-lg text-[12.5px] font-medium disabled:opacity-30 bg-[#F3F4F6] text-[#4B5162]"
+              >
+                Siguiente
+              </button>
+            </div>
+          }
         </div>
       } @else {
         <div
@@ -342,6 +470,15 @@ export class TramitesListComponent {
   sortDir = signal('desc');
   tramitadores: { id: string; nombre: string }[] = [];
   aduanas: { id: string; nombre: string }[] = [];
+
+  /** Breakpoint móvil, igual convención que app-layout.component.ts. */
+  isMobile = signal(window.innerWidth < 768);
+  mobFiltersOpen = signal(false);
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.isMobile.set(window.innerWidth < 768);
+  }
 
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
