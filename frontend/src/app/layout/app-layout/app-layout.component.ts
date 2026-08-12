@@ -140,7 +140,7 @@ import { Subscription } from 'rxjs';
             @if (p.clienteSugerido) {
               <p class="campo-toast__incidencia">Cliente sugerido: {{ p.clienteSugerido }}</p>
             }
-            <button class="campo-toast__link" (click)="irABandejaCampo()">
+            <button class="campo-toast__link" (click)="irABandejaCampo(p.tareaCampoId)">
               Ver en bandeja &rarr;
             </button>
           </div>
@@ -472,6 +472,7 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
         url: event.url,
         severidad: event.severidad,
         fecha: event.fecha,
+        data: event.data,
       });
     });
 
@@ -484,6 +485,7 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
         mensaje: mensaje.mensaje,
         url: mensaje.url,
         severidad: mensaje.data['severidad'],
+        data: mensaje.data,
       });
     });
 
@@ -532,6 +534,7 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
     url: string | null;
     severidad?: string;
     fecha?: string;
+    data?: Record<string, string> | null;
   }): void {
     const item = this.centro.agregar(entrante);
     if (!item) return;
@@ -593,14 +596,18 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
     navigator.vibrate?.([200, 100, 200]);
   }
 
-  irABandejaCampo(): void {
+  irABandejaCampo(tareaCampoId?: string): void {
     this.preInspNotif.set(null);
+    if (tareaCampoId) {
+      this.router.navigate(['/campo/bandeja-admin'], { queryParams: { tareaCampoId } });
+      return;
+    }
     this.router.navigate(['/campo/bandeja-admin']);
   }
 
   irACampo(tareaCampoId: string): void {
     this.yarderoNotif.set(null);
-    this.router.navigate(['/campo']);
+    this.router.navigate(['/campo', tareaCampoId, 'captura']);
   }
 
   @HostListener('window:resize')

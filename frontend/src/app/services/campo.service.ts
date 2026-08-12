@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, timeout } from 'rxjs';
 
 export interface TareaCampoDto {
   id: string;
@@ -42,6 +42,10 @@ export interface CampoShareResponse {
 }
 
 import { environment } from '../../environments/environment';
+
+const PHOTO_UPLOAD_TIMEOUT_MS = 90_000;
+const VIDEO_UPLOAD_TIMEOUT_MS = 240_000;
+
 @Injectable({ providedIn: 'root' })
 export class CampoService {
   private http = inject(HttpClient);
@@ -112,7 +116,7 @@ export class CampoService {
     return this.http.post<{ fotoUrl: string; tarea: TareaCampoDto }>(
       `${this.baseUrl}/tareas/${id}/fotos`,
       form
-    );
+    ).pipe(timeout(PHOTO_UPLOAD_TIMEOUT_MS));
   }
 
   uploadVideo(id: string, file: File): Observable<{ videoUrl: string; tarea: TareaCampoDto }> {
@@ -121,7 +125,7 @@ export class CampoService {
     return this.http.post<{ videoUrl: string; tarea: TareaCampoDto }>(
       `${this.baseUrl}/tareas/${id}/videos`,
       form
-    );
+    ).pipe(timeout(VIDEO_UPLOAD_TIMEOUT_MS));
   }
 
   createShareLink(id: string): Observable<CampoShareResponse> {

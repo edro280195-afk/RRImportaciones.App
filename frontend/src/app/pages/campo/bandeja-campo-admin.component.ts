@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { CampoService, CampoShareResponse, TareaCampoDto } from '../../services/campo.service';
@@ -836,6 +836,7 @@ export class BandejaCampoAdminComponent implements OnInit, OnDestroy {
   private tramiteService = inject(TramiteService);
   private realtime = inject(RealtimeService);
   private notify = inject(NotificationService);
+  private route = inject(ActivatedRoute);
   private router = inject(Router);
   private auth = inject(AuthService);
 
@@ -863,14 +864,26 @@ export class BandejaCampoAdminComponent implements OnInit, OnDestroy {
 
   private preInspSub?: Subscription;
   private campoSub?: Subscription;
+  private querySub?: Subscription;
+  private tareaEnfocadaId: string | null = null;
+  private tareaEnfocadaAbierta = false;
 
   ngOnInit(): void {
+    this.querySub = this.route.queryParamMap.subscribe(params => {
+      const tareaId = params.get('tareaCampoId');
+      if (tareaId !== this.tareaEnfocadaId) {
+        this.tareaEnfocadaId = tareaId;
+        this.tareaEnfocadaAbierta = false;
+      }
+      this.abrirTareaEnfocada();
+    });
     this.cargar();
     this.preInspSub = this.realtime.preInspeccionCreada$.subscribe(() => this.cargar());
     this.campoSub = this.realtime.campoActualizado$.subscribe(() => this.cargar());
   }
 
   ngOnDestroy(): void {
+    this.querySub?.unsubscribe();
     this.preInspSub?.unsubscribe();
     this.campoSub?.unsubscribe();
     clearTimeout(this.busquedaTimer);
@@ -882,12 +895,23 @@ export class BandejaCampoAdminComponent implements OnInit, OnDestroy {
       next: list => {
         this.tareas.set(list);
         this.loading.set(false);
+        this.abrirTareaEnfocada();
       },
       error: err => {
         this.loading.set(false);
         this.notify.fromHttpError(err, 'No se pudo cargar la bandeja');
       },
     });
+  }
+
+  private abrirTareaEnfocada(): void {
+    if (!this.tareaEnfocadaId || this.tareaEnfocadaAbierta) return;
+
+    const tarea = this.tareas().find(item => item.id === this.tareaEnfocadaId);
+    if (!tarea) return;
+
+    this.tareaEnfocadaAbierta = true;
+    this.abrir({ kind: 'detalle', tarea });
   }
 
   abrir(m: AccionModal): void {

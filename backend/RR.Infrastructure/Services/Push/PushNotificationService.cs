@@ -302,14 +302,20 @@ public class PushNotificationService : IPushNotificationService
                 await client.SendNotificationAsync(webSub, contenido, _vapidDetails);
                 sub.LastUsedAt = DateTime.UtcNow;
             }
-            catch (WebPushException ex) when (ex.StatusCode == HttpStatusCode.Gone || ex.StatusCode == HttpStatusCode.NotFound)
+            catch (WebPushException ex) when (
+                ex.StatusCode == HttpStatusCode.Gone
+                || ex.StatusCode == HttpStatusCode.NotFound
+                || ex.StatusCode == HttpStatusCode.Unauthorized
+                || ex.StatusCode == HttpStatusCode.Forbidden)
             {
-                _logger.LogInformation("Suscripción push expirada (HTTP {Status}); eliminando endpoint.", (int)ex.StatusCode);
+                _logger.LogInformation(
+                    "Suscripción Web Push expirada o inválida (HTTP {Status}); eliminando endpoint.",
+                    (int)ex.StatusCode);
                 _db.PushSubscriptions.Remove(sub);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Error enviando push a endpoint {Endpoint}", sub.Endpoint);
+                _logger.LogWarning(ex, "Error enviando una notificación Web Push.");
             }
         }
     }

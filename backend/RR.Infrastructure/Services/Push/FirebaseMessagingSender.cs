@@ -54,11 +54,19 @@ public class FirebaseMessagingSender : IFirebaseMessagingSender
 
         try
         {
-            var app = FirebaseApp.GetInstance(AppName) ?? FirebaseApp.Create(new AppOptions
+            FirebaseApp app;
+            try
             {
-                Credential = credential,
-                ProjectId = config["Firebase:ProjectId"],
-            }, AppName);
+                app = FirebaseApp.GetInstance(AppName);
+            }
+            catch (InvalidOperationException)
+            {
+                app = FirebaseApp.Create(new AppOptions
+                {
+                    Credential = credential,
+                    ProjectId = config["Firebase:ProjectId"],
+                }, AppName);
+            }
 
             _messaging = FirebaseMessaging.GetMessaging(app);
             logger.LogInformation("Firebase Cloud Messaging inicializado (proyecto {ProjectId}).", app.Options.ProjectId);

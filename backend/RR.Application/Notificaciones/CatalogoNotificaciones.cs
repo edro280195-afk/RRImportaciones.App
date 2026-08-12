@@ -25,7 +25,7 @@ public static class CatalogoNotificaciones
             Tipo = "campo_vehiculo_registrado",
             Titulo = "Vehículo nuevo en yarda",
             Mensaje = $"{operadorNombre} registró {string.Join(" · ", detalle)}",
-            Url = "/campo/bandeja-admin",
+            Url = $"/campo/bandeja-admin?tareaCampoId={tareaCampoId}",
             Severidad = "info",
             Destino = DestinoNotificacion.Admins,
             Tag = $"campo-registro-{tareaCampoId}",
@@ -42,7 +42,9 @@ public static class CatalogoNotificaciones
             Tipo = "campo_fotos_subidas",
             Titulo = $"Fotos recibidas · {referencia}",
             Mensaje = $"{operadorNombre} subió {totalFotos} foto{(totalFotos == 1 ? "" : "s")} de {vehiculoResumen}",
-            Url = tramiteId.HasValue ? $"/tramites/{tramiteId}" : "/campo/bandeja-admin",
+            Url = tramiteId.HasValue
+                ? $"/tramites/{tramiteId}"
+                : $"/campo/bandeja-admin?tareaCampoId={tareaCampoId}",
             Severidad = "success",
             Destino = DestinoNotificacion.Admins,
             Tag = $"campo-fotos-{tareaCampoId}",
@@ -62,7 +64,9 @@ public static class CatalogoNotificaciones
             Tipo = "campo_incidencia",
             Titulo = $"Incidencia en yarda · {referencia}",
             Mensaje = $"{operadorNombre} reportó en {vehiculoResumen}: {Resumir(incidencia, 110)}",
-            Url = tramiteId.HasValue ? $"/tramites/{tramiteId}" : "/campo/bandeja-admin",
+            Url = tramiteId.HasValue
+                ? $"/tramites/{tramiteId}"
+                : $"/campo/bandeja-admin?tareaCampoId={tareaCampoId}",
             Severidad = "warning",
             Destino = DestinoNotificacion.Admins,
             Tag = $"campo-incidencia-{tareaCampoId}",
@@ -77,7 +81,7 @@ public static class CatalogoNotificaciones
             Tipo = "campo_tarea_creada",
             Titulo = "Tarea de campo nueva",
             Mensaje = $"{referencia} · {vehiculoResumen}" + (string.IsNullOrWhiteSpace(ubicacion) ? "" : $" · {ubicacion}"),
-            Url = "/campo",
+            Url = $"/campo/{tareaCampoId}/captura",
             Severidad = "info",
             Destino = DestinoNotificacion.Campo,
             Tag = $"campo-tarea-{tareaCampoId}",
@@ -92,7 +96,7 @@ public static class CatalogoNotificaciones
             Tipo = "campo_fotos_solicitadas",
             Titulo = "Te piden más fotos",
             Mensaje = $"{vehiculoResumen} — {Resumir(mensaje, 110)}",
-            Url = "/campo",
+            Url = $"/campo/{tareaCampoId}/captura",
             Severidad = "warning",
             Destino = DestinoNotificacion.Usuario,
             UsuarioId = operadorUserId,
@@ -208,7 +212,7 @@ public static class CatalogoNotificaciones
             Titulo = $"Entrega completada · {referencia}",
             Mensaje = $"{operadorNombre} cerró la entrega"
                       + (string.IsNullOrWhiteSpace(recibeNombre) ? "" : $" · recibió {recibeNombre}"),
-            Url = tramiteId.HasValue ? $"/tramites/{tramiteId}" : "/entrega",
+            Url = tramiteId.HasValue ? $"/tramites/{tramiteId}" : $"/entrega/{tareaEntregaId}/captura",
             Severidad = "success",
             Destino = DestinoNotificacion.Admins,
             Tag = $"tarea-entrega-{tareaEntregaId}",
@@ -225,7 +229,7 @@ public static class CatalogoNotificaciones
             Mensaje = $"{referencia}"
                       + (string.IsNullOrWhiteSpace(vehiculoResumen) ? "" : $" · {vehiculoResumen}")
                       + (string.IsNullOrWhiteSpace(direccion) ? "" : $" · {Resumir(direccion!, 60)}"),
-            Url = "/entrega",
+            Url = $"/entrega/{tareaEntregaId}/captura",
             Severidad = "info",
             Destino = DestinoNotificacion.Usuario,
             UsuarioId = operadorUserId,

@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { firstValueFrom, Subscription } from 'rxjs';
+import { firstValueFrom, Subscription, TimeoutError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../services/auth.service';
 import { CampoService, TareaCampoDto } from '../../services/campo.service';
@@ -1062,11 +1062,14 @@ const MIN_PHOTOS = 3;
       // entrada que tiene las dos opciones. El color es lo que las distingue:
       // rojo = abrir la cámara, azul = traer fotos que ya están en el teléfono.
       .photo-actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+        display: flex;
         gap: 10px;
         margin-bottom: 8px;
         animation: slideUp 0.22s ease-out;
+      }
+      .photo-actions > .cam-btn {
+        flex: 1;
+        min-width: 0;
       }
       .cam-btn {
         position: relative;
@@ -2576,7 +2579,14 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
         items.map(video => (video.uploading ? { ...video, uploading: false, err: true } : video))
       );
       this.state.set('ready');
-      this.notifications.fromHttpError(err, 'No se pudo guardar la captura');
+      if (err instanceof TimeoutError) {
+        this.notifications.error(
+          'La subida tardó demasiado. Los archivos que sí terminaron se conservaron; revisa tu conexión y vuelve a intentar.',
+          'Tiempo agotado'
+        );
+      } else {
+        this.notifications.fromHttpError(err, 'No se pudo guardar la captura');
+      }
     }
   }
 

@@ -47,6 +47,7 @@ self.addEventListener('notificationclick', event => {
   // El click de una notificación con `notification` trae la ruta en FCM_MSG.
   const desdeFcm = datos.FCM_MSG?.data?.url;
   const destino = datos.url || desdeFcm || '/';
+  const destinoAbsoluto = new URL(destino, self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(lista => {
@@ -55,7 +56,7 @@ self.addEventListener('notificationclick', event => {
           cliente.focus();
           if ('navigate' in cliente) {
             try {
-              cliente.navigate(destino);
+              cliente.navigate(destinoAbsoluto);
             } catch (e) {
               /* la pestaña puede estar en un origen distinto */
             }
@@ -63,7 +64,7 @@ self.addEventListener('notificationclick', event => {
           return;
         }
       }
-      if (clients.openWindow) return clients.openWindow(destino);
+      if (clients.openWindow) return clients.openWindow(destinoAbsoluto);
     })
   );
 });

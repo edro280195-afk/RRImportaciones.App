@@ -142,6 +142,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  const targetAbsoluteUrl = new URL(targetUrl, self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
@@ -150,14 +151,14 @@ self.addEventListener('notificationclick', (event) => {
         if ('focus' in client) {
           client.focus();
           if ('navigate' in client) {
-            try { client.navigate(targetUrl); } catch (e) { /* ignore */ }
+            try { client.navigate(targetAbsoluteUrl); } catch (e) { /* ignore */ }
           }
           return;
         }
       }
       // Si no hay ninguna, abre una nueva
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(targetAbsoluteUrl);
       }
     })
   );

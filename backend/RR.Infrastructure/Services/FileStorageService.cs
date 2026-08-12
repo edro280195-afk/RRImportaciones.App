@@ -8,6 +8,7 @@ namespace RR.Infrastructure.Services;
 
 public class FileStorageService : IFileStorageService
 {
+    private static readonly TimeSpan R2UploadTimeout = TimeSpan.FromMinutes(4);
     private readonly IConfiguration _configuration;
 
     public FileStorageService(IConfiguration configuration)
@@ -66,6 +67,10 @@ public class FileStorageService : IFileStorageService
 
         var normalizedFolder = folderName.Replace('\\', '/').Trim('/');
         var key = $"{normalizedFolder}/{BuildSafeFileName(fileName)}";
+
+        using var uploadTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        uploadTimeout.CancelAfter(R2UploadTimeout);
+
         await client.PutObjectAsync(new PutObjectRequest
         {
             BucketName = bucket,
@@ -73,7 +78,7 @@ public class FileStorageService : IFileStorageService
             InputStream = stream,
             ContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
             DisablePayloadSigning = true,
-        }, cancellationToken);
+        }, uploadTimeout.Token);
 
         return $"{publicBaseUrl.TrimEnd('/')}/{key}";
     }

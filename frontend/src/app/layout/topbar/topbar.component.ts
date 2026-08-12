@@ -758,12 +758,38 @@ export class TopbarComponent implements OnInit {
   /** Marca la notificación como leída y navega a donde apunta, si trae ruta. */
   abrirNotificacion(item: NotificacionItem): void {
     this.centro.marcarLeida(item.id);
-    if (!item.url) {
+    const ruta = this.rutaNotificacion(item);
+    if (!ruta) {
       this.closePanels();
       return;
     }
-    this.router.navigateByUrl(item.url).catch(() => this.router.navigate(['/']));
+    this.router.navigateByUrl(ruta).catch(() => this.router.navigate(['/']));
     this.closePanels();
+  }
+
+  private rutaNotificacion(item: NotificacionItem): string | null {
+    const data = item.data ?? {};
+    const tareaCampoId = data['tareaCampoId'];
+    const tareaEntregaId = data['tareaEntregaId'];
+
+    if (tareaCampoId) {
+      if (item.tipo === 'campo_tarea_creada' || item.tipo === 'campo_fotos_solicitadas') {
+        return `/campo/${encodeURIComponent(tareaCampoId)}/captura`;
+      }
+      if (
+        item.tipo === 'campo_vehiculo_registrado' ||
+        item.tipo === 'campo_fotos_subidas' ||
+        item.tipo === 'campo_incidencia'
+      ) {
+        return `/campo/bandeja-admin?tareaCampoId=${encodeURIComponent(tareaCampoId)}`;
+      }
+    }
+
+    if (tareaEntregaId && (item.tipo === 'entrega_asignada' || item.tipo === 'entrega_completada')) {
+      return `/entrega/${encodeURIComponent(tareaEntregaId)}/captura`;
+    }
+
+    return item.url;
   }
 
   limpiarNotificaciones(): void {

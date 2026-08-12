@@ -8,6 +8,7 @@ export interface NotificacionItem {
   titulo: string;
   mensaje: string;
   url: string | null;
+  data: Record<string, string>;
   severidad: NotificacionSeveridad;
   fecha: string;
   leida: boolean;
@@ -55,6 +56,7 @@ export class NotificationCenterService {
       titulo: entrante.titulo || 'R&R Importaciones',
       mensaje: entrante.mensaje || '',
       url: entrante.url ?? null,
+      data: entrante.data ?? {},
       severidad: this.normalizarSeveridad(entrante.severidad),
       fecha: entrante.fecha || new Date().toISOString(),
       leida: false,
