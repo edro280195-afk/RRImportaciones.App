@@ -1,4 +1,6 @@
 using FluentAssertions;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using RR.Application.Interfaces;
@@ -52,5 +54,36 @@ public class FirebaseMessagingSenderTests
         var sender = new FirebaseMessagingSender(config, NullLogger<FirebaseMessagingSender>.Instance);
 
         sender.Enabled.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// FirebaseApp.GetInstance devuelve null cuando la aplicación todavía no
+    /// existe; la inicialización debe crearla antes de pedir FirebaseMessaging.
+    /// </summary>
+    [Fact]
+    public void AppNoExistente_SeCreaAntesDeObtenerMessaging()
+    {
+        var appName = $"rr-tests-{Guid.NewGuid():N}";
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Firebase:ProjectId"] = "rr-tests-project",
+            })
+            .Build();
+
+        var app = FirebaseMessagingSender.GetOrCreateApp(
+            config,
+            GoogleCredential.FromAccessToken("token-de-prueba"),
+            appName);
+
+        try
+        {
+            app.Should().NotBeNull();
+            app.Name.Should().Be(appName);
+        }
+        finally
+        {
+            app.Delete();
+        }
     }
 }

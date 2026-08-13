@@ -54,19 +54,7 @@ public class FirebaseMessagingSender : IFirebaseMessagingSender
 
         try
         {
-            FirebaseApp app;
-            try
-            {
-                app = FirebaseApp.GetInstance(AppName);
-            }
-            catch (InvalidOperationException)
-            {
-                app = FirebaseApp.Create(new AppOptions
-                {
-                    Credential = credential,
-                    ProjectId = config["Firebase:ProjectId"],
-                }, AppName);
-            }
+            var app = GetOrCreateApp(config, credential);
 
             _messaging = FirebaseMessaging.GetMessaging(app);
             logger.LogInformation("Firebase Cloud Messaging inicializado (proyecto {ProjectId}).", app.Options.ProjectId);
@@ -75,6 +63,24 @@ public class FirebaseMessagingSender : IFirebaseMessagingSender
         {
             logger.LogError(ex, "No se pudo inicializar Firebase; el push caerá al canal Web Push VAPID.");
         }
+    }
+
+    internal static FirebaseApp GetOrCreateApp(
+        IConfiguration config,
+        GoogleCredential credential,
+        string appName = AppName)
+    {
+        var app = FirebaseApp.GetInstance(appName);
+        if (app != null)
+            return app;
+
+        app = FirebaseApp.Create(new AppOptions
+        {
+            Credential = credential,
+            ProjectId = config["Firebase:ProjectId"],
+        }, appName);
+
+        return app ?? throw new InvalidOperationException("FirebaseApp no pudo ser creada.");
     }
 
     public bool Enabled => _messaging != null;
