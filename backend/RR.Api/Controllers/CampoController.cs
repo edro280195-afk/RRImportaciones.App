@@ -388,7 +388,11 @@ public class CampoController : ControllerBase
         var vehicle = string.IsNullOrWhiteSpace(tarea.VehiculoResumen)
             ? "vehículo"
             : tarea.VehiculoResumen;
-        var shareText = $"Ingreso de {vehicle}{(string.IsNullOrWhiteSpace(tarea.Vin) ? string.Empty : $" · VIN {tarea.Vin}")}\nFotos del vehículo: {galleryUrl}";
+        var vin = (tarea.VinConfirmado ?? tarea.Vin)?.Trim();
+        var vinLastSix = string.IsNullOrWhiteSpace(vin)
+            ? "No disponible"
+            : vin.Length <= 6 ? vin : vin[^6..];
+        var shareText = $"Datos del vehículo:\nVehículo: {vehicle}\nVIN (últimos 6): {vinLastSix}\nFotos: {galleryUrl}";
 
         return Ok(new
         {

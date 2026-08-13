@@ -255,7 +255,7 @@ export class ManualComponent {
             <ol>
               <li>Entra a <strong>Vehículos</strong> y localiza la unidad.</li>
               <li>Presiona <strong>Compartir</strong> junto a las fotos del vehículo.</li>
-              <li>Elige <strong>Compartir por WhatsApp</strong>. En dispositivos compatibles se abrirá el menú nativo para elegir WhatsApp y enviar las fotos como adjuntos reales; en otros equipos se abrirá WhatsApp con el enlace privado.</li>
+              <li>Elige <strong>Compartir fotos</strong>. En dispositivos compatibles se abrirá el menú nativo para elegir WhatsApp y enviar las fotos como adjuntos reales; el texto quedará copiado para que puedas pegarlo manualmente. En otros equipos se abrirá WhatsApp con el enlace privado.</li>
               <li>También puedes usar <strong>Copiar enlace privado</strong> y enviar el enlace por WhatsApp, correo u otro medio.</li>
             </ol>
             <p>El enlace permite descargar las fotos en un archivo ZIP y es válido durante 7 días. No se envían mensajes automáticamente por la API de WhatsApp.</p>
@@ -277,7 +277,7 @@ export class ManualComponent {
             <h3>Enviar el enlace</h3>
             <p>El enlace se puede compartir de dos formas:</p>
             <ul>
-              <li><strong>WhatsApp manual</strong> — Presiona <strong>Compartir por WhatsApp</strong>. Se abrirá WhatsApp para que elijas la conversación y lo envíes. El sistema no manda mensajes automáticos ni usa la API de WhatsApp.</li>
+              <li><strong>WhatsApp manual</strong> — Presiona <strong>Compartir fotos</strong>. Se abrirá el menú nativo para que elijas la aplicación y el sistema copiará el texto para pegarlo manualmente. El sistema no manda mensajes automáticos ni usa la API de WhatsApp.</li>
               <li><strong>Copiar enlace</strong> — Copia el enlace y envíalo por el medio que prefieras.</li>
             </ul>
             <p>El enlace no contiene el usuario, la contraseña ni el PIN. Es temporal y se puede regenerar desde la misma ventana si necesitas invalidar el anterior.</p>

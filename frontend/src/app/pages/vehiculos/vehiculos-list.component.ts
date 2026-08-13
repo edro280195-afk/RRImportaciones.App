@@ -622,7 +622,7 @@ interface PreparedShareFiles {
             @if (photoShare(); as share) {
               <button type="button" class="photo-share-action photo-share-action--primary" [disabled]="photoSharing()" (click)="sharePhotosByWhatsApp(share)">
                 <span class="photo-share-action__icon">↗</span>
-                <span>{{ photoSharing() ? 'Preparando fotos…' : 'Compartir fotos por WhatsApp' }}</span>
+                <span>{{ photoSharing() ? 'Preparando fotos…' : 'Compartir fotos' }}</span>
               </button>
               <button type="button" class="photo-share-action photo-share-action--secondary" [disabled]="photoSharing()" (click)="copyPhotoShareLink(share.galleryUrl)">
                 <span class="photo-share-action__icon">⧉</span>
@@ -1058,6 +1058,10 @@ export class VehiculosListComponent {
     if (this.photoSharing()) return;
     this.photoSharing.set(true);
     try {
+      // Se copia antes de abrir el selector nativo para que el usuario pueda
+      // pegar manualmente el mensaje en WhatsApp u otra aplicación.
+      await this.copyShareText(share.shareText);
+
       if (!this.supportsNativeFileShare()) {
         this.openWhatsAppFallback(share, 'Este dispositivo no permite adjuntar fotos desde el navegador. Se abrirá WhatsApp con el enlace privado.');
         return;
@@ -1125,6 +1129,23 @@ export class VehiculosListComponent {
       typeof navigator.canShare === 'function' &&
       typeof File !== 'undefined'
     );
+  }
+
+  private async copyShareText(text: string): Promise<boolean> {
+    if (
+      typeof navigator === 'undefined' ||
+      typeof navigator.clipboard?.writeText !== 'function'
+    ) {
+      return false;
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // El compartir de fotos no debe fallar si el navegador bloquea el portapapeles.
+      return false;
+    }
   }
 
   private async prepareShareFiles(share: CampoShareResponse): Promise<PreparedShareFiles> {
