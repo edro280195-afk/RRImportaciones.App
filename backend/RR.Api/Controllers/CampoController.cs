@@ -475,9 +475,58 @@ public class CampoController : ControllerBase
 
     private IActionResult SharedLinkNotFound()
     {
+        var nonce = _shareTokens.Generate();
+        var html = new StringBuilder("""
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Enlace no disponible · R&amp;R Importaciones</title>
+  <style nonce="__NONCE__">
+    :root { color-scheme:light; --ink:#182230; --muted:#687486; --red:#c61d26; --red-dark:#991b1b; --line:#e7ebf1; }
+    * { box-sizing:border-box; }
+    body { min-height:100vh; margin:0; display:grid; place-items:center; padding:24px; color:var(--ink); background:radial-gradient(circle at 12% 0%,#fff 0%,#f8f9fc 42%,#eef1f6 100%); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    .page { width:min(560px,100%); text-align:center; }
+    .brand { margin-bottom:24px; color:var(--red); font-size:12px; font-weight:900; letter-spacing:.17em; text-transform:uppercase; }
+    .card { position:relative; overflow:hidden; padding:42px 38px 36px; border:1px solid rgba(255,255,255,.9); border-radius:28px; background:rgba(255,255,255,.9); box-shadow:0 24px 70px rgba(25,39,64,.14),0 3px 12px rgba(25,39,64,.05); }
+    .card::before { position:absolute; top:0; left:0; right:0; height:5px; content:""; background:linear-gradient(90deg,var(--red),#e45b5f,var(--red-dark)); }
+    .icon { width:82px; height:82px; margin:0 auto 24px; display:grid; place-items:center; border:1px solid #fecaca; border-radius:25px; color:var(--red); background:#fff1f2; }
+    .icon svg { width:42px; height:42px; }
+    .eyebrow { display:inline-block; margin-bottom:11px; color:#9b1c23; font-size:11px; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
+    h1 { margin:0; font-size:clamp(27px,5vw,36px); line-height:1.08; letter-spacing:-.045em; }
+    .message { max-width:410px; margin:16px auto 0; color:var(--muted); font-size:15px; line-height:1.6; }
+    .hint { display:flex; gap:10px; align-items:flex-start; margin:27px 0 0; padding:14px 16px; border:1px solid var(--line); border-radius:15px; color:#536174; background:#f8fafc; text-align:left; font-size:13px; line-height:1.45; }
+    .hint-mark { flex:0 0 auto; width:21px; height:21px; display:grid; place-items:center; border-radius:50%; color:#fff; background:var(--red); font-size:12px; font-weight:900; }
+    .footer { margin-top:24px; color:#9aa4b2; font-size:11px; }
+    @media (max-width:520px) { body { padding:15px; } .card { padding:36px 22px 28px; border-radius:23px; } .brand { margin-bottom:18px; font-size:10px; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="brand">R&amp;R Importaciones</div>
+    <section class="card" aria-labelledby="title">
+      <div class="icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18.5 29.5 29.5 18.5" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="m14.7 24.2-3.1 3.1a7.2 7.2 0 0 0 10.2 10.2l3.1-3.1M33.3 23.8l3.1-3.1a7.2 7.2 0 0 0-10.2-10.2l-3.1 3.1" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <span class="eyebrow">Galería privada</span>
+      <h1 id="title">Este enlace ya no está disponible</h1>
+      <p class="message">El enlace pudo haber vencido o fue reemplazado por uno nuevo.</p>
+      <div class="hint"><span class="hint-mark">i</span><span>Solicita al administrador que genere y comparta un enlace nuevo para consultar las fotos.</span></div>
+    </section>
+    <div class="footer">Evidencia fotográfica · Acceso temporal protegido</div>
+  </main>
+</body>
+</html>
+""");
+
         Response.StatusCode = StatusCodes.Status404NotFound;
-        ApplyPrivateResponseHeaders();
-        return Content("<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>Enlace no disponible</title></head><body><h1>Este enlace no está disponible</h1><p>Puede haber vencido o haber sido revocado.</p></body></html>", "text/html", Encoding.UTF8);
+        ApplyPrivateResponseHeaders(nonce);
+        return Content(html.Replace("__NONCE__", HtmlEncoder.Default.Encode(nonce)).ToString(), "text/html", Encoding.UTF8);
     }
 
     private string BuildGalleryHtml(TareaCampo tarea, string nonce)
