@@ -1093,7 +1093,8 @@ export class VehiculosListComponent {
       try {
         await navigator.share({
           title: `Fotos de ${share.vehicle}`,
-          text: share.shareText,
+          // WhatsApp puede repetir `text` como caption en cada imagen.
+          // El mensaje con el enlace se conserva únicamente en el fallback.
           files: prepared.files,
         });
       } catch (error) {
