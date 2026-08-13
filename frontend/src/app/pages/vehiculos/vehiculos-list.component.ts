@@ -605,7 +605,6 @@ import { environment } from '../../../environments/environment';
                     <p>Se abrirá una galería privada para visualizarlas y descargarlas.</p>
                   </div>
                 </div>
-                <p class="photo-share-note">El enlace no se muestra en pantalla. Puedes copiarlo con el botón o enviarlo directamente por WhatsApp. Vence en 7 días.</p>
               }
             }
           </div>
@@ -950,7 +949,6 @@ import { environment } from '../../../environments/environment';
       .delivery-success__icon { width:32px; height:32px; flex:0 0 auto; display:grid; place-items:center; border-radius:50%; color:#fff; background:#16a34a; font-weight:900; }
       .delivery-success strong { display:block; color:#166534; font-size:14px; }
       .delivery-success p { margin:3px 0 0; color:#4b7c59; font-size:12px; }
-      .photo-share-note { margin:0; padding:13px 14px; border-radius:12px; background:#f7f8fb; color:#596579; font-size:12px; line-height:1.5; }
       .photo-share-action { display:flex; align-items:center; justify-content:center; gap:10px; min-height:58px; padding:0 18px; border-radius:13px; font:inherit; font-size:14px; font-weight:850; cursor:pointer; transition:transform .15s,box-shadow .15s,opacity .15s; }
       .photo-share-action:hover { transform:translateY(-1px); box-shadow:0 9px 24px rgba(13,16,23,.14); }
       .photo-share-action:disabled { opacity:.55; cursor:not-allowed; transform:none; box-shadow:none; }

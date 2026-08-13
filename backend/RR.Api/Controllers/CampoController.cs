@@ -511,7 +511,7 @@ public class CampoController : ControllerBase
     button { font:inherit; }
     .action { min-height:52px; border:0; border-radius:13px; padding:0 19px; cursor:pointer; font-size:14px; font-weight:850; transition:transform .15s,box-shadow .15s,background .15s; }
     .action:hover { transform:translateY(-1px); box-shadow:0 8px 22px rgba(17,24,39,.12); }
-    .action:focus-visible,.photo-card:focus-visible,.icon-btn:focus-visible { outline:3px solid rgba(198,29,38,.3); outline-offset:3px; }
+    .action:focus-visible,.photo-card:focus-visible,.icon-btn:focus-visible,.zoom-btn:focus-visible { outline:3px solid rgba(198,29,38,.3); outline-offset:3px; }
     .action--all { color:#fff; background:var(--red); box-shadow:0 7px 18px rgba(198,29,38,.18); }
     .action--select { color:#263244; background:#fff; border:1px solid #d6dce6; }
     .action--download { color:#fff; background:#166534; }
@@ -532,13 +532,19 @@ public class CampoController : ControllerBase
     .lightbox-top { display:flex; align-items:center; justify-content:space-between; gap:12px; color:#fff; }
     .lightbox-title { font-size:13px; font-weight:800; }
     .lightbox-count { margin-left:8px; color:#aeb8c8; font-size:12px; }
+    .lightbox-toolbar { display:flex; align-items:center; gap:7px; }
     .icon-btn { width:42px; height:42px; border:1px solid rgba(255,255,255,.2); border-radius:12px; color:#fff; background:rgba(255,255,255,.1); cursor:pointer; font-size:22px; }
-    .lightbox-stage { position:relative; display:grid; place-items:center; min-height:0; padding:18px 46px; }
-    .lightbox-stage img { max-width:100%; max-height:100%; object-fit:contain; border-radius:10px; }
+    .zoom-btn { min-width:42px; height:42px; padding:0 9px; border:1px solid rgba(255,255,255,.2); border-radius:12px; color:#fff; background:rgba(255,255,255,.1); cursor:pointer; font-size:22px; font-weight:800; }
+    .zoom-btn--reset { min-width:58px; font-size:12px; }
+    .zoom-btn:disabled { opacity:.45; cursor:not-allowed; }
+    .lightbox-stage { position:relative; display:grid; place-items:center; min-height:0; overflow:auto; overscroll-behavior:contain; padding:18px 46px; }
+    .lightbox-stage img { display:block; width:auto; height:auto; max-width:calc(100vw - 132px); max-height:calc(100vh - 178px); object-fit:contain; border-radius:10px; transform:scale(var(--zoom,1)); transform-origin:center; transition:transform .18s ease; cursor:zoom-in; }
+    .lightbox-stage img.is-zoomed { cursor:grab; }
+    .lightbox-stage img.is-zoomed:active { cursor:grabbing; }
     .lightbox-nav { position:absolute; top:50%; transform:translateY(-50%); width:44px; height:60px; border:0; border-radius:12px; color:#fff; background:rgba(255,255,255,.13); cursor:pointer; font-size:35px; }
     .lightbox-nav--prev { left:0; } .lightbox-nav--next { right:0; }
     .lightbox-bottom { color:#aeb8c8; text-align:center; font-size:12px; }
-    @media (max-width:700px) { .shell { padding:20px 13px 38px; } .header { display:block; } .actions { display:grid; } .action { width:100%; } .masonry { columns:2 145px; column-gap:10px; } .photo-card { margin-bottom:10px; border-radius:11px; } .photo-label { padding:7px 8px; } .lightbox { padding:11px; } }
+    @media (max-width:700px) { .shell { padding:20px 13px 38px; } .header { display:block; } .actions { display:grid; } .action { width:100%; } .masonry { columns:2 145px; column-gap:10px; } .photo-card { margin-bottom:10px; border-radius:11px; } .photo-label { padding:7px 8px; } .lightbox { padding:11px; } .lightbox-toolbar { gap:4px; } .zoom-btn,.icon-btn { min-width:38px; width:38px; height:38px; padding:0; } .zoom-btn--reset { min-width:50px; width:50px; } .lightbox-stage { padding:12px 28px; } .lightbox-stage img { max-width:calc(100vw - 60px); max-height:calc(100vh - 168px); } }
   </style>
 </head>
 <body>
@@ -550,7 +556,7 @@ public class CampoController : ControllerBase
         <p class="meta">__VIN__ · __PHOTO_COUNT__ fotos</p>
       </div>
     </header>
-    <p class="notice">Esta galería es privada y temporal. El enlace vence el __EXPIRES__. Las fotos se sirven mediante este enlace y no se muestran las rutas internas del almacenamiento.</p>
+    <p class="notice">Esta galería es privada y temporal. El enlace vence el __EXPIRES__.</p>
     <div class="actions">
       <button id="download-all" class="action action--all" type="button">Descargar todas las fotos (ZIP)</button>
       <button id="manual-toggle" class="action action--select" type="button">Seleccionar fotos para descargar</button>
@@ -565,9 +571,9 @@ __PHOTO_CARDS__
     </section>
   </main>
   <section id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden>
-    <div class="lightbox-top"><span><span id="lightbox-title" class="lightbox-title">Foto</span><span id="lightbox-count" class="lightbox-count"></span></span><button id="lightbox-close" class="icon-btn" type="button" aria-label="Cerrar">×</button></div>
+    <div class="lightbox-top"><span><span id="lightbox-title" class="lightbox-title">Foto</span><span id="lightbox-count" class="lightbox-count"></span></span><div class="lightbox-toolbar" role="group" aria-label="Controles de zoom"><button id="zoom-out" class="zoom-btn" type="button" aria-label="Alejar" title="Alejar">−</button><button id="zoom-reset" class="zoom-btn zoom-btn--reset" type="button" aria-label="Restablecer zoom" title="Restablecer zoom">100%</button><button id="zoom-in" class="zoom-btn" type="button" aria-label="Acercar" title="Acercar">+</button><button id="lightbox-close" class="icon-btn" type="button" aria-label="Cerrar">×</button></div></div>
     <div class="lightbox-stage"><button id="lightbox-prev" class="lightbox-nav lightbox-nav--prev" type="button" aria-label="Foto anterior">‹</button><img id="lightbox-image" alt="Foto ampliada"><button id="lightbox-next" class="lightbox-nav lightbox-nav--next" type="button" aria-label="Foto siguiente">›</button></div>
-    <div class="lightbox-bottom">Usa las flechas del teclado o desliza visualmente con los botones para recorrer las fotos.</div>
+    <div class="lightbox-bottom">Usa − y + para controlar el zoom. Con zoom puedes desplazarte por la imagen.</div>
   </section>
   <script nonce="__NONCE__">
     (() => {
@@ -581,12 +587,27 @@ __PHOTO_CARDS__
       const lightboxImage = document.getElementById('lightbox-image');
       const lightboxTitle = document.getElementById('lightbox-title');
       const lightboxCount = document.getElementById('lightbox-count');
+      const zoomOut = document.getElementById('zoom-out');
+      const zoomReset = document.getElementById('zoom-reset');
+      const zoomIn = document.getElementById('zoom-in');
       const selectionBar = document.getElementById('selection-bar');
       const selectionCount = document.getElementById('selection-count');
       const downloadSelected = document.getElementById('download-selected');
+      const minZoom = 1;
+      const maxZoom = 3;
+      const zoomStep = .25;
+      let zoom = minZoom;
       const photoUrl = index => basePath + '/foto/' + encodeURIComponent(String(index));
       const downloadUrl = indexes => basePath + '/descarga' + (indexes.length ? '?seleccion=' + encodeURIComponent(indexes.join(',')) : '');
       document.querySelectorAll('img[data-index]').forEach(image => { image.src = photoUrl(Number(image.dataset.index)); });
+      const updateZoom = value => {
+        zoom = Math.min(maxZoom, Math.max(minZoom, Math.round(value * 100) / 100));
+        lightboxImage.style.setProperty('--zoom', String(zoom));
+        lightboxImage.classList.toggle('is-zoomed', zoom > minZoom);
+        zoomReset.textContent = Math.round(zoom * 100) + '%';
+        zoomOut.disabled = zoom <= minZoom;
+        zoomIn.disabled = zoom >= maxZoom;
+      };
       const updateSelection = () => {
         document.body.classList.toggle('select-mode', selectMode);
         selectionBar.classList.toggle('is-visible', selectMode);
@@ -602,6 +623,7 @@ __PHOTO_CARDS__
       };
       const showPhoto = index => {
         currentIndex = (index + cards.length) % cards.length;
+        updateZoom(minZoom);
         lightboxImage.src = photoUrl(currentIndex);
         lightboxImage.alt = 'Foto ' + (currentIndex + 1) + ' ampliada';
         lightboxTitle.textContent = 'Foto ' + (currentIndex + 1);
@@ -621,7 +643,13 @@ __PHOTO_CARDS__
       document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
       document.getElementById('lightbox-prev').addEventListener('click', () => showPhoto(currentIndex - 1));
       document.getElementById('lightbox-next').addEventListener('click', () => showPhoto(currentIndex + 1));
-      document.addEventListener('keydown', event => { if (lightbox.hidden) return; if (event.key === 'Escape') closeLightbox(); if (event.key === 'ArrowLeft') showPhoto(currentIndex - 1); if (event.key === 'ArrowRight') showPhoto(currentIndex + 1); });
+      zoomOut.addEventListener('click', () => updateZoom(zoom - zoomStep));
+      zoomReset.addEventListener('click', () => updateZoom(minZoom));
+      zoomIn.addEventListener('click', () => updateZoom(zoom + zoomStep));
+      lightboxImage.addEventListener('dblclick', () => updateZoom(zoom > minZoom ? minZoom : 2));
+      lightboxImage.addEventListener('wheel', event => { event.preventDefault(); updateZoom(zoom + (event.deltaY < 0 ? zoomStep : -zoomStep)); }, { passive:false });
+      document.addEventListener('keydown', event => { if (lightbox.hidden) return; if (event.key === 'Escape') closeLightbox(); if (event.key === 'ArrowLeft') showPhoto(currentIndex - 1); if (event.key === 'ArrowRight') showPhoto(currentIndex + 1); if (event.key === '+' || event.key === '=') updateZoom(zoom + zoomStep); if (event.key === '-') updateZoom(zoom - zoomStep); if (event.key === '0') updateZoom(minZoom); });
+      updateZoom(minZoom);
       updateSelection();
     })();
   </script>

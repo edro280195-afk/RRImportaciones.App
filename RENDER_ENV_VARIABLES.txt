@@ -27,6 +27,11 @@ EntregaLinks__BaseUrl=https://rr-importaciones-app.vercel.app
 EntregaLinks__ExpirationDays=30
 
 
+========== GALERÍA PRIVADA DE FOTOS ==========
+
+PublicApp__BaseUrl=https://rrimportaciones.onrender.com
+
+
 ========== SECCIÓN: WhatsApp (Twilio - Sandbox) ==========
 
 WhatsApp__Provider=Twilio
