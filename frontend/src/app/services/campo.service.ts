@@ -132,6 +132,10 @@ export class CampoService {
     return this.http.get<CampoShareResponse>(`${this.baseUrl}/tareas/${id}/compartir`);
   }
 
+  createVehicleShareLink(vehiculoId: string): Observable<CampoShareResponse> {
+    return this.http.get<CampoShareResponse>(`${this.baseUrl}/vehiculos/${vehiculoId}/compartir`);
+  }
+
   deleteFoto(id: string, fotoUrl: string): Observable<TareaCampoDto> {
     return this.http.delete<TareaCampoDto>(`${this.baseUrl}/tareas/${id}/fotos`, {
       body: { fotoUrl },

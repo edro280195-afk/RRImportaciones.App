@@ -2,9 +2,11 @@ import { ChangeDetectionStrategy, Component, HostListener, signal, inject, ViewC
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import { VehiculoService, VehiculoListDto } from '../../services/vehiculo.service';
 import { VehiculoFormDialogComponent } from './vehiculo-form-dialog.component';
 import { ChoferEntregaDto, EntregaLinkResponseDto, EntregaTareaService } from '../../services/entrega-tarea.service';
+import { CampoService, CampoShareResponse } from '../../services/campo.service';
 import { NotificationService } from '../../services/notification.service';
 import { environment } from '../../../environments/environment';
 
@@ -224,6 +226,14 @@ import { environment } from '../../../environments/environment';
                 </button>
                 <button
                   type="button"
+                  class="veh-btn veh-btn--share"
+                  [disabled]="v.fotosUrls.length === 0"
+                  (click)="$event.stopPropagation(); openPhotoShare(v)"
+                >
+                  Compartir
+                </button>
+                <button
+                  type="button"
                   class="veh-btn veh-btn--delivery"
                   [disabled]="!v.tieneTramiteActivo"
                   (click)="$event.stopPropagation(); openAssign(v)"
@@ -337,6 +347,7 @@ import { environment } from '../../../environments/environment';
                   >
                     Ubicación <span class="text-[9px] ml-0.5">{{ sortIcon('ubicacion') }}</span>
                   </th>
+                  <th class="text-center px-5 py-3.5 font-medium">Fotos</th>
                   <th class="text-center px-5 py-3.5 font-medium">Estado</th>
                   <th class="text-right px-5 py-3.5 font-medium">Entrega</th>
                 </tr>
@@ -377,6 +388,16 @@ import { environment } from '../../../environments/environment';
                       } @else {
                         <span class="text-[#9EA3AE]">—</span>
                       }
+                    </td>
+                    <td class="px-5 py-3.5 text-center">
+                      <button
+                        type="button"
+                        class="inline-flex items-center px-3 py-2 rounded-lg text-[12px] font-semibold text-[#166534] bg-[#F0FDF4] border border-[#BBF7D0] disabled:opacity-40 disabled:cursor-not-allowed"
+                        [disabled]="v.fotosUrls.length === 0"
+                        (click)="$event.stopPropagation(); openPhotoShare(v)"
+                      >
+                        Compartir
+                      </button>
                     </td>
                     <td class="px-5 py-3.5 text-center">
                       <div class="flex items-center justify-center gap-1">
@@ -555,6 +576,60 @@ import { environment } from '../../../environments/environment';
       </div>
     }
 
+    @if (showPhotoShareModal()) {
+      <div class="delivery-modal-backdrop" (click)="closePhotoShare()">
+        <section class="delivery-modal" role="dialog" aria-modal="true" aria-labelledby="photo-share-modal-title" (click)="$event.stopPropagation()">
+          <header class="delivery-modal__header">
+            <div>
+              <span class="delivery-modal__eyebrow">COMPARTIR FOTOS</span>
+              <h2 id="photo-share-modal-title">Enviar a cliente o socio</h2>
+              @if (shareVehicle(); as vehicle) {
+                <p>{{ vehicleLabel(vehicle) }} · VIN {{ vehicle.vin }}</p>
+              }
+            </div>
+            <button type="button" class="delivery-modal__close" (click)="closePhotoShare()" aria-label="Cerrar">×</button>
+          </header>
+
+          <div class="delivery-modal__body">
+            @if (photoShareLoading()) {
+              <div class="photo-share-loading">
+                <div class="photo-share-spinner"></div>
+                <strong>Preparando el enlace de descarga…</strong>
+                <span>Un momento, por favor.</span>
+              </div>
+            } @else {
+              @if (photoShare(); as share) {
+                <div class="delivery-success">
+                  <div class="delivery-success__icon">✓</div>
+                  <div>
+                    <strong>{{ share.photoUrls.length }} fotos listas</strong>
+                    <p>El cliente podrá descargar un archivo ZIP.</p>
+                  </div>
+                </div>
+                <label class="delivery-field">
+                  <span>Enlace de descarga</span>
+                  <input [value]="share.downloadUrl" readonly (focus)="selectLinkInput($event)" />
+                </label>
+                <p class="delivery-note">Este enlace es válido durante 7 días y solo permite descargar las fotos.</p>
+              }
+            }
+          </div>
+
+          <footer class="delivery-modal__footer delivery-modal__footer--stack">
+            @if (photoShare(); as share) {
+              <button type="button" class="delivery-primary" [disabled]="photoSharing()" (click)="sharePhotosByWhatsApp(share)">
+                {{ photoSharing() ? 'Preparando fotos…' : 'Compartir por WhatsApp' }}
+              </button>
+              <button type="button" class="delivery-secondary" [disabled]="photoSharing()" (click)="copyPhotoShareLink(share.downloadUrl)">
+                Copiar enlace de descarga
+              </button>
+            }
+            <button type="button" class="delivery-link-button" (click)="closePhotoShare()">Cerrar</button>
+          </footer>
+        </section>
+      </div>
+    }
+
     <app-vehiculo-form-dialog #formDialog (saved)="loadVehiculos()" />
   `,
   styles: [
@@ -678,6 +753,7 @@ import { environment } from '../../../environments/environment';
       }
       .veh-card__actions {
         display: flex;
+        flex-wrap: wrap;
         gap: 10px;
         margin-top: 14px;
       }
@@ -687,8 +763,15 @@ import { environment } from '../../../environments/environment';
         border: 1px solid #ffc5c5;
       }
       .veh-btn--delivery:disabled { opacity: .45; cursor: not-allowed; }
+      .veh-btn--share {
+        background: #f0fdf4;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+      }
+      .veh-btn--share:disabled { opacity: .45; cursor: not-allowed; }
       .veh-btn {
-        flex: 1;
+        flex: 1 1 calc(50% - 5px);
+        min-width: 0;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -870,6 +953,10 @@ import { environment } from '../../../environments/environment';
       .delivery-success__icon { width:32px; height:32px; flex:0 0 auto; display:grid; place-items:center; border-radius:50%; color:#fff; background:#16a34a; font-weight:900; }
       .delivery-success strong { display:block; color:#166534; font-size:14px; }
       .delivery-success p { margin:3px 0 0; color:#4b7c59; font-size:12px; }
+      .photo-share-loading { display:grid; justify-items:center; gap:8px; padding:20px 0 10px; text-align:center; color:#4b5162; font-size:13px; }
+      .photo-share-loading span { color:#7a8190; font-size:12px; }
+      .photo-share-spinner { width:28px; height:28px; margin-bottom:4px; border:3px solid #e5e7eb; border-top-color:#16a34a; border-radius:50%; animation:photo-share-spin .8s linear infinite; }
+      @keyframes photo-share-spin { to { transform:rotate(360deg); } }
       @media (max-width:640px) { .delivery-modal-backdrop { padding:3vh 10px 16px; } .delivery-modal__header,.delivery-modal__body,.delivery-modal__footer { padding-left:18px; padding-right:18px; } .delivery-modal__footer:not(.delivery-modal__footer--stack) { flex-direction:column-reverse; } .delivery-modal__footer:not(.delivery-modal__footer--stack) button { width:100%; } }
     `,
   ],
@@ -877,6 +964,7 @@ import { environment } from '../../../environments/environment';
 export class VehiculosListComponent {
   private service = inject(VehiculoService);
   private entregaService = inject(EntregaTareaService);
+  private campoService = inject(CampoService);
   private notifications = inject(NotificationService);
   router = inject(Router);
 
@@ -884,6 +972,11 @@ export class VehiculosListComponent {
   isMobile = signal(window.innerWidth < 768);
   lightboxVehiculo = signal<VehiculoListDto | null>(null);
   lightboxIndex = signal(0);
+  showPhotoShareModal = signal(false);
+  shareVehicle = signal<VehiculoListDto | null>(null);
+  photoShare = signal<CampoShareResponse | null>(null);
+  photoShareLoading = signal(false);
+  photoSharing = signal(false);
 
   @HostListener('window:resize')
   onWindowResize(): void {
@@ -920,6 +1013,94 @@ export class VehiculosListComponent {
 
   prevFoto(v: VehiculoListDto): void {
     this.lightboxIndex.set((this.lightboxIndex() - 1 + v.fotosUrls.length) % v.fotosUrls.length);
+  }
+
+  openPhotoShare(vehicle: VehiculoListDto): void {
+    if (vehicle.fotosUrls.length === 0 || this.photoShareLoading()) return;
+
+    this.shareVehicle.set(vehicle);
+    this.photoShare.set(null);
+    this.showPhotoShareModal.set(true);
+    this.photoShareLoading.set(true);
+    this.campoService.createVehicleShareLink(vehicle.id).subscribe({
+      next: share => {
+        this.photoShare.set(share);
+        this.photoShareLoading.set(false);
+      },
+      error: error => {
+        this.photoShareLoading.set(false);
+        this.showPhotoShareModal.set(false);
+        this.notifications.fromHttpError(error, 'No se pudo preparar el enlace de las fotos');
+      },
+    });
+  }
+
+  closePhotoShare(): void {
+    if (this.photoSharing()) return;
+    this.showPhotoShareModal.set(false);
+    this.shareVehicle.set(null);
+    this.photoShare.set(null);
+  }
+
+  async sharePhotosByWhatsApp(share: CampoShareResponse): Promise<void> {
+    if (this.photoSharing()) return;
+    this.photoSharing.set(true);
+    try {
+      const files = await this.prepareShareFiles(share);
+      if (files.length > 0 && navigator.share && navigator.canShare?.({ files })) {
+        await navigator.share({
+          title: `Fotos de ${share.vehicle}`,
+          text: share.shareText,
+          files,
+        });
+      } else {
+        if (files.length > 0) this.downloadShareFiles(files);
+        window.open(`https://wa.me/?text=${encodeURIComponent(share.shareText)}`, '_blank', 'noopener,noreferrer');
+        this.notifications.info('Fotos descargadas. Adjunta los archivos en WhatsApp y envía también el enlace.');
+      }
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        this.notifications.fromHttpError(error, 'No se pudieron preparar las fotos para WhatsApp');
+      }
+    } finally {
+      this.photoSharing.set(false);
+    }
+  }
+
+  async copyPhotoShareLink(link: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(link);
+      this.notifications.success('Enlace de descarga copiado. Es válido durante 7 días.');
+    } catch {
+      this.notifications.error('No se pudo copiar automáticamente. Selecciona el enlace y cópialo manualmente.');
+    }
+  }
+
+  private async prepareShareFiles(share: CampoShareResponse): Promise<File[]> {
+    const files: File[] = [];
+    for (const [index, url] of share.photoUrls.entries()) {
+      try {
+        const response = await fetch(this.fileUrl(url));
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        const extension = blob.type.split('/')[1] || 'jpeg';
+        files.push(new File([blob], `foto-${index + 1}.${extension}`, { type: blob.type || 'image/jpeg' }));
+      } catch {
+        // Si el almacenamiento no permite CORS, el enlace de descarga sigue funcionando.
+      }
+    }
+    return files;
+  }
+
+  private downloadShareFiles(files: File[]): void {
+    for (const file of files) {
+      const url = URL.createObjectURL(file);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = file.name;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
   }
 
   cotizar(v: VehiculoListDto): void {

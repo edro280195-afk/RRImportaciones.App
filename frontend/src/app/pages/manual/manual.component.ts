@@ -247,6 +247,21 @@ export class ManualComponent {
           `,
         },
         {
+          id: 'admin-compartir-fotos',
+          titulo: 'Enviar fotos a clientes o socios',
+          contenido: `
+            <p>El envío de fotografías es una tarea administrativa y se realiza desde <strong>Vehículos</strong>. El personal de Campo únicamente captura y sube la evidencia.</p>
+            <h3>Compartir las fotos</h3>
+            <ol>
+              <li>Entra a <strong>Vehículos</strong> y localiza la unidad.</li>
+              <li>Presiona <strong>Compartir</strong> junto a las fotos del vehículo.</li>
+              <li>Elige <strong>Compartir por WhatsApp</strong> para preparar las fotos y abrir WhatsApp, donde tú eliges la conversación.</li>
+              <li>También puedes usar <strong>Copiar enlace de descarga</strong> y enviar el enlace por WhatsApp, correo u otro medio.</li>
+            </ol>
+            <p>El enlace permite descargar las fotos en un archivo ZIP y es válido durante 7 días. No se envían mensajes automáticamente por la API de WhatsApp.</p>
+          `,
+        },
+        {
           id: 'admin-entregas-choferes',
           titulo: 'Asignar una entrega a un chofer',
           contenido: `

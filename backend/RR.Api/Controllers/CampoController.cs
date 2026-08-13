@@ -258,6 +258,25 @@ public class CampoController : ControllerBase
         });
     }
 
+    /// <summary>Genera el enlace de fotos desde el registro administrativo del vehículo.</summary>
+    [HttpGet("vehiculos/{vehiculoId:guid}/compartir")]
+    [RequierePermiso(Permisos.TramitesAsignar)]
+    public async Task<IActionResult> CreateVehicleShareLink(Guid vehiculoId)
+    {
+        var tareaId = await _db.TareasCampo
+            .Where(t => t.FotosUrls.Length > 0
+                        && (t.VehiculoId == vehiculoId
+                            || (t.Tramite != null && t.Tramite.VehiculoId == vehiculoId)))
+            .OrderByDescending(t => t.FechaCompletada ?? t.FechaCreacion)
+            .Select(t => (Guid?)t.Id)
+            .FirstOrDefaultAsync(HttpContext.RequestAborted);
+
+        if (!tareaId.HasValue)
+            return NotFound(new { message = "El vehículo todavía no tiene fotos de campo para compartir" });
+
+        return await CreateShareLink(tareaId.Value);
+    }
+
     [HttpGet("compartir/{token}/descarga")]
     [AllowAnonymous]
     [EnableRateLimiting("Portal")]
