@@ -8,6 +8,7 @@ import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
 import { PushNotificationService } from '../../services/push-notification.service';
 import { CampoRegistroModalComponent } from './campo-registro-modal.component';
+import { CampoCapturaComponent } from './campo-captura.component';
 import { CampoOfflineService } from '../../services/campo-offline.service';
 
 /** Aviso en vivo que se le muestra al operador dentro de la pantalla de campo. */
@@ -22,9 +23,12 @@ interface AvisoCampo {
 @Component({
   selector: 'app-campo-tareas',
   standalone: true,
-  imports: [FormsModule, CampoRegistroModalComponent],
+  // La captura se incluye en el chunk de Campo para que esté disponible al
+  // tocar una captura local, aunque el dispositivo ya no tenga conexión.
+  imports: [FormsModule, CampoRegistroModalComponent, CampoCapturaComponent],
   template: `
     <div class="shell">
+      <ng-template><app-campo-captura></app-campo-captura></ng-template>
       <!-- ── Header ──────────────────────────────────────────────── -->
       <header class="topbar">
         <div class="brand">
@@ -1453,9 +1457,19 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
     void this.offline.syncAll();
   }
 
-  openOfflineCapture(id: string): void {
+  async openOfflineCapture(id: string): Promise<void> {
     this.showRegistro.set(false);
-    void this.router.navigate(['/campo/pre-registro', id, 'captura']);
+    const record = await this.offline.getRecord(id);
+    if (!record) {
+      this.notifications.warning('Esta captura ya fue sincronizada o no está disponible en el dispositivo.');
+      await this.offline.refresh();
+      return;
+    }
+
+    const navigated = await this.router.navigate(['/campo/pre-registro', id, 'captura']);
+    if (!navigated) {
+      this.notifications.warning('No se pudo abrir la captura local. Intenta nuevamente.');
+    }
   }
 
   offlineStatusLabel(status: string): string {

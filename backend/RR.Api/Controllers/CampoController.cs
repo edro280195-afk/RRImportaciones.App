@@ -382,6 +382,9 @@ public class CampoController : ControllerBase
         await _db.SaveChangesAsync(HttpContext.RequestAborted);
 
         var galleryUrl = $"{GetPublicApiBaseUrl()}/api/campo/compartir/{Uri.EscapeDataString(token)}";
+        var sharePhotoUrls = tarea.FotosUrls
+            .Select((_, index) => $"{galleryUrl}/foto/{Uri.EscapeDataString(index.ToString(System.Globalization.CultureInfo.InvariantCulture))}")
+            .ToArray();
         var vehicle = string.IsNullOrWhiteSpace(tarea.VehiculoResumen)
             ? "vehículo"
             : tarea.VehiculoResumen;
@@ -398,6 +401,9 @@ public class CampoController : ControllerBase
             shareText,
             expiresAt,
             photoUrls = tarea.FotosUrls,
+            // URLs temporales protegidas por el mismo token de la galería.
+            // El frontend las usa para compartir archivos sin acceder directamente al storage.
+            sharePhotoUrls,
             videoUrls = tarea.VideosUrls,
         });
     }

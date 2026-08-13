@@ -49,6 +49,8 @@ export interface CampoShareResponse {
   shareText: string;
   expiresAt: string;
   photoUrls: string[];
+  /** URLs temporales de cada foto, protegidas por el token de la galería. */
+  sharePhotoUrls?: string[];
   videoUrls: string[];
 }
 

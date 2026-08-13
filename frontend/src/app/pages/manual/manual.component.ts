@@ -255,8 +255,8 @@ export class ManualComponent {
             <ol>
               <li>Entra a <strong>Vehículos</strong> y localiza la unidad.</li>
               <li>Presiona <strong>Compartir</strong> junto a las fotos del vehículo.</li>
-              <li>Elige <strong>Compartir por WhatsApp</strong> para preparar las fotos y abrir WhatsApp, donde tú eliges la conversación.</li>
-              <li>También puedes usar <strong>Copiar enlace de descarga</strong> y enviar el enlace por WhatsApp, correo u otro medio.</li>
+              <li>Elige <strong>Compartir por WhatsApp</strong>. En dispositivos compatibles se abrirá el menú nativo para elegir WhatsApp y enviar las fotos como adjuntos reales; en otros equipos se abrirá WhatsApp con el enlace privado.</li>
+              <li>También puedes usar <strong>Copiar enlace privado</strong> y enviar el enlace por WhatsApp, correo u otro medio.</li>
             </ol>
             <p>El enlace permite descargar las fotos en un archivo ZIP y es válido durante 7 días. No se envían mensajes automáticamente por la API de WhatsApp.</p>
           `,

@@ -9,6 +9,15 @@ import { CampoService, CampoShareResponse } from '../../services/campo.service';
 import { NotificationService } from '../../services/notification.service';
 import { environment } from '../../../environments/environment';
 
+const MAX_NATIVE_SHARE_BYTES = 100 * 1024 * 1024;
+const SHAREABLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+interface PreparedShareFiles {
+  files: File[];
+  failedCount: number;
+  exceededSizeLimit: boolean;
+}
+
 @Component({
   selector: 'app-vehiculos-list',
   standalone: true,
@@ -602,7 +611,7 @@ import { environment } from '../../../environments/environment';
                   <div class="delivery-success__icon">✓</div>
                   <div>
                     <strong>{{ share.photoUrls.length }} fotos listas</strong>
-                    <p>Se abrirá una galería privada para visualizarlas y descargarlas.</p>
+                    <p>En dispositivos compatibles se abrirá el menú nativo para elegir WhatsApp u otra aplicación.</p>
                   </div>
                 </div>
               }
@@ -1049,22 +1058,51 @@ export class VehiculosListComponent {
     if (this.photoSharing()) return;
     this.photoSharing.set(true);
     try {
-      const files = await this.prepareShareFiles(share);
-      if (files.length > 0 && navigator.share && navigator.canShare?.({ files })) {
+      if (!this.supportsNativeFileShare()) {
+        this.openWhatsAppFallback(share, 'Este dispositivo no permite adjuntar fotos desde el navegador. Se abrirá WhatsApp con el enlace privado.');
+        return;
+      }
+
+      const prepared = await this.prepareShareFiles(share);
+      if (
+        prepared.files.length !== share.photoUrls.length ||
+        prepared.failedCount > 0 ||
+        prepared.exceededSizeLimit
+      ) {
+        this.openWhatsAppFallback(
+          share,
+          prepared.exceededSizeLimit
+            ? 'Las fotos ocupan demasiado para compartirlas juntas desde este dispositivo. Se abrirá WhatsApp con el enlace privado.'
+            : 'No se pudieron preparar todas las fotos para adjuntarlas. Se abrirá WhatsApp con el enlace privado.'
+        );
+        return;
+      }
+
+      let canShareFiles = false;
+      try {
+        canShareFiles = navigator.canShare({ files: prepared.files });
+      } catch {
+        canShareFiles = false;
+      }
+
+      if (!canShareFiles) {
+        this.openWhatsAppFallback(share, 'El navegador no permite compartir estas fotos como archivos. Se abrirá WhatsApp con el enlace privado.');
+        return;
+      }
+
+      try {
         await navigator.share({
           title: `Fotos de ${share.vehicle}`,
           text: share.shareText,
-          files,
+          files: prepared.files,
         });
-      } else {
-        if (files.length > 0) this.downloadShareFiles(files);
-        window.open(`https://wa.me/?text=${encodeURIComponent(share.shareText)}`, '_blank', 'noopener,noreferrer');
-        this.notifications.info('Fotos descargadas. Adjunta los archivos en WhatsApp y envía también el enlace.');
+      } catch (error) {
+        if (!this.isShareCancelled(error)) {
+          this.openWhatsAppFallback(share, 'El menú nativo no aceptó las fotos. Se abrirá WhatsApp con el enlace privado.');
+        }
       }
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        this.notifications.fromHttpError(error, 'No se pudieron preparar las fotos para WhatsApp');
-      }
+    } catch {
+      this.openWhatsAppFallback(share, 'No se pudieron preparar las fotos. Se abrirá WhatsApp con el enlace privado.');
     } finally {
       this.photoSharing.set(false);
     }
@@ -1079,31 +1117,116 @@ export class VehiculosListComponent {
     }
   }
 
-  private async prepareShareFiles(share: CampoShareResponse): Promise<File[]> {
-    const files: File[] = [];
-    for (const [index, url] of share.photoUrls.entries()) {
-      try {
-        const response = await fetch(this.fileUrl(url));
-        if (!response.ok) continue;
-        const blob = await response.blob();
-        const extension = blob.type.split('/')[1] || 'jpeg';
-        files.push(new File([blob], `foto-${index + 1}.${extension}`, { type: blob.type || 'image/jpeg' }));
-      } catch {
-        // Si el almacenamiento no permite CORS, el enlace de descarga sigue funcionando.
-      }
-    }
-    return files;
+  private supportsNativeFileShare(): boolean {
+    return (
+      typeof navigator !== 'undefined' &&
+      typeof navigator.share === 'function' &&
+      typeof navigator.canShare === 'function' &&
+      typeof File !== 'undefined'
+    );
   }
 
-  private downloadShareFiles(files: File[]): void {
-    for (const file of files) {
-      const url = URL.createObjectURL(file);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = file.name;
-      anchor.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  private async prepareShareFiles(share: CampoShareResponse): Promise<PreparedShareFiles> {
+    const files: File[] = [];
+    let failedCount = 0;
+    let totalBytes = 0;
+    const photoUrls = this.buildSharePhotoUrls(share);
+
+    if (photoUrls.length !== share.photoUrls.length) {
+      return { files, failedCount: share.photoUrls.length, exceededSizeLimit: false };
     }
+
+    for (const [index, url] of photoUrls.entries()) {
+      try {
+        const response = await fetch(url, {
+          cache: 'no-store',
+          credentials: 'omit',
+          mode: 'cors',
+        });
+        if (!response.ok) {
+          failedCount++;
+          continue;
+        }
+
+        const declaredLength = Number(response.headers.get('content-length'));
+        if (
+          Number.isFinite(declaredLength) &&
+          declaredLength > 0 &&
+          totalBytes + declaredLength > MAX_NATIVE_SHARE_BYTES
+        ) {
+          return { files, failedCount, exceededSizeLimit: true };
+        }
+
+        const blob = await response.blob();
+        const mimeType = this.normalizeShareMimeType(
+          blob.type || response.headers.get('content-type') || ''
+        );
+        if (!mimeType || blob.size === 0) {
+          failedCount++;
+          continue;
+        }
+
+        if (totalBytes + blob.size > MAX_NATIVE_SHARE_BYTES) {
+          return { files, failedCount, exceededSizeLimit: true };
+        }
+
+        const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+        files.push(new File([blob], `foto-${index + 1}.${extension}`, { type: mimeType }));
+        totalBytes += blob.size;
+      } catch {
+        failedCount++;
+      }
+    }
+
+    return { files, failedCount, exceededSizeLimit: false };
+  }
+
+  private buildSharePhotoUrls(share: CampoShareResponse): string[] {
+    if (
+      share.sharePhotoUrls?.length === share.photoUrls.length &&
+      share.sharePhotoUrls.every(url => url.trim().length > 0)
+    ) {
+      return share.sharePhotoUrls;
+    }
+
+    try {
+      const galleryUrl = new URL(share.galleryUrl, window.location.origin);
+      galleryUrl.search = '';
+      galleryUrl.hash = '';
+      const basePath = galleryUrl.pathname.replace(/\/$/, '');
+      return share.photoUrls.map((_, index) => {
+        const photoUrl = new URL(galleryUrl.toString());
+        photoUrl.pathname = `${basePath}/foto/${encodeURIComponent(String(index))}`;
+        return photoUrl.toString();
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  private normalizeShareMimeType(value: string): string | null {
+    const mimeType = value.split(';', 1)[0].trim().toLowerCase();
+    const normalized = mimeType === 'image/jpg' ? 'image/jpeg' : mimeType;
+    return SHAREABLE_IMAGE_TYPES.has(normalized) ? normalized : null;
+  }
+
+  private isShareCancelled(error: unknown): boolean {
+    if (error instanceof DOMException) return error.name === 'AbortError';
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'name' in error &&
+      (error as { name?: unknown }).name === 'AbortError'
+    );
+  }
+
+  private openWhatsAppFallback(share: CampoShareResponse, message: string): void {
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(share.shareText)}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+    this.notifications.info(message);
   }
 
   cotizar(v: VehiculoListDto): void {
