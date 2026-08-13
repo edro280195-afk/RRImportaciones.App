@@ -100,6 +100,13 @@ interface AvisoCampo {
         </button>
       }
 
+      @if (!offline.connectionOnline() && !offline.connectionChecking()) {
+        <div class="local-mode-note" role="status">
+          <span class="local-mode-note__dot"></span>
+          Modo local activo: puedes capturar y guardar; se enviará automáticamente al recuperar conexión.
+        </div>
+      }
+
       <!-- ── Aviso en vivo (tarea asignada / admin pide fotos) ────── -->
       @if (avisoNotif(); as aviso) {
         <button class="aviso" (click)="abrirAviso(aviso)" type="button">
@@ -638,6 +645,26 @@ interface AvisoCampo {
         color: #fff;
         box-shadow: 0 4px 16px rgba(198, 29, 38, 0.25);
         animation: fadeUp 0.2s ease-out;
+      }
+      .local-mode-note {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 14px 0;
+        padding: 10px 12px;
+        border: 1px solid #d7dee8;
+        border-radius: 12px;
+        background: #f7f9fc;
+        color: var(--text-2);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .local-mode-note__dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex: 0 0 auto;
+        background: #64748b;
       }
       .summary-banner.banner--clear {
         background: var(--green-lt);
@@ -1298,8 +1325,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    void this.offline.initialize();
-    this.load();
+    void this.load();
     this.realtime.start();
     this.sub = this.realtime.campoActualizado$.subscribe(() => this.load());
 
@@ -1397,7 +1423,13 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
     this.avisoNotif.set(null);
   }
 
-  load(): void {
+  async load(): Promise<void> {
+    await this.offline.initialize();
+    if (!this.offline.connectionOnline()) {
+      this.loading.set(false);
+      return;
+    }
+
     this.loading.set(true);
     this.campoService.getTareas().subscribe({
       next: tareas => {
@@ -1405,6 +1437,12 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
         this.loading.set(false);
       },
       error: err => {
+        const httpError = err as { status?: number } | null;
+        if (httpError?.status === 0 || !this.offline.connectionOnline()) {
+          this.offline.markConnectionLost();
+          this.loading.set(false);
+          return;
+        }
         this.notifications.fromHttpError(err, 'Error al cargar tareas');
         this.loading.set(false);
       },

@@ -1,8 +1,10 @@
 import { NgZone, inject, Injectable, signal } from '@angular/core';
 import Dexie, { type EntityTable } from 'dexie';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 import { AuthService } from './auth.service';
 import { CampoService } from './campo.service';
+import { CotizacionService } from './cotizacion.service';
+import { MarcaDto, MarcaService } from './marca.service';
 
 export type OfflineRecordStatus =
   | 'BORRADOR'
@@ -89,13 +91,22 @@ const db = new CampoOfflineDatabase();
 export class CampoOfflineService {
   private readonly campoService = inject(CampoService);
   private readonly auth = inject(AuthService);
+  private readonly cotizacionService = inject(CotizacionService);
+  private readonly marcaService = inject(MarcaService);
   private readonly zone = inject(NgZone);
   private syncPromise: Promise<void> | null = null;
+  private pingPromise: Promise<boolean> | null = null;
+  private marcasPromise: Promise<MarcaDto[]> | null = null;
+  private connectionTimer: number | null = null;
+  private initializationPromise: Promise<void> | null = null;
   private initialized = false;
 
   readonly records = signal<CampoOfflineRecord[]>([]);
   readonly syncing = signal(false);
   readonly lastSyncError = signal<string | null>(null);
+  readonly connectionOnline = signal(false);
+  readonly connectionChecking = signal(false);
+  readonly syncVersion = signal(0);
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -105,10 +116,15 @@ export class CampoOfflineService {
   }
 
   async initialize(): Promise<void> {
+    if (this.initializationPromise) return this.initializationPromise;
     if (this.initialized) return;
     this.initialized = true;
-    await this.refresh();
-    if (this.canSync()) void this.syncAll();
+    this.initializationPromise = (async () => {
+      await this.refresh();
+      this.startConnectionMonitor();
+      await this.probeConnection();
+    })();
+    return this.initializationPromise;
   }
 
   async refresh(): Promise<void> {
@@ -222,7 +238,13 @@ export class CampoOfflineService {
 
   async syncAll(): Promise<void> {
     if (this.syncPromise) return this.syncPromise;
-    if (!this.canSync()) return;
+    if (!this.canSync()) {
+      const canProbe = typeof navigator === 'undefined'
+        || (navigator.onLine && this.auth.isAuthenticated());
+      if (!canProbe) return;
+      await this.probeConnection();
+      if (!this.canSync()) return;
+    }
 
     this.syncPromise = this.runSync().finally(() => {
       this.syncPromise = null;
@@ -251,17 +273,21 @@ export class CampoOfflineService {
           this.lastSyncError.set(message);
           // Un problema de red afecta a todos los elementos pendientes; el
           // siguiente evento online continuará sin bloquear la interfaz.
-          if (!navigator.onLine) break;
+          if (this.isConnectionError(error)) {
+            this.connectionOnline.set(false);
+            break;
+          }
         }
       }
     } finally {
       this.syncing.set(false);
+      this.syncVersion.update(value => value + 1);
       await this.refresh();
     }
   }
 
   private async syncRecord(id: string): Promise<void> {
-    const record = await db.preRegistros.get(id);
+    let record = await db.preRegistros.get(id);
     if (!record) return;
 
     await db.preRegistros.update(id, {
@@ -269,6 +295,10 @@ export class CampoOfflineService {
       error: null,
       updatedAt: new Date().toISOString(),
     });
+
+    // El VIN se decodifica cuando el ping confirmó que el API está disponible.
+    // Si el proveedor VIN falla, la captura continúa con los datos locales.
+    record = await this.enrichRecordFromVin(record);
 
     const task = record.serverTaskId
       ? await firstValueFrom(this.campoService.getById(record.serverTaskId))
@@ -389,8 +419,112 @@ export class CampoOfflineService {
   }
 
   private canSync(): boolean {
-    return typeof navigator === 'undefined' ||
-      (navigator.onLine && this.auth.isAuthenticated());
+    return typeof navigator === 'undefined'
+      ? this.auth.isAuthenticated()
+      : this.connectionOnline() && this.auth.isAuthenticated();
+  }
+
+  /**
+   * navigator.onLine solo indica que existe una red local. Este ping
+   * autenticado confirma que el API realmente está disponible.
+   */
+  private async probeConnection(): Promise<boolean> {
+    if (this.pingPromise) return this.pingPromise;
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      this.connectionOnline.set(false);
+      return false;
+    }
+
+    if (!this.auth.isAuthenticated()) {
+      this.connectionOnline.set(false);
+      return false;
+    }
+
+    this.connectionChecking.set(true);
+    this.pingPromise = firstValueFrom(this.campoService.ping().pipe(timeout(7_000)))
+      .then(() => {
+        this.connectionOnline.set(true);
+        void this.syncAll();
+        return true;
+      })
+      .catch(() => {
+        this.connectionOnline.set(false);
+        return false;
+      })
+      .finally(() => {
+        this.pingPromise = null;
+        this.connectionChecking.set(false);
+      });
+
+    return this.pingPromise;
+  }
+
+  private startConnectionMonitor(): void {
+    if (this.connectionTimer || typeof window === 'undefined') return;
+
+    // La revisión es ligera y solo sincroniza si el ping autenticado responde.
+    this.connectionTimer = window.setInterval(() => {
+      void this.probeConnection();
+    }, 15_000);
+  }
+
+  /** Permite que Campo deje de tratar un fallo de red como error funcional. */
+  markConnectionLost(): void {
+    this.connectionOnline.set(false);
+  }
+
+  private async enrichRecordFromVin(record: CampoOfflineRecord): Promise<CampoOfflineRecord> {
+    const vin = record.vin?.trim().toUpperCase();
+    if (!vin || vin.length !== 17) return record;
+
+    try {
+      const decoded = await firstValueFrom(
+        this.cotizacionService.decodeVin(vin).pipe(timeout(20_000))
+      );
+      const marcaId = decoded.make
+        ? (await this.findMarca(decoded.make))?.id ?? record.marcaId
+        : record.marcaId;
+      const updates: Partial<CampoOfflineRecord> = {
+        vin,
+        marcaId,
+        modelo: decoded.model || record.modelo,
+        anno: decoded.modelYear ?? record.anno,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await db.preRegistros.update(record.id, updates);
+      return { ...record, ...updates };
+    } catch {
+      return record;
+    }
+  }
+
+  private async findMarca(make: string): Promise<MarcaDto | undefined> {
+    const normalized = this.normalizeText(make);
+    if (!normalized) return undefined;
+
+    this.marcasPromise ??= firstValueFrom(this.marcaService.getAll(true)).catch(() => []);
+    const marcas = await this.marcasPromise;
+    return marcas.find(m =>
+      this.normalizeText(m.nombre) === normalized ||
+      m.aliases.some(alias => this.normalizeText(alias) === normalized)
+    );
+  }
+
+  private normalizeText(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+  }
+
+  private isConnectionError(error: unknown): boolean {
+    const candidate = error as { status?: number; name?: string } | null;
+    return candidate?.status === 0
+      || candidate?.name === 'TimeoutError'
+      || (typeof navigator !== 'undefined' && !navigator.onLine);
   }
 
   private describeError(error: unknown): string {
@@ -400,10 +534,10 @@ export class CampoOfflineService {
   }
 
   private readonly handleOnline = (): void => {
-    this.zone.run(() => void this.syncAll());
+    this.zone.run(() => void this.probeConnection());
   };
 
   private readonly handleVisibilityChange = (): void => {
-    if (document.visibilityState === 'visible') void this.syncAll();
+    if (document.visibilityState === 'visible') void this.probeConnection();
   };
 }

@@ -43,6 +43,14 @@ public class CampoController : ControllerBase
         _shareTokens = shareTokens;
     }
 
+    [HttpGet("ping")]
+    [RequierePermiso(Permisos.CampoUsar)]
+    public IActionResult Ping() => Ok(new
+    {
+        ok = true,
+        serverTime = DateTimeOffset.UtcNow,
+    });
+
     [HttpGet("tareas")]
     [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> GetTareas([FromQuery] string? EstadoLogistico)

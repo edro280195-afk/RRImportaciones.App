@@ -2094,6 +2094,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     this.taskId = id;
     this.offlineMode = this.route.snapshot.data['offline'] === true;
     if (this.offlineMode) {
+      void this.campoOffline.initialize();
       void this.loadOffline(id);
       return;
     }

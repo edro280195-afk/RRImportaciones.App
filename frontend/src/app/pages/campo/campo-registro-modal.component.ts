@@ -11,7 +11,7 @@ import { VinScannerService, VinScanSession } from '../../services/vin-scanner.se
 import { firstValueFrom } from 'rxjs';
 
 type ScannerStatus = 'idle' | 'loading' | 'searching' | 'detecting' | 'ai' | 'found';
-type VinLookupState = 'idle' | 'loading' | 'loaded' | 'empty' | 'error';
+type VinLookupState = 'idle' | 'loading' | 'loaded' | 'empty' | 'pending' | 'error';
 
 interface WindowWithWebkitAudio extends Window {
   webkitAudioContext?: typeof AudioContext;
@@ -742,6 +742,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
   private clienteSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   private clienteSearchVersion = 0;
   private vinDecodeVersion = 0;
+  private creatingLocalCapture = false;
   private audioContext: AudioContext | null = null;
   private enteredScannerFullscreen = false;
 
@@ -839,9 +840,8 @@ export class CampoRegistroModalComponent implements OnDestroy {
       }
 
       this.vin.set(result.vin);
-      this.onVinChange(result.vin);
+      await this.createLocalCaptureFromVin(result.vin);
       this.photoVinMessage.set(result.source === 'barcode' ? 'VIN leído desde código local.' : 'VIN leído desde las letras de la imagen.');
-      this.notifications.success('VIN leído desde la foto: ' + result.vin);
     } catch (error) {
       this.photoVinMessage.set('No se pudo procesar la foto.');
       this.notifications.fromHttpError(error, 'No se pudo leer la foto del VIN');
@@ -982,11 +982,9 @@ export class CampoRegistroModalComponent implements OnDestroy {
           onDetected: scannedVin => {
             this.scannerStatus.set('found');
             this.notifications.success('VIN detectado: ' + scannedVin);
-            this.vin.set(scannedVin);
-            this.decodeVin(scannedVin);
             this.playBeep();
             this.vibrate([40, 40, 40]);
-            this.closeCamera();
+            void this.createLocalCaptureFromVin(scannedVin);
           },
         });
         this.scannerStatus.set('detecting');
@@ -1044,11 +1042,9 @@ export class CampoRegistroModalComponent implements OnDestroy {
 
       if (detectedVin && detectedVin.length === 17) {
         this.notifications.success('VIN extraído con IA: ' + detectedVin);
-        this.vin.set(detectedVin);
-        this.decodeVin(detectedVin);
         this.playBeep();
         this.vibrate([40, 40, 40]);
-        this.closeCamera();
+        await this.createLocalCaptureFromVin(detectedVin);
       } else {
         this.notifications.warning('No se pudo detectar el VIN. Intenta acercar la cámara.');
       }
@@ -1063,42 +1059,78 @@ export class CampoRegistroModalComponent implements OnDestroy {
   }
 
   private decodeVin(vinVal: string): void {
+    void this.decodeVinAsync(vinVal);
+  }
+
+  private async decodeVinAsync(vinVal: string): Promise<void> {
     if (vinVal.length !== 17) return;
 
     const version = ++this.vinDecodeVersion;
     this.vinLookupState.set('loading');
-    
-    this.cotizacionService.decodeVin(vinVal).subscribe({
-      next: (decoded) => {
-        if (version !== this.vinDecodeVersion) return;
-        let loadedData = false;
 
-        if (decoded.make) {
-          const match = this.marcas().find(m => 
-            m.nombre.toLowerCase() === decoded.make!.toLowerCase() || 
-            m.aliases?.some((a: string) => a.toLowerCase() === decoded.make!.toLowerCase())
-          );
-          if (match) {
-            this.marcaId.set(match.id);
-            loadedData = true;
-          }
-        }
-        if (decoded.model) {
-          this.modelo.set(decoded.model);
+    try {
+      const decoded = await firstValueFrom(this.cotizacionService.decodeVin(vinVal));
+      if (version !== this.vinDecodeVersion) return;
+      let loadedData = false;
+
+      if (decoded.make) {
+        const make = decoded.make.toLowerCase();
+        const match = this.marcas().find(m =>
+          m.nombre.toLowerCase() === make ||
+          m.aliases?.some((alias: string) => alias.toLowerCase() === make)
+        );
+        if (match) {
+          this.marcaId.set(match.id);
           loadedData = true;
         }
-        if (decoded.modelYear) {
-          this.anno.set(decoded.modelYear);
-          loadedData = true;
-        }
-        this.vinLookupState.set(loadedData ? 'loaded' : 'empty');
-      },
-      error: () => {
-        if (version !== this.vinDecodeVersion) return;
-        this.vinLookupState.set('error');
-        // Ignorar errores del decodificador, a veces los VIN no están en la base de datos
       }
-    });
+      if (decoded.model) {
+        this.modelo.set(decoded.model);
+        loadedData = true;
+      }
+      if (decoded.modelYear) {
+        this.anno.set(decoded.modelYear);
+        loadedData = true;
+      }
+      this.vinLookupState.set(loadedData ? 'loaded' : 'empty');
+    } catch {
+      if (version !== this.vinDecodeVersion) return;
+      // La consulta es opcional. En patio se guarda el VIN y se completa al
+      // recuperar conexión, sin presentar un error al operador.
+      this.vinLookupState.set(navigator.onLine ? 'empty' : 'pending');
+    }
+  }
+
+  private async createLocalCaptureFromVin(vinValue: string): Promise<void> {
+    if (this.creatingLocalCapture) return;
+
+    this.creatingLocalCapture = true;
+    this.closeCamera();
+    this.vin.set(vinValue);
+    this.saving.set(true);
+
+    try {
+      const selectedCliente = this.selectedCliente();
+      const record = await this.campoOffline.createDraft({
+        vin: vinValue,
+        marcaId: this.marcaId(),
+        modelo: this.modelo() || null,
+        anno: this.anno() || null,
+        ubicacion: this.ubicacion() || null,
+        clienteId: this.clienteId(),
+        clienteNombreLibre: selectedCliente ? this.clienteLabel(selectedCliente) : null,
+        descripcionVehiculo: this.descripcionVehiculo() || 'Registro en yarda',
+      });
+
+      this.notifications.success('VIN guardado en el dispositivo. Ahora toma las fotos de la unidad.');
+      this.registered.emit(record.id);
+      this.close.emit();
+    } catch (error) {
+      this.notifications.fromHttpError(error, 'Error al preparar el registro local');
+    } finally {
+      this.saving.set(false);
+      this.creatingLocalCapture = false;
+    }
   }
 
   async submit(): Promise<void> {
@@ -1168,6 +1200,8 @@ export class CampoRegistroModalComponent implements OnDestroy {
         return 'Datos del vehiculo cargados';
       case 'empty':
         return 'VIN leido, sin datos automaticos disponibles';
+      case 'pending':
+        return 'VIN guardado; los datos se completaran al recuperar conexion';
       case 'error':
         return 'VIN leido, no se pudo consultar la informacion';
       default:

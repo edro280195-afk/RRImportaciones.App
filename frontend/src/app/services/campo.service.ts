@@ -62,6 +62,10 @@ export class CampoService {
   private http = inject(HttpClient);
   private readonly baseUrl = environment.apiUrl + '/api/campo';
 
+  ping(): Observable<{ ok: boolean; serverTime: string }> {
+    return this.http.get<{ ok: boolean; serverTime: string }>(`${this.baseUrl}/ping`);
+  }
+
   getTareas(estatus?: string): Observable<TareaCampoDto[]> {
     // El parámetro se llama EstadoLogistico en CampoController; mandarlo como
     // "estatus" hacía que el backend ignorara el filtro en silencio.
