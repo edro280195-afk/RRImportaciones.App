@@ -30,6 +30,8 @@ services:
         value: 7
       - key: PortalAccess__SecretKey
         generateValue: 128
+      - key: PublicApp__BaseUrl
+        value: https://rrimportaciones.onrender.com
       - key: EntregaLinks__BaseUrl
         value: https://rr-importaciones-app.vercel.app
       - key: EntregaLinks__ExpirationDays

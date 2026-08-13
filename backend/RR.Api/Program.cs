@@ -194,6 +194,15 @@ builder.Services.AddRateLimiter(options =>
         config.Window = TimeSpan.FromMinutes(1);
         config.QueueLimit = 0;
     });
+    options.AddPolicy("PublicShare", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown-share-client",
+            factory => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, cancellationToken) =>
     {

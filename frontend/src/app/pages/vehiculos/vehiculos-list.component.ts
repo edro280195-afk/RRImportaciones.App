@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, HostListener, signal, inject, ViewC
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { firstValueFrom } from 'rxjs';
 import { VehiculoService, VehiculoListDto } from '../../services/vehiculo.service';
 import { VehiculoFormDialogComponent } from './vehiculo-form-dialog.component';
 import { ChoferEntregaDto, EntregaLinkResponseDto, EntregaTareaService } from '../../services/entrega-tarea.service';
@@ -594,7 +593,7 @@ import { environment } from '../../../environments/environment';
             @if (photoShareLoading()) {
               <div class="photo-share-loading">
                 <div class="photo-share-spinner"></div>
-                <strong>Preparando el enlace de descarga…</strong>
+                <strong>Preparando la galería privada…</strong>
                 <span>Un momento, por favor.</span>
               </div>
             } @else {
@@ -603,25 +602,23 @@ import { environment } from '../../../environments/environment';
                   <div class="delivery-success__icon">✓</div>
                   <div>
                     <strong>{{ share.photoUrls.length }} fotos listas</strong>
-                    <p>El cliente podrá descargar un archivo ZIP.</p>
+                    <p>Se abrirá una galería privada para visualizarlas y descargarlas.</p>
                   </div>
                 </div>
-                <label class="delivery-field">
-                  <span>Enlace de descarga</span>
-                  <input [value]="share.downloadUrl" readonly (focus)="selectLinkInput($event)" />
-                </label>
-                <p class="delivery-note">Este enlace es válido durante 7 días y solo permite descargar las fotos.</p>
+                <p class="photo-share-note">El enlace no se muestra en pantalla. Puedes copiarlo con el botón o enviarlo directamente por WhatsApp. Vence en 7 días.</p>
               }
             }
           </div>
 
           <footer class="delivery-modal__footer delivery-modal__footer--stack">
             @if (photoShare(); as share) {
-              <button type="button" class="delivery-primary" [disabled]="photoSharing()" (click)="sharePhotosByWhatsApp(share)">
-                {{ photoSharing() ? 'Preparando fotos…' : 'Compartir por WhatsApp' }}
+              <button type="button" class="photo-share-action photo-share-action--primary" [disabled]="photoSharing()" (click)="sharePhotosByWhatsApp(share)">
+                <span class="photo-share-action__icon">↗</span>
+                <span>{{ photoSharing() ? 'Preparando fotos…' : 'Compartir fotos por WhatsApp' }}</span>
               </button>
-              <button type="button" class="delivery-secondary" [disabled]="photoSharing()" (click)="copyPhotoShareLink(share.downloadUrl)">
-                Copiar enlace de descarga
+              <button type="button" class="photo-share-action photo-share-action--secondary" [disabled]="photoSharing()" (click)="copyPhotoShareLink(share.galleryUrl)">
+                <span class="photo-share-action__icon">⧉</span>
+                <span>Copiar enlace privado</span>
               </button>
             }
             <button type="button" class="delivery-link-button" (click)="closePhotoShare()">Cerrar</button>
@@ -953,6 +950,14 @@ import { environment } from '../../../environments/environment';
       .delivery-success__icon { width:32px; height:32px; flex:0 0 auto; display:grid; place-items:center; border-radius:50%; color:#fff; background:#16a34a; font-weight:900; }
       .delivery-success strong { display:block; color:#166534; font-size:14px; }
       .delivery-success p { margin:3px 0 0; color:#4b7c59; font-size:12px; }
+      .photo-share-note { margin:0; padding:13px 14px; border-radius:12px; background:#f7f8fb; color:#596579; font-size:12px; line-height:1.5; }
+      .photo-share-action { display:flex; align-items:center; justify-content:center; gap:10px; min-height:58px; padding:0 18px; border-radius:13px; font:inherit; font-size:14px; font-weight:850; cursor:pointer; transition:transform .15s,box-shadow .15s,opacity .15s; }
+      .photo-share-action:hover { transform:translateY(-1px); box-shadow:0 9px 24px rgba(13,16,23,.14); }
+      .photo-share-action:disabled { opacity:.55; cursor:not-allowed; transform:none; box-shadow:none; }
+      .photo-share-action--primary { color:#fff; background:#c61d26; border:1px solid #c61d26; box-shadow:0 7px 18px rgba(198,29,38,.2); }
+      .photo-share-action--secondary { color:#166534; background:#f0fdf4; border:1px solid #86efac; }
+      .photo-share-action__icon { display:grid; place-items:center; width:27px; height:27px; border-radius:8px; background:rgba(255,255,255,.2); font-size:18px; line-height:1; }
+      .photo-share-action--secondary .photo-share-action__icon { background:#dcfce7; }
       .photo-share-loading { display:grid; justify-items:center; gap:8px; padding:20px 0 10px; text-align:center; color:#4b5162; font-size:13px; }
       .photo-share-loading span { color:#7a8190; font-size:12px; }
       .photo-share-spinner { width:28px; height:28px; margin-bottom:4px; border:3px solid #e5e7eb; border-top-color:#16a34a; border-radius:50%; animation:photo-share-spin .8s linear infinite; }
@@ -1030,7 +1035,7 @@ export class VehiculosListComponent {
       error: error => {
         this.photoShareLoading.set(false);
         this.showPhotoShareModal.set(false);
-        this.notifications.fromHttpError(error, 'No se pudo preparar el enlace de las fotos');
+        this.notifications.fromHttpError(error, 'No se pudo preparar la galería privada de las fotos');
       },
     });
   }
@@ -1070,7 +1075,7 @@ export class VehiculosListComponent {
   async copyPhotoShareLink(link: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(link);
-      this.notifications.success('Enlace de descarga copiado. Es válido durante 7 días.');
+      this.notifications.success('Enlace privado copiado. Es válido durante 7 días.');
     } catch {
       this.notifications.error('No se pudo copiar automáticamente. Selecciona el enlace y cópialo manualmente.');
     }

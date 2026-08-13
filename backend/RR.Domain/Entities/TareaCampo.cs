@@ -15,6 +15,10 @@ public class TareaCampo : ITenantEntity
     public string? VinConfirmado { get; set; }
     public string[] FotosUrls { get; set; } = [];
     public string[] VideosUrls { get; set; } = [];
+    /// <summary>Hash del token temporal para compartir fotos con clientes o socios.</summary>
+    public string? ShareTokenHash { get; set; }
+    public DateTime? ShareTokenExpira { get; set; }
+    public DateTime? ShareTokenRevocadoAt { get; set; }
     public string? Incidencia { get; set; }
     /// <summary>Descripción libre del vehículo para pre-inspecciones sin trámite.</summary>
     public string? DescripcionVehiculo { get; set; }

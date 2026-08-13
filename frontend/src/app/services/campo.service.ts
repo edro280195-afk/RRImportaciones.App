@@ -34,6 +34,8 @@ export interface CampoShareResponse {
   id: string;
   vehicle: string;
   vin: string | null;
+  galleryUrl: string;
+  /** Alias de compatibilidad; ahora apunta a la galería HTML. */
   downloadUrl: string;
   shareText: string;
   expiresAt: string;
