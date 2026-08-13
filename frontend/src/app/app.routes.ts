@@ -64,6 +64,11 @@ export const routes: Routes = [
 
   // ── Módulo entrega choferes (standalone, sin AppLayout ni sidebar) ───────────
   {
+    path: 'entrega/acceso',
+    loadComponent: () =>
+      import('./pages/entrega/entrega-acceso.component').then(m => m.EntregaAccesoComponent),
+  },
+  {
     path: 'entrega/pin',
     loadComponent: () =>
       import('./pages/entrega/entrega-pin.component').then(m => m.EntregaPinComponent),

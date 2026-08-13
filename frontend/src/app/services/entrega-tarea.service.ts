@@ -38,6 +38,39 @@ export interface VehiculoEntregaLookupDto {
   yaEntregado: boolean;
 }
 
+export interface EntregaLinkResponseDto {
+  tarea: TareaEntregaDto;
+  enlace: string;
+  tieneChoferAsignado: boolean;
+  choferTienePin: boolean;
+}
+
+export interface EntregaAccesoDto {
+  tareaId: string;
+  numeroConsecutivo: string;
+  vehiculoResumen: string;
+  vin: string | null;
+  estado: string;
+  tieneChoferAsignado: boolean;
+  choferNombre: string | null;
+  choferTienePin: boolean;
+  usuariosDisponibles: Array<{
+    id: string;
+    username: string;
+    nombre: string;
+    apellidos: string | null;
+    tienePin: boolean;
+  }>;
+}
+
+export interface ChoferEntregaDto {
+  id: string;
+  username: string;
+  nombre: string;
+  apellidos: string | null;
+  tienePin: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EntregaTareaService {
   private http = inject(HttpClient);
@@ -62,6 +95,10 @@ export class EntregaTareaService {
     });
   }
 
+  getChoferes(): Observable<ChoferEntregaDto[]> {
+    return this.http.get<ChoferEntregaDto[]>(`${this.baseUrl}/choferes`);
+  }
+
   registrarEntregaVehiculo(request: {
     vehiculoId?: string | null;
     vin?: string | null;
@@ -79,6 +116,30 @@ export class EntregaTareaService {
     notasChofer?: string | null;
   }): Observable<TareaEntregaDto> {
     return this.http.post<TareaEntregaDto>(this.baseUrl, request);
+  }
+
+  asignarVehiculo(request: {
+    vehiculoId: string;
+    choferUserId?: string | null;
+    ubicacionEntrega?: string | null;
+    notasChofer?: string | null;
+  }): Observable<EntregaLinkResponseDto> {
+    return this.http.post<EntregaLinkResponseDto>(`${this.baseUrl}/asignar-vehiculo`, request);
+  }
+
+  regenerarEnlace(tareaId: string): Observable<EntregaLinkResponseDto> {
+    return this.http.post<EntregaLinkResponseDto>(`${this.baseUrl}/${tareaId}/enlace`, {});
+  }
+
+  getAcceso(token: string): Observable<EntregaAccesoDto> {
+    return this.http.get<EntregaAccesoDto>(`${this.baseUrl}/acceso/${encodeURIComponent(token)}`);
+  }
+
+  tomarPorEnlace(token: string): Observable<TareaEntregaDto> {
+    return this.http.post<TareaEntregaDto>(
+      `${this.baseUrl}/acceso/${encodeURIComponent(token)}/tomar`,
+      {}
+    );
   }
 
   tomar(id: string): Observable<TareaEntregaDto> {

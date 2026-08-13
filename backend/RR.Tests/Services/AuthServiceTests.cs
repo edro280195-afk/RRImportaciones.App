@@ -30,6 +30,44 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task EntregaToken_CanConfigurePinAndLoginWithoutExposingUsernameInToken()
+    {
+        var fixture = await CreateFixtureAsync(isFieldRole: true, hasPin: false);
+        var tokenService = new EntregaLinkTokenService();
+        const string rawToken = "entrega-token-de-prueba";
+        var userId = (await fixture.Db.Usuarios.SingleAsync()).Id;
+
+        fixture.Db.TareasEntrega.Add(new TareaEntrega
+        {
+            Id = Guid.NewGuid(),
+            TenantId = fixture.TenantId,
+            TramiteId = Guid.NewGuid(),
+            ChoferUserId = userId,
+            Estado = "PENDIENTE",
+            EnlaceTokenHash = tokenService.Hash(rawToken),
+            EnlaceTokenExpira = DateTime.UtcNow.AddDays(30),
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var configured = await fixture.Service.ConfigurarPinPorEntregaAsync(new EntregaTokenSetPinRequest
+        {
+            Token = rawToken,
+            NewPin = "123456",
+        });
+
+        configured.User.Username.Should().Be(fixture.Username);
+        configured.User.HasPin.Should().BeTrue();
+
+        var loggedIn = await fixture.Service.PinLoginPorEntregaAsync(new EntregaTokenPinLoginRequest
+        {
+            Token = rawToken,
+            Pin = "123456",
+        });
+
+        loggedIn.User.Username.Should().Be(fixture.Username);
+    }
+
+    [Fact]
     public async Task LoginAsync_OfficeUserWithoutPin_DoesNotRequestPinSetup()
     {
         var fixture = await CreateFixtureAsync(isFieldRole: false, hasPin: false);

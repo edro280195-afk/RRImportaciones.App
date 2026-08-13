@@ -41,6 +41,7 @@ builder.Services.AddSingleton<IModelCacheKeyFactory, TenantModelCacheKeyFactory>
 // Auth
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 builder.Services.Configure<JwtSettings>(jwtSettings);
+builder.Services.Configure<EntregaLinkSettings>(builder.Configuration.GetSection("EntregaLinks"));
 
 var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey not configured");
 builder.Services.AddAuthentication(options =>
@@ -114,6 +115,7 @@ builder.Services.AddScoped<IWhatsAppLoteService, WhatsAppLoteService>();
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
 builder.Services.AddScoped<ICampoService, CampoService>();
 builder.Services.AddScoped<IEntregaTaskService, EntregaTaskService>();
+builder.Services.AddSingleton<EntregaLinkTokenService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IReporteService, ReporteService>();
 builder.Services.AddScoped<IPedimentoService, PedimentoService>();

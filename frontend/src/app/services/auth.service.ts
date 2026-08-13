@@ -131,6 +131,34 @@ export class AuthService {
     );
   }
 
+  pinLoginPorEntrega(request: {
+    token: string;
+    username?: string | null;
+    pin: string;
+  }): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`${this.apiUrl}/entrega-pin-login`, request).pipe(
+      tap(res => this.setSession(res)),
+      catchError(err => {
+        const msg = err.error?.message || 'PIN incorrecto';
+        return throwError(() => new Error(msg));
+      })
+    );
+  }
+
+  setInitialPinPorEntrega(request: {
+    token: string;
+    username?: string | null;
+    newPin: string;
+  }): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`${this.apiUrl}/entrega-set-pin`, request).pipe(
+      tap(res => this.setSession(res)),
+      catchError(err => {
+        const msg = err.error?.message || 'Error al guardar el PIN';
+        return throwError(() => new Error(msg));
+      })
+    );
+  }
+
   setPin(newPin: string, currentPin?: string): Observable<void> {
     return this.http
       .post<void>(`${this.apiUrl}/set-pin`, { newPin, currentPin })

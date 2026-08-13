@@ -20,6 +20,13 @@ VapidDetails__PrivateKey=E4xE02HhkRKDwyJU1Mpp19pRRD-S2VSuWdeOqdqWCPk
 AppBaseUrl=https://rrimportaciones.onrender.com
 
 
+========== ENLACES DE ENTREGA PARA CHOFERES ==========
+
+EntregaLinks__BaseUrl=https://rr-importaciones-app.vercel.app
+
+EntregaLinks__ExpirationDays=30
+
+
 ========== SECCIÓN: WhatsApp (Twilio - Sandbox) ==========
 
 WhatsApp__Provider=Twilio

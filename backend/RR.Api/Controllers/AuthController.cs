@@ -71,6 +71,46 @@ public class AuthController : ControllerBase
         }
     }
 
+    /// <summary>Login por un enlace temporal asociado a una entrega.</summary>
+    [HttpPost("entrega-pin-login")]
+    [AllowAnonymous]
+    [EnableRateLimiting("Auth")]
+    public async Task<IActionResult> EntregaPinLogin([FromBody] EntregaTokenPinLoginRequest request)
+    {
+        try
+        {
+            return Ok(await _authService.PinLoginPorEntregaAsync(request));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Configura el PIN inicial usando el enlace temporal de una entrega.</summary>
+    [HttpPost("entrega-set-pin")]
+    [AllowAnonymous]
+    [EnableRateLimiting("Auth")]
+    public async Task<IActionResult> EntregaSetPin([FromBody] EntregaTokenSetPinRequest request)
+    {
+        try
+        {
+            return Ok(await _authService.ConfigurarPinPorEntregaAsync(request));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
     /// <summary>Configura el PIN inicial del usuario autenticado.</summary>
     [HttpPost("initial-campo-pin")]
     [Authorize]

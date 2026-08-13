@@ -1,15 +1,18 @@
-import { Component, HostListener, signal, inject, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, signal, inject, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { VehiculoService, VehiculoListDto } from '../../services/vehiculo.service';
 import { VehiculoFormDialogComponent } from './vehiculo-form-dialog.component';
+import { ChoferEntregaDto, EntregaLinkResponseDto, EntregaTareaService } from '../../services/entrega-tarea.service';
+import { NotificationService } from '../../services/notification.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-vehiculos-list',
   standalone: true,
   imports: [FormsModule, DatePipe, VehiculoFormDialogComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div style="font-family: var(--font-body);">
       <!-- Page head -->
@@ -221,6 +224,14 @@ import { environment } from '../../../environments/environment';
                 </button>
                 <button
                   type="button"
+                  class="veh-btn veh-btn--delivery"
+                  [disabled]="!v.tieneTramiteActivo"
+                  (click)="$event.stopPropagation(); openAssign(v)"
+                >
+                  Asignar entrega
+                </button>
+                <button
+                  type="button"
                   class="veh-btn veh-btn--primary"
                   (click)="cotizar(v)"
                 >
@@ -327,6 +338,7 @@ import { environment } from '../../../environments/environment';
                     Ubicación <span class="text-[9px] ml-0.5">{{ sortIcon('ubicacion') }}</span>
                   </th>
                   <th class="text-center px-5 py-3.5 font-medium">Estado</th>
+                  <th class="text-right px-5 py-3.5 font-medium">Entrega</th>
                 </tr>
               </thead>
               <tbody>
@@ -393,6 +405,16 @@ import { environment } from '../../../environments/environment';
                         }
                       </div>
                     </td>
+                    <td class="px-5 py-3.5 text-right">
+                      <button
+                        type="button"
+                        class="inline-flex items-center px-3 py-2 rounded-lg text-[12px] font-semibold text-[#A31820] bg-[#FFF1F1] border border-[#FFC5C5] disabled:opacity-40 disabled:cursor-not-allowed"
+                        [disabled]="!v.tieneTramiteActivo"
+                        (click)="$event.stopPropagation(); openAssign(v)"
+                      >
+                        Asignar
+                      </button>
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -436,6 +458,102 @@ import { environment } from '../../../environments/environment';
         </div>
       }
     </div>
+
+    @if (showAssignModal()) {
+      <div class="delivery-modal-backdrop" (click)="closeAssign()">
+        <section class="delivery-modal" role="dialog" aria-modal="true" aria-labelledby="delivery-modal-title" (click)="$event.stopPropagation()">
+          @if (assignResult(); as result) {
+            <header class="delivery-modal__header">
+              <div>
+                <span class="delivery-modal__eyebrow">ENLACE LISTO</span>
+                <h2 id="delivery-modal-title">Entrega preparada</h2>
+              </div>
+              <button type="button" class="delivery-modal__close" (click)="closeAssign()" aria-label="Cerrar">×</button>
+            </header>
+            <div class="delivery-modal__body">
+              <div class="delivery-success">
+                <div class="delivery-success__icon">✓</div>
+                <div>
+                  <strong>{{ result.tarea.vehiculoResumen }}</strong>
+                  <p>
+                    @if (result.tieneChoferAsignado) {
+                      Enlace para {{ result.tarea.choferNombre || 'el chofer seleccionado' }}.
+                    } @else {
+                      Enlace para que un chofer tome esta entrega.
+                    }
+                  </p>
+                </div>
+              </div>
+              <label class="delivery-field">
+                <span>Enlace para compartir</span>
+                <input [value]="result.enlace" readonly (focus)="selectLinkInput($event)" />
+              </label>
+              <p class="delivery-note">El enlace no contiene la contraseña. El chofer deberá ingresar o crear su PIN.</p>
+            </div>
+            <footer class="delivery-modal__footer delivery-modal__footer--stack">
+              <button type="button" class="delivery-primary" (click)="shareLink(result)">Compartir por WhatsApp</button>
+              <button type="button" class="delivery-secondary" (click)="copyLink(result.enlace)">Copiar enlace</button>
+              <button type="button" class="delivery-link-button" (click)="regenerateLink(result.tarea.id)">Generar otro enlace</button>
+            </footer>
+          } @else {
+            @if (assignVehicle(); as vehicle) {
+              <header class="delivery-modal__header">
+              <div>
+                <span class="delivery-modal__eyebrow">ASIGNAR ENTREGA</span>
+                <h2 id="delivery-modal-title">{{ vehicleLabel(vehicle) }}</h2>
+                <p>VIN {{ vehicle.vin }}</p>
+              </div>
+              <button type="button" class="delivery-modal__close" (click)="closeAssign()" aria-label="Cerrar">×</button>
+            </header>
+            <div class="delivery-modal__body">
+              <div class="delivery-mode-list">
+                <button type="button" [class.delivery-mode--active]="assignMode() === 'assigned'" (click)="assignMode.set('assigned')">
+                  <strong>Asignar a un chofer</strong>
+                  <span>El enlace abrirá esta entrega directamente para esa persona.</span>
+                </button>
+                <button type="button" [class.delivery-mode--active]="assignMode() === 'open'" (click)="assignMode.set('open')">
+                  <strong>Dejar disponible para tomar</strong>
+                  <span>El chofer elegirá su nombre y tomará la entrega desde el enlace.</span>
+                </button>
+              </div>
+
+              @if (assignMode() === 'assigned') {
+                <label class="delivery-field">
+                  <span>¿A quién se la asignas?</span>
+                  <select [ngModel]="selectedDriverId()" (ngModelChange)="selectedDriverId.set($event)">
+                    <option value="">Selecciona un chofer</option>
+                    @for (driver of drivers(); track driver.id) {
+                      <option [value]="driver.id">{{ driver.nombre }} {{ driver.apellidos || '' }}</option>
+                    }
+                  </select>
+                </label>
+                @if (driversLoading()) {
+                  <p class="delivery-note">Cargando choferes…</p>
+                } @else if (drivers().length === 0) {
+                  <p class="delivery-warning">No hay usuarios con rol de chofer, campo o yardero activos.</p>
+                }
+              }
+
+              <label class="delivery-field">
+                <span>Ubicación de entrega (opcional)</span>
+                <input [ngModel]="assignLocation()" (ngModelChange)="assignLocation.set($event)" maxlength="300" placeholder="Domicilio o punto de entrega" />
+              </label>
+              <label class="delivery-field">
+                <span>Nota para el chofer (opcional)</span>
+                <textarea [ngModel]="assignNotes()" (ngModelChange)="assignNotes.set($event)" maxlength="500" rows="3" placeholder="Ej. Entregar en recepción."></textarea>
+              </label>
+            </div>
+            <footer class="delivery-modal__footer">
+              <button type="button" class="delivery-secondary" (click)="closeAssign()">Cancelar</button>
+              <button type="button" class="delivery-primary" [disabled]="assigning() || (assignMode() === 'assigned' && !selectedDriverId())" (click)="confirmAssign(vehicle)">
+                {{ assigning() ? 'Generando enlace…' : 'Asignar y generar enlace' }}
+              </button>
+            </footer>
+            }
+          }
+        </section>
+      </div>
+    }
 
     <app-vehiculo-form-dialog #formDialog (saved)="loadVehiculos()" />
   `,
@@ -563,6 +681,12 @@ import { environment } from '../../../environments/environment';
         gap: 10px;
         margin-top: 14px;
       }
+      .veh-btn--delivery {
+        background: #fff1f1;
+        color: #a31820;
+        border: 1px solid #ffc5c5;
+      }
+      .veh-btn--delivery:disabled { opacity: .45; cursor: not-allowed; }
       .veh-btn {
         flex: 1;
         display: inline-flex;
@@ -715,11 +839,45 @@ import { environment } from '../../../environments/environment';
         object-fit: cover;
         display: block;
       }
+      .delivery-modal-backdrop { position:fixed; inset:0; z-index:80; display:flex; align-items:flex-start; justify-content:center; padding:7vh 16px 24px; background:rgba(13,16,23,.44); overflow-y:auto; }
+      .delivery-modal { width:100%; max-width:560px; background:#fff; border-radius:20px; box-shadow:0 24px 70px rgba(13,16,23,.24); overflow:hidden; }
+      .delivery-modal__header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:21px 24px; border-bottom:1px solid #eef0f3; background:#fcfcfd; }
+      .delivery-modal__eyebrow { display:block; color:#a31820; font-size:10px; font-weight:800; letter-spacing:.1em; margin-bottom:5px; }
+      .delivery-modal__header h2 { margin:0; color:#0d1017; font-size:19px; font-weight:800; }
+      .delivery-modal__header p { margin:4px 0 0; color:#7a8190; font-size:12px; }
+      .delivery-modal__close { width:34px; height:34px; border:0; border-radius:9px; background:#f3f4f6; color:#697181; font-size:23px; cursor:pointer; }
+      .delivery-modal__body { display:grid; gap:16px; padding:22px 24px; }
+      .delivery-mode-list { display:grid; gap:9px; }
+      .delivery-mode-list button { display:grid; gap:4px; padding:13px 14px; border:1px solid #e4e7ec; border-radius:12px; background:#fff; text-align:left; cursor:pointer; }
+      .delivery-mode-list button.delivery-mode--active { border-color:#c61d26; background:#fff8f8; box-shadow:0 0 0 2px rgba(198,29,38,.08); }
+      .delivery-mode-list strong { color:#1e2330; font-size:13px; }
+      .delivery-mode-list span { color:#697181; font-size:12px; line-height:1.4; }
+      .delivery-field { display:grid; gap:6px; }
+      .delivery-field > span { color:#4b5162; font-size:12px; font-weight:700; }
+      .delivery-field input,.delivery-field select,.delivery-field textarea { width:100%; border:1px solid #dfe3e9; border-radius:10px; padding:11px 12px; color:#1e2330; background:#fff; font:inherit; font-size:13px; outline:none; }
+      .delivery-field input:focus,.delivery-field select:focus,.delivery-field textarea:focus { border-color:#c61d26; box-shadow:0 0 0 3px rgba(198,29,38,.09); }
+      .delivery-field textarea { resize:vertical; }
+      .delivery-note,.delivery-warning { margin:0; color:#697181; font-size:12px; line-height:1.45; }
+      .delivery-warning { color:#a15c00; padding:10px 12px; border-radius:9px; background:#fff7e6; }
+      .delivery-modal__footer { display:flex; justify-content:flex-end; gap:9px; padding:16px 24px 21px; border-top:1px solid #eef0f3; }
+      .delivery-modal__footer--stack { display:grid; }
+      .delivery-primary,.delivery-secondary,.delivery-link-button { min-height:42px; padding:0 15px; border-radius:10px; font:inherit; font-size:13px; font-weight:750; cursor:pointer; }
+      .delivery-primary { color:#fff; background:#c61d26; border:1px solid #c61d26; }
+      .delivery-primary:disabled { opacity:.5; cursor:not-allowed; }
+      .delivery-secondary { color:#4b5162; background:#fff; border:1px solid #dfe3e9; }
+      .delivery-link-button { color:#a31820; background:transparent; border:0; }
+      .delivery-success { display:flex; gap:12px; align-items:center; padding:13px; border-radius:13px; background:#f0fdf4; border:1px solid #bbf7d0; }
+      .delivery-success__icon { width:32px; height:32px; flex:0 0 auto; display:grid; place-items:center; border-radius:50%; color:#fff; background:#16a34a; font-weight:900; }
+      .delivery-success strong { display:block; color:#166534; font-size:14px; }
+      .delivery-success p { margin:3px 0 0; color:#4b7c59; font-size:12px; }
+      @media (max-width:640px) { .delivery-modal-backdrop { padding:3vh 10px 16px; } .delivery-modal__header,.delivery-modal__body,.delivery-modal__footer { padding-left:18px; padding-right:18px; } .delivery-modal__footer:not(.delivery-modal__footer--stack) { flex-direction:column-reverse; } .delivery-modal__footer:not(.delivery-modal__footer--stack) button { width:100%; } }
     `,
   ],
 })
 export class VehiculosListComponent {
   private service = inject(VehiculoService);
+  private entregaService = inject(EntregaTareaService);
+  private notifications = inject(NotificationService);
   router = inject(Router);
 
   /** Breakpoint móvil, igual convención que app-layout.component.ts. */
@@ -768,6 +926,97 @@ export class VehiculosListComponent {
     this.router.navigate(['/cotizaciones/nueva'], { queryParams: { vehiculoId: v.id } });
   }
 
+  openAssign(vehicle: VehiculoListDto): void {
+    this.assignVehicle.set(vehicle);
+    this.assignResult.set(null);
+    this.assignMode.set('assigned');
+    this.selectedDriverId.set('');
+    this.assignLocation.set(vehicle.ubicacionActual || '');
+    this.assignNotes.set('');
+    this.showAssignModal.set(true);
+    this.loadDrivers();
+  }
+
+  closeAssign(): void {
+    if (this.assigning()) return;
+    this.showAssignModal.set(false);
+    this.assignVehicle.set(null);
+    this.assignResult.set(null);
+  }
+
+  confirmAssign(vehicle: VehiculoListDto): void {
+    if (this.assigning() || (this.assignMode() === 'assigned' && !this.selectedDriverId())) return;
+
+    this.assigning.set(true);
+    this.entregaService.asignarVehiculo({
+      vehiculoId: vehicle.id,
+      choferUserId: this.assignMode() === 'assigned' ? this.selectedDriverId() : null,
+      ubicacionEntrega: this.assignLocation().trim() || null,
+      notasChofer: this.assignNotes().trim() || null,
+    }).subscribe({
+      next: result => {
+        this.assigning.set(false);
+        this.assignResult.set(result);
+        this.loadVehiculos();
+      },
+      error: error => {
+        this.assigning.set(false);
+        this.notifications.fromHttpError(error, 'No se pudo preparar la entrega');
+      },
+    });
+  }
+
+  shareLink(result: EntregaLinkResponseDto): void {
+    const driver = result.tarea.choferNombre ? ` ${result.tarea.choferNombre}` : '';
+    const message = result.tieneChoferAsignado
+      ? `Hola${driver}, tienes una entrega asignada de ${result.tarea.vehiculoResumen}. Abre este enlace para entrar con tu PIN:\n${result.enlace}`
+      : `Hola, hay una entrega disponible de ${result.tarea.vehiculoResumen}. Abre este enlace para tomarla con tu PIN:\n${result.enlace}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  }
+
+  async copyLink(link: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(link);
+      this.notifications.success('Enlace copiado. Ya puedes pegarlo en WhatsApp.');
+    } catch {
+      this.notifications.error('No se pudo copiar automáticamente. Selecciona el enlace y cópialo manualmente.');
+    }
+  }
+
+  selectLinkInput(event: FocusEvent): void {
+    (event.target as HTMLInputElement | null)?.select();
+  }
+
+  regenerateLink(tareaId: string): void {
+    if (this.assigning()) return;
+    this.assigning.set(true);
+    this.entregaService.regenerarEnlace(tareaId).subscribe({
+      next: result => {
+        this.assigning.set(false);
+        this.assignResult.set(result);
+      },
+      error: error => {
+        this.assigning.set(false);
+        this.notifications.fromHttpError(error, 'No se pudo generar otro enlace');
+      },
+    });
+  }
+
+  private loadDrivers(): void {
+    this.driversLoading.set(true);
+    this.entregaService.getChoferes().subscribe({
+      next: users => {
+        this.drivers.set(users);
+        this.driversLoading.set(false);
+      },
+      error: error => {
+        this.driversLoading.set(false);
+        this.drivers.set([]);
+        this.notifications.fromHttpError(error, 'No se pudieron cargar los choferes');
+      },
+    });
+  }
+
   @ViewChild('formDialog') formDialog!: VehiculoFormDialogComponent;
 
   vehiculos = signal<VehiculoListDto[]>([]);
@@ -781,6 +1030,16 @@ export class VehiculosListComponent {
   enPatio = signal(false);
   sortColumn = signal('ingreso');
   sortDir = signal('desc');
+  showAssignModal = signal(false);
+  assignVehicle = signal<VehiculoListDto | null>(null);
+  assignResult = signal<EntregaLinkResponseDto | null>(null);
+  drivers = signal<ChoferEntregaDto[]>([]);
+  driversLoading = signal(false);
+  assigning = signal(false);
+  assignMode = signal<'assigned' | 'open'>('assigned');
+  selectedDriverId = signal('');
+  assignLocation = signal('');
+  assignNotes = signal('');
 
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
 

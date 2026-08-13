@@ -31,6 +31,35 @@ public class CrearTareaEntregaRequest
     public string? NotasChofer { get; set; }
 }
 
+public class AsignarVehiculoEntregaRequest
+{
+    public Guid VehiculoId { get; set; }
+    public Guid? ChoferUserId { get; set; }
+    public string? UbicacionEntrega { get; set; }
+    public string? NotasChofer { get; set; }
+}
+
+public class EntregaLinkResponseDto
+{
+    public TareaEntregaDto Tarea { get; set; } = new();
+    public string Enlace { get; set; } = string.Empty;
+    public bool TieneChoferAsignado { get; set; }
+    public bool ChoferTienePin { get; set; }
+}
+
+public class EntregaAccesoDto
+{
+    public Guid TareaId { get; set; }
+    public string NumeroConsecutivo { get; set; } = string.Empty;
+    public string VehiculoResumen { get; set; } = string.Empty;
+    public string? Vin { get; set; }
+    public string Estado { get; set; } = string.Empty;
+    public bool TieneChoferAsignado { get; set; }
+    public string? ChoferNombre { get; set; }
+    public bool ChoferTienePin { get; set; }
+    public List<RR.Application.DTOs.Auth.CampoUserDto> UsuariosDisponibles { get; set; } = [];
+}
+
 public class TomarTareaEntregaRequest { }
 
 public class RegistrarEntregaRequest

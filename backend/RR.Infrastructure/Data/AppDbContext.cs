@@ -360,6 +360,8 @@ public class AppDbContext : DbContext
             e.Property(x => x.FirmaBase64).HasColumnType("text");
             e.Property(x => x.Incidencia).HasMaxLength(700);
             e.Property(x => x.NotasChofer).HasMaxLength(500);
+            e.Property(x => x.EnlaceTokenHash).HasMaxLength(64);
+            e.HasIndex(x => x.EnlaceTokenHash).IsUnique();
             e.HasIndex(x => new { x.TramiteId, x.Estado });
             e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.Tramite).WithMany().HasForeignKey(x => x.TramiteId);

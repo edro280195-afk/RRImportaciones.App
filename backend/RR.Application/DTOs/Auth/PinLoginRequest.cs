@@ -6,6 +6,20 @@ public class PinLoginRequest
     public string Pin { get; set; } = string.Empty;
 }
 
+public class EntregaTokenPinLoginRequest
+{
+    public string Token { get; set; } = string.Empty;
+    public string? Username { get; set; }
+    public string Pin { get; set; } = string.Empty;
+}
+
+public class EntregaTokenSetPinRequest
+{
+    public string Token { get; set; } = string.Empty;
+    public string? Username { get; set; }
+    public string NewPin { get; set; } = string.Empty;
+}
+
 public class SetPinRequest
 {
     public string NewPin { get; set; } = string.Empty;

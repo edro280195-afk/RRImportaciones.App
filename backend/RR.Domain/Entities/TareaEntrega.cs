@@ -21,6 +21,11 @@ public class TareaEntrega : ITenantEntity
     public DateTime? FechaEntregado { get; set; }
     public Guid CreadoPor { get; set; }
 
+    // Acceso temporal del chofer. Nunca se guarda el token original.
+    public string? EnlaceTokenHash { get; set; }
+    public DateTime? EnlaceTokenExpira { get; set; }
+    public DateTime? EnlaceTokenRevocadoAt { get; set; }
+
     public Tenant Tenant { get; set; } = null!;
     public Tramite Tramite { get; set; } = null!;
     public User? Chofer { get; set; }

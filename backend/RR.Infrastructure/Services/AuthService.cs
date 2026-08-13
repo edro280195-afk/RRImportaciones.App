@@ -27,7 +27,8 @@ public class AuthService : IAuthService
         IOptions<JwtSettings> settings,
         IRealtimeNotifier realtimeNotifier,
         IEmailService emailService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        EntregaLinkTokenService? linkTokens = null)
     {
         _db = db;
         _jwt = jwt;
@@ -35,7 +36,10 @@ public class AuthService : IAuthService
         _realtimeNotifier = realtimeNotifier;
         _emailService = emailService;
         _configuration = configuration;
+        _linkTokens = linkTokens ?? new EntregaLinkTokenService();
     }
+
+    private readonly EntregaLinkTokenService _linkTokens;
 
     // ──────────────────────────────────────────────────
     // PIN helpers
@@ -151,6 +155,39 @@ public class AuthService : IAuthService
         if (!VerifyPin(request.Pin, user.PinHash, user.PinSalt))
             throw new UnauthorizedAccessException("PIN incorrecto");
 
+        user.UltimoAcceso = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return await BuildResponseAsync(user);
+    }
+
+    public async Task<LoginResponse> PinLoginPorEntregaAsync(EntregaTokenPinLoginRequest request)
+    {
+        ValidatePin(request.Pin);
+        var user = await LoadUserForEntregaTokenAsync(request.Token, request.Username);
+
+        if (string.IsNullOrEmpty(user.PinHash) || string.IsNullOrEmpty(user.PinSalt))
+            throw new UnauthorizedAccessException("Este usuario aún no tiene PIN configurado");
+
+        if (!VerifyPin(request.Pin, user.PinHash, user.PinSalt))
+            throw new UnauthorizedAccessException("PIN incorrecto");
+
+        user.UltimoAcceso = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return await BuildResponseAsync(user);
+    }
+
+    public async Task<LoginResponse> ConfigurarPinPorEntregaAsync(EntregaTokenSetPinRequest request)
+    {
+        ValidatePin(request.NewPin);
+        var user = await LoadUserForEntregaTokenAsync(request.Token, request.Username);
+
+        if (!string.IsNullOrEmpty(user.PinHash) || !string.IsNullOrEmpty(user.PinSalt))
+            throw new InvalidOperationException("Este usuario ya tiene un PIN configurado");
+
+        var salt = GenerateSalt();
+        user.PinHash = HashPin(request.NewPin, salt);
+        user.PinSalt = salt;
         user.UltimoAcceso = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
@@ -286,5 +323,54 @@ public class AuthService : IAuthService
         user.PinHash = HashPin(newPin, salt);
         user.PinSalt = salt;
         await _db.SaveChangesAsync();
+    }
+
+    private static void ValidatePin(string? pin)
+    {
+        if (string.IsNullOrWhiteSpace(pin) || pin.Length != 6 || !pin.All(char.IsDigit))
+            throw new UnauthorizedAccessException("PIN inválido");
+    }
+
+    private async Task<Domain.Entities.User> LoadUserForEntregaTokenAsync(string token, string? username)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            throw new UnauthorizedAccessException("Enlace inválido o vencido");
+
+        var tokenHash = _linkTokens.Hash(token);
+        var tarea = await _db.TareasEntrega
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.EnlaceTokenHash == tokenHash);
+
+        if (tarea == null || tarea.EnlaceTokenRevocadoAt.HasValue
+            || !tarea.EnlaceTokenExpira.HasValue || tarea.EnlaceTokenExpira.Value <= DateTime.UtcNow
+            || tarea.Estado == "ENTREGADO")
+            throw new UnauthorizedAccessException("Enlace inválido o vencido");
+
+        Domain.Entities.User user;
+        if (tarea.ChoferUserId.HasValue)
+        {
+            user = await LoadUserWithRoleAsync(u => u.Id == tarea.ChoferUserId.Value
+                && u.TenantId == tarea.TenantId
+                && u.Activo);
+
+            if (!string.IsNullOrWhiteSpace(username)
+                && !string.Equals(user.Username, username.Trim(), StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("Este enlace corresponde a otro chofer");
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(username))
+                throw new UnauthorizedAccessException("Selecciona tu nombre para continuar");
+
+            user = await LoadUserWithRoleAsync(u => u.TenantId == tarea.TenantId
+                && u.Username == username.Trim()
+                && u.Activo);
+        }
+
+        var roleName = user.Role?.Nombre?.ToUpperInvariant();
+        if (roleName is not ("YARDERO" or "CHOFER" or "CAMPO"))
+            throw new UnauthorizedAccessException("Este enlace solo puede ser usado por personal de campo");
+
+        return user;
     }
 }

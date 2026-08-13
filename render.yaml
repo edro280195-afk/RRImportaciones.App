@@ -30,6 +30,10 @@ services:
         value: 7
       - key: PortalAccess__SecretKey
         generateValue: 128
+      - key: EntregaLinks__BaseUrl
+        value: https://rr-importaciones-app.vercel.app
+      - key: EntregaLinks__ExpirationDays
+        value: 30
       - key: Storage__Provider
         value: local
       # Notificaciones push nativas (Firebase Cloud Messaging).

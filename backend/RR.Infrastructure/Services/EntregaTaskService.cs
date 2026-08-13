@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using RR.Application.DTOs.Entregas;
 using RR.Application.DTOs.Tramites;
 using RR.Application.Interfaces;
 using RR.Application.Notificaciones;
 using RR.Domain.Entities;
+using RR.Infrastructure.Auth;
 using RR.Infrastructure.Data;
 using System.Text.RegularExpressions;
 
@@ -16,19 +18,25 @@ public class EntregaTaskService : IEntregaTaskService
     private readonly IRealtimeNotifier _realtime;
     private readonly INotificacionEventoService _notificaciones;
     private readonly ITramiteService _tramiteService;
+    private readonly EntregaLinkTokenService _linkTokens;
+    private readonly EntregaLinkSettings _linkSettings;
 
     public EntregaTaskService(
         AppDbContext db,
         ICurrentUserService currentUser,
         IRealtimeNotifier realtime,
         INotificacionEventoService notificaciones,
-        ITramiteService tramiteService)
+        ITramiteService tramiteService,
+        EntregaLinkTokenService linkTokens,
+        IOptions<EntregaLinkSettings> linkSettings)
     {
         _db = db;
         _currentUser = currentUser;
         _realtime = realtime;
         _notificaciones = notificaciones;
         _tramiteService = tramiteService;
+        _linkTokens = linkTokens;
+        _linkSettings = linkSettings.Value;
     }
 
     public async Task<List<TareaEntregaDto>> GetTareasAsync(Guid? choferUserId = null, string? estado = null)
@@ -55,6 +63,23 @@ public class EntregaTaskService : IEntregaTaskService
         return tareas.Select(Map).ToList();
     }
 
+    public async Task<List<RR.Application.DTOs.Auth.CampoUserDto>> GetChoferesDisponiblesAsync()
+    {
+        return await _db.Usuarios
+            .Where(u => u.Activo
+                        && (u.Role.Nombre == "YARDERO" || u.Role.Nombre == "CHOFER" || u.Role.Nombre == "CAMPO"))
+            .OrderBy(u => u.Nombre)
+            .Select(u => new RR.Application.DTOs.Auth.CampoUserDto
+            {
+                Id = u.Id,
+                Username = u.Username,
+                Nombre = u.Nombre,
+                Apellidos = u.Apellidos,
+                TienePin = u.PinHash != null,
+            })
+            .ToListAsync();
+    }
+
     public async Task<TareaEntregaDto?> GetByIdAsync(Guid id) => await GetById(id);
 
     public async Task<TareaEntregaDto> CrearAsync(CrearTareaEntregaRequest request)
@@ -71,6 +96,7 @@ public class EntregaTaskService : IEntregaTaskService
         var tarea = new TareaEntrega
         {
             Id = Guid.NewGuid(),
+            TenantId = tramite.TenantId,
             TramiteId = request.TramiteId,
             ChoferUserId = request.ChoferUserId,
             Estado = "PENDIENTE",
@@ -79,6 +105,8 @@ public class EntregaTaskService : IEntregaTaskService
             FechaCreacion = DateTime.UtcNow,
             CreadoPor = _currentUser.UserId ?? Guid.Empty,
         };
+
+        GenerateAccessLink(tarea);
 
         _db.TareasEntrega.Add(tarea);
 
@@ -108,6 +136,174 @@ public class EntregaTaskService : IEntregaTaskService
         return dto;
     }
 
+    public async Task<EntregaLinkResponseDto> AsignarVehiculoAsync(AsignarVehiculoEntregaRequest request)
+    {
+        if (request.VehiculoId == Guid.Empty)
+            throw new ArgumentException("El vehículo es obligatorio");
+
+        var vehicle = await _db.Vehiculos
+            .Include(v => v.Marca)
+            .Include(v => v.Modelo)
+            .FirstOrDefaultAsync(v => v.Id == request.VehiculoId)
+            ?? throw new KeyNotFoundException("Vehículo no encontrado");
+
+        var tramite = await _db.Tramites
+            .Where(t => t.VehiculoId == vehicle.Id && t.EstadoLogistico != "CANCELADO")
+            .OrderBy(t => IsFinalTramiteState(t.EstadoLogistico) ? 1 : 0)
+            .ThenByDescending(t => t.FechaCreacion)
+            .FirstOrDefaultAsync()
+            ?? throw new InvalidOperationException("El vehículo no tiene un trámite activo para entregar");
+
+        if (IsFinalTramiteState(tramite.EstadoLogistico))
+            throw new InvalidOperationException("El trámite de este vehículo ya está marcado como entregado");
+
+        if (request.ChoferUserId.HasValue)
+            await EnsureChoferValidoAsync(request.ChoferUserId.Value, tramite.TenantId);
+
+        var tarea = await _db.TareasEntrega
+            .FirstOrDefaultAsync(t => t.TramiteId == tramite.Id && t.Estado != "ENTREGADO" && t.Estado != "INCIDENCIA");
+
+        var esNueva = tarea == null;
+        if (tarea == null)
+        {
+            tarea = new TareaEntrega
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tramite.TenantId,
+                TramiteId = tramite.Id,
+                Estado = "PENDIENTE",
+                FechaCreacion = DateTime.UtcNow,
+                CreadoPor = _currentUser.UserId ?? Guid.Empty,
+            };
+            _db.TareasEntrega.Add(tarea);
+        }
+
+        tarea.ChoferUserId = request.ChoferUserId;
+        tarea.UbicacionEntrega = request.UbicacionEntrega;
+        tarea.NotasChofer = request.NotasChofer;
+        tarea.EnlaceTokenRevocadoAt = null;
+        var enlace = GenerateAccessLink(tarea);
+
+        _db.Eventos.Add(new Evento
+        {
+            Id = Guid.NewGuid(),
+            TramiteId = tramite.Id,
+            Tipo = esNueva ? "ENTREGA_ASIGNADA" : "ENTREGA_REASIGNADA",
+            Contenido = request.ChoferUserId.HasValue
+                ? "Entrega asignada desde el apartado de vehículos."
+                : "Entrega disponible para que un chofer la tome.",
+            FechaEvento = DateTime.UtcNow,
+            CreadoPor = _currentUser.UserId ?? Guid.Empty,
+        });
+
+        await _db.SaveChangesAsync();
+        await _realtime.TramiteActualizadoAsync(tramite.Id, "ENTREGA_ASIGNADA");
+
+        var dto = (await GetById(tarea.Id))!;
+        if (tarea.ChoferUserId.HasValue)
+        {
+            await _notificaciones.EmitirAsync(CatalogoNotificaciones.TareaEntregaAsignada(
+                tarea.ChoferUserId.Value, tarea.Id, dto.NumeroConsecutivo,
+                dto.VehiculoResumen, tarea.UbicacionEntrega));
+        }
+
+        var chofer = tarea.ChoferUserId.HasValue
+            ? await _db.Usuarios.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == tarea.ChoferUserId.Value)
+            : null;
+
+        return new EntregaLinkResponseDto
+        {
+            Tarea = dto,
+            Enlace = enlace,
+            TieneChoferAsignado = tarea.ChoferUserId.HasValue,
+            ChoferTienePin = chofer?.PinHash != null,
+        };
+    }
+
+    public async Task<EntregaLinkResponseDto> RegenerarEnlaceAsync(Guid tareaId)
+    {
+        var tarea = await _db.TareasEntrega
+            .FirstOrDefaultAsync(t => t.Id == tareaId)
+            ?? throw new KeyNotFoundException("Tarea de entrega no encontrada");
+
+        if (tarea.Estado == "ENTREGADO")
+            throw new InvalidOperationException("No se puede generar un enlace para una entrega finalizada");
+
+        var enlace = GenerateAccessLink(tarea);
+        await _db.SaveChangesAsync();
+        var dto = (await GetById(tarea.Id))!;
+        var chofer = tarea.ChoferUserId.HasValue
+            ? await _db.Usuarios.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == tarea.ChoferUserId.Value)
+            : null;
+
+        return new EntregaLinkResponseDto
+        {
+            Tarea = dto,
+            Enlace = enlace,
+            TieneChoferAsignado = tarea.ChoferUserId.HasValue,
+            ChoferTienePin = chofer?.PinHash != null,
+        };
+    }
+
+    public async Task<EntregaAccesoDto> ObtenerAccesoAsync(string token)
+    {
+        var tarea = await GetByAccessTokenAsync(token);
+        var dto = Map(tarea);
+        var response = new EntregaAccesoDto
+        {
+            TareaId = dto.Id,
+            NumeroConsecutivo = dto.NumeroConsecutivo,
+            VehiculoResumen = dto.VehiculoResumen,
+            Vin = dto.Vin,
+            Estado = dto.Estado,
+            TieneChoferAsignado = tarea.ChoferUserId.HasValue,
+            ChoferNombre = dto.ChoferNombre,
+            ChoferTienePin = tarea.Chofer?.PinHash != null,
+        };
+
+        if (!tarea.ChoferUserId.HasValue)
+        {
+            response.UsuariosDisponibles = await _db.Usuarios
+                .IgnoreQueryFilters()
+                .Where(u => u.TenantId == tarea.TenantId
+                            && u.Activo
+                            && (u.Role.Nombre == "YARDERO" || u.Role.Nombre == "CHOFER" || u.Role.Nombre == "CAMPO"))
+                .OrderBy(u => u.Nombre)
+                .Select(u => new RR.Application.DTOs.Auth.CampoUserDto
+                {
+                    Id = u.Id,
+                    Username = u.Username,
+                    Nombre = u.Nombre,
+                    Apellidos = u.Apellidos,
+                    TienePin = u.PinHash != null,
+                })
+                .ToListAsync();
+        }
+
+        return response;
+    }
+
+    public async Task<TareaEntregaDto> TomarPorEnlaceAsync(string token)
+    {
+        var tarea = await GetByAccessTokenAsync(token);
+        var userId = _currentUser.UserId
+            ?? throw new InvalidOperationException("No se pudo identificar al chofer");
+
+        if (tarea.ChoferUserId.HasValue && tarea.ChoferUserId != userId)
+            throw new InvalidOperationException("Esta entrega está asignada a otro chofer");
+
+        if (tarea.Estado != "PENDIENTE")
+            return (await GetById(tarea.Id))!;
+
+        tarea.ChoferUserId = userId;
+        tarea.Estado = "EN_CAMINO";
+        tarea.FechaTomada = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        await _realtime.TramiteActualizadoAsync(tarea.TramiteId, "ENTREGA_EN_CAMINO");
+
+        return (await GetById(tarea.Id))!;
+    }
+
     public async Task<TareaEntregaDto> TomarAsync(Guid id)
     {
         var tarea = await _db.TareasEntrega.FindAsync(id)
@@ -118,6 +314,9 @@ public class EntregaTaskService : IEntregaTaskService
 
         if (tarea.Estado != "PENDIENTE")
             throw new InvalidOperationException("Solo se pueden tomar tareas pendientes");
+
+        if (tarea.ChoferUserId.HasValue && tarea.ChoferUserId != userId)
+            throw new InvalidOperationException("Esta entrega está asignada a otro chofer");
 
         tarea.Estado = "EN_CAMINO";
         tarea.ChoferUserId ??= userId;
@@ -143,6 +342,8 @@ public class EntregaTaskService : IEntregaTaskService
         tarea.Incidencia = request.Incidencia;
         tarea.Estado = string.IsNullOrWhiteSpace(request.Incidencia) ? "ENTREGADO" : "INCIDENCIA";
         tarea.FechaEntregado = DateTime.UtcNow;
+        if (tarea.Estado == "ENTREGADO")
+            tarea.EnlaceTokenRevocadoAt = DateTime.UtcNow;
 
         _db.Eventos.Add(new Evento
         {
@@ -302,7 +503,9 @@ public class EntregaTaskService : IEntregaTaskService
                 FechaCreacion = DateTime.UtcNow,
                 CreadoPor = _currentUser.UserId ?? Guid.Empty,
             };
+            tarea.TenantId = tramite.TenantId;
             _db.TareasEntrega.Add(tarea);
+            GenerateAccessLink(tarea);
             await _db.SaveChangesAsync();
         }
 
@@ -403,5 +606,50 @@ public class EntregaTaskService : IEntregaTaskService
 
     private static string FirstNotEmpty(params string?[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+
+    private string GenerateAccessLink(TareaEntrega tarea)
+    {
+        var token = _linkTokens.Generate();
+        tarea.EnlaceTokenHash = _linkTokens.Hash(token);
+        tarea.EnlaceTokenExpira = DateTime.UtcNow.AddDays(Math.Clamp(_linkSettings.ExpirationDays, 1, 90));
+        tarea.EnlaceTokenRevocadoAt = null;
+
+        var baseUrl = (_linkSettings.BaseUrl ?? "http://localhost:4200").TrimEnd('/');
+        return $"{baseUrl}/entrega/acceso?token={Uri.EscapeDataString(token)}";
+    }
+
+    private async Task EnsureChoferValidoAsync(Guid userId, Guid tenantId)
+    {
+        var user = await _db.Usuarios
+            .IgnoreQueryFilters()
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.Id == userId && u.TenantId == tenantId && u.Activo);
+
+        var role = user?.Role?.Nombre?.ToUpperInvariant();
+        if (user == null || role is not ("YARDERO" or "CHOFER" or "CAMPO"))
+            throw new InvalidOperationException("La persona seleccionada no es un chofer activo");
+    }
+
+    private async Task<TareaEntrega> GetByAccessTokenAsync(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            throw new UnauthorizedAccessException("Enlace inválido o vencido");
+
+        var hash = _linkTokens.Hash(token);
+        var tarea = await _db.TareasEntrega
+            .IgnoreQueryFilters()
+            .Include(t => t.Tramite).ThenInclude(t => t.Cliente)
+            .Include(t => t.Tramite).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Marca)
+            .Include(t => t.Tramite).ThenInclude(t => t.Vehiculo).ThenInclude(v => v.Modelo)
+            .Include(t => t.Chofer).ThenInclude(c => c!.Role)
+            .FirstOrDefaultAsync(t => t.EnlaceTokenHash == hash);
+
+        if (tarea == null || tarea.EnlaceTokenRevocadoAt.HasValue
+            || !tarea.EnlaceTokenExpira.HasValue || tarea.EnlaceTokenExpira.Value <= DateTime.UtcNow
+            || tarea.Estado == "ENTREGADO")
+            throw new UnauthorizedAccessException("Enlace inválido o vencido");
+
+        return tarea;
+    }
 
 }

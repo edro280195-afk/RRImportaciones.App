@@ -49,6 +49,50 @@ public class EntregaTasksController : ControllerBase
         return Ok(await _service.BuscarVehiculosAsync(query));
     }
 
+    [HttpGet("choferes")]
+    [RequierePermiso(Permisos.TramitesAsignar)]
+    public async Task<IActionResult> GetChoferes()
+    {
+        return Ok(await _service.GetChoferesDisponiblesAsync());
+    }
+
+    /// <summary>Obtiene la información mínima de un enlace de entrega sin iniciar sesión.</summary>
+    [HttpGet("acceso/{token}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ObtenerAcceso(string token)
+    {
+        try
+        {
+            return Ok(await _service.ObtenerAccesoAsync(token));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("asignar-vehiculo")]
+    [RequierePermiso(Permisos.TramitesAsignar)]
+    public async Task<IActionResult> AsignarVehiculo([FromBody] AsignarVehiculoEntregaRequest request)
+    {
+        try
+        {
+            return Ok(await _service.AsignarVehiculoAsync(request));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("vehiculos/registrar-entrega")]
     [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> RegistrarEntregaVehiculo([FromBody] RegistrarEntregaVehiculoRequest request)
@@ -93,6 +137,24 @@ public class EntregaTasksController : ControllerBase
         }
     }
 
+    [HttpPost("{id:guid}/enlace")]
+    [RequierePermiso(Permisos.TramitesAsignar)]
+    public async Task<IActionResult> RegenerarEnlace(Guid id)
+    {
+        try
+        {
+            return Ok(await _service.RegenerarEnlaceAsync(id));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("{id:guid}/tomar")]
     [RequierePermiso(Permisos.CampoUsar)]
     public async Task<IActionResult> Tomar(Guid id)
@@ -100,6 +162,28 @@ public class EntregaTasksController : ControllerBase
         try
         {
             return Ok(await _service.TomarAsync(id));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("acceso/{token}/tomar")]
+    [RequierePermiso(Permisos.CampoUsar)]
+    public async Task<IActionResult> TomarPorEnlace(string token)
+    {
+        try
+        {
+            return Ok(await _service.TomarPorEnlaceAsync(token));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {

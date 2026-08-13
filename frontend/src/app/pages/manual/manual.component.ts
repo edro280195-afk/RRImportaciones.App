@@ -247,6 +247,41 @@ export class ManualComponent {
           `,
         },
         {
+          id: 'admin-entregas-choferes',
+          titulo: 'Asignar una entrega a un chofer',
+          contenido: `
+            <p>Desde <strong>Vehículos</strong> puedes enviar una entrega a un chofer por medio de un enlace sencillo. El chofer no necesita escribir usuario ni contraseña: solo abre el enlace e ingresa su PIN.</p>
+            <h3>Generar el enlace</h3>
+            <ol>
+              <li>Entra a <strong>Vehículos</strong> y localiza la unidad que deseas entregar.</li>
+              <li>Presiona <strong>Asignar entrega</strong>.</li>
+              <li>Elige una opción: <strong>Asignar a un chofer</strong> o <strong>Dejar disponible para tomar</strong>.</li>
+              <li>Si la asignas, selecciona el nombre del chofer. Puedes agregar ubicación y una nota opcional.</li>
+              <li>Presiona <strong>Generar enlace</strong>.</li>
+            </ol>
+            <h3>Enviar el enlace</h3>
+            <p>El enlace se puede compartir de dos formas:</p>
+            <ul>
+              <li><strong>WhatsApp manual</strong> — Presiona <strong>Compartir por WhatsApp</strong>. Se abrirá WhatsApp para que elijas la conversación y lo envíes. El sistema no manda mensajes automáticos ni usa la API de WhatsApp.</li>
+              <li><strong>Copiar enlace</strong> — Copia el enlace y envíalo por el medio que prefieras.</li>
+            </ul>
+            <p>El enlace no contiene el usuario, la contraseña ni el PIN. Es temporal y se puede regenerar desde la misma ventana si necesitas invalidar el anterior.</p>
+            <h3>Lo que hace el chofer</h3>
+            <ol>
+              <li>Abre el enlace desde su celular.</li>
+              <li>Si la entrega está asignada, confirma su identidad con su PIN. Si es la primera vez, crea un PIN de 6 números.</li>
+              <li>Si la entrega está disponible, selecciona su nombre, ingresa o crea su PIN y presiona <strong>Tomar entrega</strong>.</li>
+              <li>El sistema lo lleva directamente a la captura de la unidad.</li>
+            </ol>
+            <h3>Recomendaciones</h3>
+            <ul>
+              <li>Comparte el enlace únicamente con el chofer correspondiente.</li>
+              <li>Si el chofer pierde el enlace o se comparte por error, abre nuevamente <strong>Asignar entrega</strong> y presiona <strong>Generar otro enlace</strong>.</li>
+              <li>El acceso solo funciona mientras la entrega esté activa y el enlace no haya vencido o sido revocado.</li>
+            </ul>
+          `,
+        },
+        {
           id: 'flujo-principal',
           titulo: 'Flujo principal de operación',
           contenido: `
