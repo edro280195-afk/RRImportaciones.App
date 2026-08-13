@@ -156,14 +156,24 @@ public class CampoController : ControllerBase
             return BadRequest(new { message = "La foto no puede exceder 15 MB" });
 
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var allowed = new HashSet<string> { ".jpg", ".jpeg", ".png", ".webp" };
-        if (!allowed.Contains(extension))
+        var contentType = file.ContentType.Split(';', 2)[0].Trim().ToLowerInvariant();
+        var allowedExtensions = new HashSet<string> { ".jpg", ".jpeg", ".png", ".webp" };
+        var allowedContentTypes = new HashSet<string> { "image/jpeg", "image/png", "image/webp" };
+        if (!allowedExtensions.Contains(extension) || !allowedContentTypes.Contains(contentType))
             return BadRequest(new { message = "Formato no permitido. Use jpg, jpeg, png o webp" });
+
+        await using (var signatureStream = file.OpenReadStream())
+        {
+            var header = new byte[12];
+            var read = await signatureStream.ReadAsync(header, HttpContext.RequestAborted);
+            if (!HasAllowedImageSignature(header, read, contentType))
+                return BadRequest(new { message = "El contenido de la imagen no es válido" });
+        }
 
         try
         {
             await using var stream = file.OpenReadStream();
-            var url = await _fileStorageService.UploadFileAsync($"campo/{id:N}", file.FileName, file.ContentType, stream, HttpContext.RequestAborted);
+            var url = await _fileStorageService.UploadFileAsync($"campo/{id:N}", file.FileName, contentType, stream, HttpContext.RequestAborted);
             var tarea = await _campoService.AgregarFotoAsync(id, url);
             return Ok(new { fotoUrl = url, tarea });
         }
@@ -176,13 +186,22 @@ public class CampoController : ControllerBase
     [HttpPost("tareas/{id:guid}/videos")]
     [RequestSizeLimit(125_829_120)]
     [RequierePermiso(Permisos.CampoUsar)]
-    public async Task<IActionResult> UploadVideo(Guid id, IFormFile file)
+    public async Task<IActionResult> UploadVideo(
+        Guid id,
+        IFormFile file,
+        [FromHeader(Name = "X-Campo-Video-Duration")] string? videoDuration)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "El video es obligatorio" });
 
         if (file.Length > 120 * 1024 * 1024)
             return BadRequest(new { message = "El video no puede exceder 120 MB" });
+
+        if (string.IsNullOrWhiteSpace(videoDuration)
+            || !double.TryParse(videoDuration, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var duration)
+            || duration > 60.5
+            || duration < 0)
+            return BadRequest(new { message = "El video debe indicar una duración válida de máximo 1 minuto" });
 
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
         var contentType = file.ContentType.Split(';', 2)[0].Trim();
@@ -224,6 +243,110 @@ public class CampoController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Recibe un archivo de la cola offline con un identificador estable. Si el
+    /// dispositivo repite la petición después de un timeout, el servicio
+    /// devuelve la referencia existente en lugar de registrar otro medio.
+    /// </summary>
+    [HttpPost("tareas/{id:guid}/medios")]
+    [RequestSizeLimit(125_829_120)]
+    [RequierePermiso(Permisos.CampoUsar)]
+    public async Task<IActionResult> UploadMedia(
+        Guid id,
+        IFormFile file,
+        [FromHeader(Name = "X-Campo-Media-Id")] string? clientMediaId,
+        [FromHeader(Name = "X-Campo-Media-Type")] string? mediaType,
+        [FromHeader(Name = "X-Campo-Video-Duration")] string? videoDuration)
+    {
+        if (!Guid.TryParse(clientMediaId, out var parsedMediaId) || parsedMediaId == Guid.Empty)
+            return BadRequest(new { message = "El identificador del archivo no es válido" });
+
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "El archivo es obligatorio" });
+
+        var type = mediaType?.Trim().ToUpperInvariant();
+        if (type is not ("FOTO" or "VIDEO"))
+            return BadRequest(new { message = "El tipo de archivo no es válido" });
+
+        if (type == "FOTO" && file.Length > 15 * 1024 * 1024)
+            return BadRequest(new { message = "La foto no puede exceder 15 MB" });
+
+        if (type == "VIDEO" && file.Length > 120 * 1024 * 1024)
+            return BadRequest(new { message = "El video no puede exceder 120 MB" });
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var contentType = file.ContentType.Split(';', 2)[0].Trim().ToLowerInvariant();
+
+        if (type == "FOTO")
+        {
+            var allowedPhotoExtensions = new HashSet<string> { ".jpg", ".jpeg", ".png", ".webp" };
+            var allowedPhotoTypes = new HashSet<string> { "image/jpeg", "image/png", "image/webp" };
+            if (!allowedPhotoExtensions.Contains(extension) || !allowedPhotoTypes.Contains(contentType))
+                return BadRequest(new { message = "Formato de imagen no permitido" });
+
+            await using var signatureStream = file.OpenReadStream();
+            var header = new byte[12];
+            var read = await signatureStream.ReadAsync(header, HttpContext.RequestAborted);
+            if (!HasAllowedImageSignature(header, read, contentType))
+                return BadRequest(new { message = "El contenido de la imagen no es válido" });
+        }
+        else
+        {
+            var allowedVideoExtensions = new HashSet<string> { ".mp4", ".webm", ".mov", ".m4v" };
+            var allowedVideoTypes = new HashSet<string>
+            {
+                "video/mp4", "video/webm", "video/quicktime", "video/x-m4v",
+            };
+
+            if (!allowedVideoExtensions.Contains(extension) || !allowedVideoTypes.Contains(contentType))
+                return BadRequest(new { message = "Formato de video no permitido" });
+
+            if (string.IsNullOrWhiteSpace(videoDuration)
+                || !double.TryParse(videoDuration, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var duration)
+                || duration > 60.5
+                || duration < 0)
+                return BadRequest(new { message = "El video debe indicar una duración válida de máximo 1 minuto" });
+
+            await using var signatureStream = file.OpenReadStream();
+            var header = new byte[12];
+            var read = await signatureStream.ReadAsync(header, HttpContext.RequestAborted);
+            if (!HasAllowedVideoSignature(header, read, extension))
+                return BadRequest(new { message = "El contenido del video no es válido" });
+        }
+
+        try
+        {
+            var stableFileName = $"media-{parsedMediaId:N}{extension}";
+            await using var stream = file.OpenReadStream();
+            var url = await _fileStorageService.UploadFileWithStableNameAsync(
+                type == "FOTO" ? $"campo/{id:N}" : $"campo/{id:N}/videos",
+                stableFileName,
+                contentType,
+                stream,
+                HttpContext.RequestAborted);
+
+            var result = await _campoService.RegistrarMediaAsync(
+                id,
+                parsedMediaId.ToString(),
+                type,
+                url,
+                stableFileName,
+                contentType,
+                file.Length,
+                HttpContext.RequestAborted);
+
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 

@@ -13,6 +13,15 @@ public interface ICampoService
     Task<TareaCampoDto> CompletarAsync(Guid id, CompletarTareaCampoRequest request);
     Task<TareaCampoDto> AgregarFotoAsync(Guid id, string fotoUrl);
     Task<TareaCampoDto> AgregarVideoAsync(Guid id, string videoUrl);
+    Task<CampoMediaUploadResult> RegistrarMediaAsync(
+        Guid id,
+        string clientMediaId,
+        string tipo,
+        string url,
+        string nombreArchivo,
+        string contentType,
+        long tamanoBytes,
+        CancellationToken cancellationToken = default);
     Task<TareaCampoDto> EliminarFotoAsync(Guid id, EliminarFotoCampoRequest request);
     Task<ExtractVinResponse> ExtractVinFromImageAsync(ExtractVinRequest request);
     Task<TareaCampoDto> SolicitarFotosAdicionalesAsync(Guid id, SolicitarFotosAdicionalesRequest request);

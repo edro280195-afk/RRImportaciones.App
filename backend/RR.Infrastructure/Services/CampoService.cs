@@ -114,6 +114,18 @@ public class CampoService : ICampoService
 
     public async Task<TareaCampoDto> CrearPreInspeccionAsync(CrearPreInspeccionRequest request)
     {
+        if (request.ClientOperationId.HasValue && request.ClientOperationId.Value == Guid.Empty)
+            throw new InvalidOperationException("El identificador de sincronización no es válido");
+
+        if (request.ClientOperationId.HasValue)
+        {
+            var existente = await _db.TareasCampo
+                .FirstOrDefaultAsync(t => t.ClientOperationId == request.ClientOperationId.Value);
+
+            if (existente != null)
+                return (await GetById(existente.Id))!;
+        }
+
         var vin = NormalizeVin(request.Vin);
         if (!string.IsNullOrWhiteSpace(request.Vin) && vin?.Length != 17)
             throw new InvalidOperationException("El VIN debe tener 17 caracteres");
@@ -188,6 +200,7 @@ public class CampoService : ICampoService
             Id = Guid.NewGuid(),
             TramiteId = null,
             VehiculoId = vehiculoId,
+            ClientOperationId = request.ClientOperationId,
             Tipo = "PRE_INSPECCION",
             EstadoLogistico = "ABIERTA",
             Ubicacion = request.Ubicacion,
@@ -546,6 +559,94 @@ public class CampoService : ICampoService
         return (await GetById(id))!;
     }
 
+    public async Task<CampoMediaUploadResult> RegistrarMediaAsync(
+        Guid id,
+        string clientMediaId,
+        string tipo,
+        string url,
+        string nombreArchivo,
+        string contentType,
+        long tamanoBytes,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Guid.TryParse(clientMediaId, out var mediaId) || mediaId == Guid.Empty)
+            throw new InvalidOperationException("El identificador del archivo no es válido");
+
+        var tipoNormalizado = tipo.Trim().ToUpperInvariant();
+        if (tipoNormalizado is not ("FOTO" or "VIDEO"))
+            throw new InvalidOperationException("El tipo de archivo no es válido");
+
+        var tarea = await _db.TareasCampo
+            .Include(t => t.Tramite)
+            .FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
+            ?? throw new KeyNotFoundException("Tarea de campo no encontrada");
+
+        var existente = await _db.TareasCampoMedios
+            .FirstOrDefaultAsync(
+                m => m.TareaCampoId == id && m.ClientMediaId == mediaId.ToString(),
+                cancellationToken);
+
+        if (existente != null)
+        {
+            return new CampoMediaUploadResult
+            {
+                ClientMediaId = existente.ClientMediaId,
+                Tipo = existente.Tipo,
+                Url = existente.Url,
+                YaExistia = true,
+                Tarea = (await GetById(id))!,
+            };
+        }
+
+        var media = new TareaCampoMedia
+        {
+            Id = mediaId,
+            TareaCampoId = tarea.Id,
+            ClientMediaId = mediaId.ToString(),
+            Tipo = tipoNormalizado,
+            Url = url,
+            NombreArchivo = nombreArchivo,
+            ContentType = contentType,
+            TamanoBytes = tamanoBytes,
+        };
+
+        _db.TareasCampoMedios.Add(media);
+
+        if (tipoNormalizado == "FOTO")
+        {
+            var fotos = (tarea.FotosUrls ?? Array.Empty<string>()).ToList();
+            if (!fotos.Contains(url, StringComparer.Ordinal))
+                fotos.Add(url);
+            tarea.FotosUrls = fotos.ToArray();
+            await SyncFotosToVehiculoAsync(tarea.VehiculoId ?? tarea.Tramite?.VehiculoId, [url]);
+        }
+        else
+        {
+            var videos = (tarea.VideosUrls ?? Array.Empty<string>()).ToList();
+            if (!videos.Contains(url, StringComparer.Ordinal))
+                videos.Add(url);
+            tarea.VideosUrls = videos.ToArray();
+        }
+
+        if (tarea.EstadoLogistico is "ABIERTA" or "TOMADA")
+            tarea.EstadoLogistico = "EN_YARDA";
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await _realtime.CampoActualizadoAsync(
+            tarea.Id,
+            tarea.TramiteId,
+            tipoNormalizado == "FOTO" ? "FOTO_SUBIDA" : "VIDEO_SUBIDO",
+            cancellationToken);
+
+        return new CampoMediaUploadResult
+        {
+            ClientMediaId = media.ClientMediaId,
+            Tipo = media.Tipo,
+            Url = media.Url,
+            Tarea = (await GetById(id))!,
+        };
+    }
+
     public async Task<TareaCampoDto> EliminarFotoAsync(Guid id, EliminarFotoCampoRequest request)
     {
         var fotoUrl = request.FotoUrl?.Trim();
@@ -750,6 +851,7 @@ public class CampoService : ICampoService
             PersonalCampoNombre = BuildUsuarioNombre(t.UsuarioCampo) ?? (t.PersonalCampo != null ? t.PersonalCampo.Nombre : null),
             UsuarioCampoId = t.TomadaPorUsuarioId,
             UsuarioCampoNombre = BuildUsuarioNombre(t.UsuarioCampo),
+            ClientOperationId = t.ClientOperationId,
             Ubicacion = t.Ubicacion,
             VinConfirmado = t.VinConfirmado,
             FotosUrls = t.FotosUrls,

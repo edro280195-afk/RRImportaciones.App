@@ -54,6 +54,12 @@ export interface VinScanSession {
   stop(): void;
 }
 
+export interface VinImageScanResult {
+  vin: string | null;
+  source: 'barcode' | 'ocr' | null;
+  rawText: string;
+}
+
 interface StartVinScanOptions {
   video: HTMLVideoElement;
   enableVisionFallback?: boolean;
@@ -345,6 +351,65 @@ export class VinScannerService {
     return this.extractVin(response.vin) ?? this.normalizeVinInput(response.vin);
   }
 
+  /**
+   * Lee una fotografía local sin depender del API. Primero intenta códigos de
+   * barras/QR y después OCR. Todos los motores y modelos se sirven desde los
+   * assets de la propia aplicación para que también funcionen sin señal.
+   */
+  async scanVinFromImage(
+    file: File,
+    onProgress?: (message: string) => void
+  ): Promise<VinImageScanResult> {
+    const canvases = await this.createImageCanvases(file);
+    const reader = this.createReader();
+    const nativeDetector = await this.createNativeDetector();
+    const zbarDetector = await this.getZbarDetector();
+    const rawBarcodeValues: string[] = [];
+
+    onProgress?.('Buscando código de barras o QR...');
+    for (const canvas of canvases) {
+      try {
+        if (nativeDetector) {
+          const detections = await nativeDetector.detect(canvas);
+          rawBarcodeValues.push(...detections.map(detection => detection.rawValue));
+        }
+      } catch {
+        // Se continúa con los demás detectores locales.
+      }
+
+      try {
+        if (zbarDetector) {
+          const detections = await zbarDetector.detect(canvas);
+          rawBarcodeValues.push(...detections.map(detection => detection.rawValue));
+        }
+      } catch {
+        // ZBar puede rechazar imágenes muy grandes o con un formato extraño.
+      }
+
+      try {
+        rawBarcodeValues.push(reader.decodeFromCanvas(canvas).getText());
+      } catch {
+        // No todos los cuadros contienen un código legible.
+      }
+
+      for (const rawText of rawBarcodeValues) {
+        const vin = this.extractVin(rawText);
+        if (vin) {
+          return { vin, source: 'barcode', rawText };
+        }
+      }
+    }
+
+    onProgress?.('Leyendo las letras de la serie...');
+    const rawOcrText = await this.extractVinWithLocalOcr(canvases, onProgress);
+    const ocrVin = this.extractVinFromOcr(rawOcrText);
+    return {
+      vin: ocrVin,
+      source: ocrVin ? 'ocr' : null,
+      rawText: rawOcrText,
+    };
+  }
+
   captureVinFrame(video: HTMLVideoElement): CapturedFrame | null {
     const sourceWidth = video.videoWidth;
     const sourceHeight = video.videoHeight;
@@ -379,6 +444,96 @@ export class VinScannerService {
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     const [, base64 = ''] = dataUrl.split(',');
     return { base64, mime: 'image/jpeg' };
+  }
+
+  private async createImageCanvases(file: File): Promise<HTMLCanvasElement[]> {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const element = new Image();
+      element.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(element);
+      };
+      element.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('No se pudo abrir la imagen seleccionada.'));
+      };
+      element.src = url;
+    });
+
+    const scale = Math.min(1, 2400 / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const original = document.createElement('canvas');
+    original.width = width;
+    original.height = height;
+    const context = original.getContext('2d', { willReadFrequently: true });
+    if (!context) throw new Error('El navegador no pudo preparar la imagen.');
+    context.drawImage(image, 0, 0, width, height);
+
+    const contrast = document.createElement('canvas');
+    contrast.width = width;
+    contrast.height = height;
+    const contrastContext = contrast.getContext('2d', { willReadFrequently: true });
+    if (!contrastContext) return [original];
+    contrastContext.drawImage(original, 0, 0);
+    this.boostContrast(contrast, contrastContext);
+
+    return [original, contrast];
+  }
+
+  private async extractVinWithLocalOcr(
+    canvases: HTMLCanvasElement[],
+    onProgress?: (message: string) => void
+  ): Promise<string> {
+    const tesseractModule = await import('tesseract.js');
+    const tesseract = tesseractModule as typeof import('tesseract.js');
+    const worker = await tesseract.createWorker('eng', tesseract.OEM.LSTM_ONLY, {
+      workerPath: '/assets/ocr/tesseract/worker.min.js',
+      corePath: '/assets/ocr/core',
+      langPath: '/assets/ocr/eng/4.0.0_best_int',
+      gzip: true,
+      logger: message => {
+        if (message.status === 'recognizing text' && message.progress > 0.1) {
+          onProgress?.(`Leyendo letras... ${Math.round(message.progress * 100)}%`);
+        }
+      },
+    });
+
+    try {
+      await worker.setParameters({
+        tessedit_char_whitelist: 'ABCDEFGHJKLMNPRSTUVWXYZ0123456789',
+        tessedit_pageseg_mode: tesseract.PSM.SINGLE_LINE,
+        user_defined_dpi: '300',
+      });
+
+      const texts: string[] = [];
+      for (const canvas of canvases) {
+        const result = await worker.recognize(canvas);
+        texts.push(result.data.text);
+        if (this.extractVinFromOcr(result.data.text)) break;
+      }
+      return texts.join('\n');
+    } finally {
+      await worker.terminate();
+    }
+  }
+
+  private extractVinFromOcr(value: string): string | null {
+    const direct = this.extractVin(value);
+    if (direct) return direct;
+
+    const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const corrected = compact
+      .replace(/O/g, '0')
+      .replace(/[IQ]/g, '1');
+    const candidates: string[] = [];
+    for (let index = 0; index <= corrected.length - 17; index += 1) {
+      const candidate = corrected.slice(index, index + 17);
+      if (/^[A-HJ-NPR-Z0-9]{17}$/.test(candidate)) candidates.push(candidate);
+    }
+
+    return candidates.find(candidate => this.hasValidCheckDigit(candidate)) ?? candidates[0] ?? null;
   }
 
   private createReader(): BrowserMultiFormatReader {

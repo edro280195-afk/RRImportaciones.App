@@ -15,7 +15,9 @@ class TareaCampo {
     required this.ubicacion,
     required this.vinConfirmado,
     required this.fotosUrls,
+    required this.videosUrls,
     required this.incidencia,
+    required this.clientOperationId,
   });
 
   final String id;
@@ -33,7 +35,9 @@ class TareaCampo {
   final String? ubicacion;
   final String? vinConfirmado;
   final List<String> fotosUrls;
+  final List<String> videosUrls;
   final String? incidencia;
+  final String? clientOperationId;
 
   bool get estaCerrada => estatus == 'COMPLETADA' || estatus == 'CANCELADA';
 
@@ -58,7 +62,11 @@ class TareaCampo {
       fotosUrls: (json['fotosUrls'] as List<dynamic>? ?? const [])
           .map((item) => item.toString())
           .toList(),
+      videosUrls: (json['videosUrls'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
       incidencia: json['incidencia']?.toString(),
+      clientOperationId: json['clientOperationId']?.toString(),
     );
   }
 }

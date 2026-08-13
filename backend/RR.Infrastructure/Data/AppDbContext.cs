@@ -34,6 +34,7 @@ public class AppDbContext : DbContext
     public DbSet<Evento> Eventos => Set<Evento>();
     public DbSet<TramiteDocumento> TramitesDocumentos => Set<TramiteDocumento>();
     public DbSet<TareaCampo> TareasCampo => Set<TareaCampo>();
+    public DbSet<TareaCampoMedia> TareasCampoMedios => Set<TareaCampoMedia>();
     public DbSet<Aduana> Aduanas => Set<Aduana>();
     public DbSet<PatenteAduana> PatentesAduana => Set<PatenteAduana>();
     public DbSet<FraccionArancelaria> FraccionesArancelarias => Set<FraccionArancelaria>();
@@ -336,6 +337,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.EstadoLogistico).HasMaxLength(30).HasDefaultValue("ABIERTA");
             e.Property(x => x.Ubicacion).HasMaxLength(250);
             e.Property(x => x.VinConfirmado).HasMaxLength(17);
+            e.HasIndex(x => new { x.TenantId, x.ClientOperationId }).IsUnique();
             e.Property(x => x.FotosUrls).HasColumnType("text[]");
             e.Property(x => x.VideosUrls).HasColumnType("text[]");
             e.Property(x => x.ShareTokenHash).HasMaxLength(64);
@@ -349,6 +351,20 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.Vehiculo).WithMany().HasForeignKey(x => x.VehiculoId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.PersonalCampo).WithMany().HasForeignKey(x => x.PersonalCampoId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(x => x.UsuarioCampo).WithMany().HasForeignKey(x => x.TomadaPorUsuarioId).OnDelete(DeleteBehavior.SetNull);
+            e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
+        });
+
+        modelBuilder.Entity<TareaCampoMedia>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.ClientMediaId).HasMaxLength(80).IsRequired();
+            e.Property(x => x.Tipo).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Url).HasMaxLength(700).IsRequired();
+            e.Property(x => x.NombreArchivo).HasMaxLength(180).IsRequired();
+            e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => new { x.TenantId, x.TareaCampoId, x.ClientMediaId }).IsUnique();
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.TareaCampo).WithMany(x => x.Medios).HasForeignKey(x => x.TareaCampoId).OnDelete(DeleteBehavior.Cascade);
             e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
         });
 

@@ -1,12 +1,25 @@
 // Subir esta versión invalida todo lo cacheado por la versión anterior.
-const CACHE_NAME = 'rr-importaciones-v3';
+const CACHE_NAME = 'rr-importaciones-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/favicon.ico',
   '/manifest.webmanifest',
   '/icons/campo-192.png',
-  '/icons/campo-512.png'
+  '/icons/campo-512.png',
+  // Motor y modelo OCR local para leer VIN aunque la yarda no tenga señal.
+  '/assets/ocr/tesseract/worker.min.js',
+  '/assets/ocr/eng/4.0.0_best_int/eng.traineddata.gz',
+  '/assets/ocr/core/tesseract-core.wasm.js',
+  '/assets/ocr/core/tesseract-core.wasm',
+  '/assets/ocr/core/tesseract-core-simd.wasm.js',
+  '/assets/ocr/core/tesseract-core-simd.wasm',
+  '/assets/ocr/core/tesseract-core-simd-lstm.wasm.js',
+  '/assets/ocr/core/tesseract-core-simd-lstm.wasm',
+  '/assets/ocr/core/tesseract-core-relaxedsimd.wasm.js',
+  '/assets/ocr/core/tesseract-core-relaxedsimd.wasm',
+  '/assets/ocr/core/tesseract-core-relaxedsimd-lstm.wasm.js',
+  '/assets/ocr/core/tesseract-core-relaxedsimd-lstm.wasm'
 ];
 
 self.addEventListener('install', (event) => {

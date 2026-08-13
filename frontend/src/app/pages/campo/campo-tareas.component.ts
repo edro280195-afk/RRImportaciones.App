@@ -8,6 +8,7 @@ import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
 import { PushNotificationService } from '../../services/push-notification.service';
 import { CampoRegistroModalComponent } from './campo-registro-modal.component';
+import { CampoOfflineService } from '../../services/campo-offline.service';
 
 /** Aviso en vivo que se le muestra al operador dentro de la pantalla de campo. */
 interface AvisoCampo {
@@ -208,6 +209,30 @@ interface AvisoCampo {
         }
       </div>
 
+      @if (offlineRecords().length > 0) {
+        <section class="offline-list" aria-label="Capturas pendientes de sincronizar">
+          <div class="offline-list__header">
+            <div>
+              <strong>Capturas guardadas en este dispositivo</strong>
+              <small>Se enviarán automáticamente al recuperar internet.</small>
+            </div>
+            <button type="button" class="offline-sync" (click)="syncOffline()" [disabled]="offline.syncing()">
+              {{ offline.syncing() ? 'Sincronizando...' : 'Sincronizar' }}
+            </button>
+          </div>
+          @for (record of offlineRecords(); track record.id) {
+            <button type="button" class="offline-card" (click)="openOfflineCapture(record.id)">
+              <span class="offline-card__icon">↻</span>
+              <span class="offline-card__body">
+                <strong>{{ record.descripcionVehiculo }}</strong>
+                <small>{{ record.vin || 'VIN pendiente' }} · {{ offlineStatusLabel(record.status) }}</small>
+              </span>
+              <span class="offline-card__arrow">›</span>
+            </button>
+          }
+        </section>
+      }
+
       <!-- ── Task list ──────────────────────────────────────────── -->
       <section class="task-list" role="list">
         @if (loading() && tareas().length === 0) {
@@ -383,7 +408,7 @@ interface AvisoCampo {
       @if (showRegistro()) {
         <app-campo-registro-modal
           (close)="showRegistro.set(false)"
-          (registered)="load()"
+          (registered)="openOfflineCapture($event)"
         ></app-campo-registro-modal>
       }
     </div>
@@ -777,6 +802,98 @@ interface AvisoCampo {
         gap: 10px;
         padding: 12px 14px 20px;
       }
+      .offline-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 14px 14px 0;
+        padding: 14px;
+        border: 1.5px solid #93c5fd;
+        border-radius: 18px;
+        background: #eff6ff;
+      }
+      .offline-list__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: #1e3a8a;
+      }
+      .offline-list__header strong,
+      .offline-list__header small {
+        display: block;
+      }
+      .offline-list__header strong {
+        font-size: 13px;
+      }
+      .offline-list__header small {
+        margin-top: 3px;
+        color: #3b82f6;
+        font-size: 11px;
+      }
+      .offline-sync {
+        flex-shrink: 0;
+        border: 0;
+        border-radius: 999px;
+        padding: 8px 10px;
+        background: #2563eb;
+        color: #fff;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .offline-sync:disabled {
+        opacity: .65;
+        cursor: wait;
+      }
+      .offline-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        border: 1px solid #bfdbfe;
+        border-radius: 13px;
+        padding: 10px;
+        background: #fff;
+        color: #172554;
+        text-align: left;
+        cursor: pointer;
+      }
+      .offline-card__icon {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        border-radius: 50%;
+        background: #dbeafe;
+        color: #1d4ed8;
+        font-size: 19px;
+        font-weight: 900;
+      }
+      .offline-card__body {
+        flex: 1;
+        min-width: 0;
+      }
+      .offline-card__body strong,
+      .offline-card__body small {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .offline-card__body strong {
+        font-size: 13px;
+      }
+      .offline-card__body small {
+        margin-top: 3px;
+        color: #64748b;
+        font-size: 11px;
+      }
+      .offline-card__arrow {
+        color: #2563eb;
+        font-size: 24px;
+      }
       .task-skeleton {
         height: 108px;
         border-radius: 18px;
@@ -1132,6 +1249,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private realtime = inject(RealtimeService);
   private push = inject(PushNotificationService);
+  readonly offline = inject(CampoOfflineService);
   private sub?: Subscription;
   private tareaAsignadaSub?: Subscription;
   private fotosSolicitadasSub?: Subscription;
@@ -1147,6 +1265,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   searchTerm = signal('');
   showLogout = signal(false);
   showRegistro = signal(false);
+  offlineRecords = this.offline.records;
 
   filters = [
     { label: 'Todas', value: '' },
@@ -1179,6 +1298,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    void this.offline.initialize();
     this.load();
     this.realtime.start();
     this.sub = this.realtime.campoActualizado$.subscribe(() => this.load());
@@ -1289,6 +1409,25 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
         this.loading.set(false);
       },
     });
+  }
+
+  syncOffline(): void {
+    void this.offline.syncAll();
+  }
+
+  openOfflineCapture(id: string): void {
+    this.showRegistro.set(false);
+    void this.router.navigate(['/campo/pre-registro', id, 'captura']);
+  }
+
+  offlineStatusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      BORRADOR: 'Listo para capturar',
+      LISTO: 'Pendiente de envío',
+      SINCRONIZANDO: 'Enviando',
+      ERROR: 'Reintento pendiente',
+    };
+    return labels[status] ?? status;
   }
 
   setFilter(value: string): void {

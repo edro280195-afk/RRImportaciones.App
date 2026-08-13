@@ -28,6 +28,26 @@
               {
                 "glob": "zbar.wasm",
                 "input": "node_modules/@undecaf/zbar-wasm/dist"
+              },
+              {
+                "glob": "worker.min.js",
+                "input": "node_modules/tesseract.js/dist",
+                "output": "assets/ocr/tesseract"
+              },
+              {
+                "glob": "tesseract-core*.wasm.js",
+                "input": "node_modules/tesseract.js-core",
+                "output": "assets/ocr/core"
+              },
+              {
+                "glob": "tesseract-core*.wasm",
+                "input": "node_modules/tesseract.js-core",
+                "output": "assets/ocr/core"
+              },
+              {
+                "glob": "eng.traineddata.gz",
+                "input": "node_modules/@tesseract.js-data/eng/4.0.0_best_int",
+                "output": "assets/ocr/eng/4.0.0_best_int"
               }
             ],
             "styles": [

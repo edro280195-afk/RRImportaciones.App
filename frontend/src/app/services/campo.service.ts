@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable, timeout } from 'rxjs';
 
@@ -20,6 +20,7 @@ export interface TareaCampoDto {
   personalCampoNombre: string | null;
   usuarioCampoId: string | null;
   usuarioCampoNombre: string | null;
+  clientOperationId: string | null;
   ubicacion: string | null;
   vinConfirmado: string | null;
   fotosUrls: string[];
@@ -28,6 +29,14 @@ export interface TareaCampoDto {
   fechaCreacion: string;
   fechaTomada: string | null;
   fechaCompletada: string | null;
+}
+
+export interface CampoMediaUploadResponse {
+  clientMediaId: string;
+  tipo: 'FOTO' | 'VIDEO';
+  url: string;
+  yaExistia: boolean;
+  tarea: TareaCampoDto;
 }
 
 export interface CampoShareResponse {
@@ -76,6 +85,7 @@ export class CampoService {
   }
 
   crearPreInspeccion(request: {
+    clientOperationId?: string | null;
     descripcionVehiculo: string;
     clienteNombreLibre?: string | null;
     clienteId?: string | null;
@@ -121,13 +131,46 @@ export class CampoService {
     ).pipe(timeout(PHOTO_UPLOAD_TIMEOUT_MS));
   }
 
-  uploadVideo(id: string, file: File): Observable<{ videoUrl: string; tarea: TareaCampoDto }> {
+  uploadVideo(
+    id: string,
+    file: File,
+    durationSeconds?: number | null
+  ): Observable<{ videoUrl: string; tarea: TareaCampoDto }> {
     const form = new FormData();
     form.append('file', file);
-    return this.http.post<{ videoUrl: string; tarea: TareaCampoDto }>(
-      `${this.baseUrl}/tareas/${id}/videos`,
-      form
-    ).pipe(timeout(VIDEO_UPLOAD_TIMEOUT_MS));
+    const headers = durationSeconds == null
+      ? undefined
+      : new HttpHeaders({ 'X-Campo-Video-Duration': durationSeconds.toFixed(2) });
+    return this.http
+      .post<{ videoUrl: string; tarea: TareaCampoDto }>(
+        `${this.baseUrl}/tareas/${id}/videos`,
+        form,
+        headers ? { headers } : undefined
+      )
+      .pipe(timeout(VIDEO_UPLOAD_TIMEOUT_MS));
+  }
+
+  uploadMedia(
+    id: string,
+    file: File,
+    clientMediaId: string,
+    tipo: 'FOTO' | 'VIDEO',
+    videoDurationSeconds?: number | null
+  ): Observable<CampoMediaUploadResponse> {
+    const form = new FormData();
+    form.append('file', file);
+    let headers = new HttpHeaders({
+      'X-Campo-Media-Id': clientMediaId,
+      'X-Campo-Media-Type': tipo,
+    });
+
+    if (tipo === 'VIDEO' && videoDurationSeconds != null) {
+      headers = headers.set('X-Campo-Video-Duration', videoDurationSeconds.toFixed(2));
+    }
+
+    return this.http
+      .post<CampoMediaUploadResponse>(`${this.baseUrl}/tareas/${id}/medios`, form, { headers })
+      .pipe(timeout(tipo === 'VIDEO' ? VIDEO_UPLOAD_TIMEOUT_MS : PHOTO_UPLOAD_TIMEOUT_MS));
   }
 
   createShareLink(id: string): Observable<CampoShareResponse> {

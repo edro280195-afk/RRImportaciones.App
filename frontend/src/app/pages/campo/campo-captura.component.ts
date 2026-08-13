@@ -14,6 +14,7 @@ import { firstValueFrom, Subscription, TimeoutError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../services/auth.service';
 import { CampoService, TareaCampoDto } from '../../services/campo.service';
+import { CampoOfflineService, type CampoOfflineRecord } from '../../services/campo-offline.service';
 import { NotificationService } from '../../services/notification.service';
 import { RealtimeService } from '../../services/realtime.service';
 import { VinScannerService, VinScanSession } from '../../services/vin-scanner.service';
@@ -36,6 +37,7 @@ interface LocalVideo {
   uploading: boolean;
   uploaded: boolean;
   err: boolean;
+  durationSeconds?: number | null;
 }
 
 interface GalleryPhoto {
@@ -272,7 +274,7 @@ const MIN_PHOTOS = 3;
           <div class="video-card__head">
             <div>
               <strong>Video de la unidad</strong>
-              <span>Opcional · máximo 120 MB</span>
+              <span>Opcional · máximo 1 minuto · 120 MB</span>
             </div>
             <span class="video-card__count">{{ videos().length + (t?.videosUrls?.length ?? 0) }}</span>
           </div>
@@ -1985,6 +1987,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private campoService = inject(CampoService);
+  private campoOffline = inject(CampoOfflineService);
   private notifications = inject(NotificationService);
   private realtime = inject(RealtimeService);
   private vinScanner = inject(VinScannerService);
@@ -2032,6 +2035,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
   private recordingTimer?: ReturnType<typeof setInterval>;
   private vinScanSession: VinScanSession | null = null;
   private taskId = '';
+  private offlineMode = false;
+  private offlineMediaWrites: Promise<void>[] = [];
   private touchStartX = 0;
 
   readonly uploadedCount = computed(
@@ -2087,6 +2092,11 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     }
 
     this.taskId = id;
+    this.offlineMode = this.route.snapshot.data['offline'] === true;
+    if (this.offlineMode) {
+      void this.loadOffline(id);
+      return;
+    }
     this.loadDraft(id);
     this.load(id);
     this.realtime.start();
@@ -2135,6 +2145,94 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
         this.state.set('error');
         this.notifications.fromHttpError(err, 'No se pudo abrir la tarea de campo');
       },
+    });
+  }
+
+  private async loadOffline(id: string): Promise<void> {
+    this.state.set('loading');
+    try {
+      const record = await this.campoOffline.getRecord(id);
+      if (!record) throw new Error('La captura local no existe o ya fue sincronizada.');
+
+      this.ubicacion = record.ubicacion || '';
+      this.vinConfirmado = this.normalizeVin(record.vin || '');
+      this.incidencia.set(record.notasInternas || '');
+      if (this.incidencia()) this.showIncidencia.set(true);
+      this.tarea.set(this.buildOfflineTask(record));
+
+      const media = await this.campoOffline.getMediaForRecord(id);
+      const photos: LocalPhoto[] = [];
+      const videos: LocalVideo[] = [];
+      for (const item of media) {
+        if (item.tipo === 'FOTO') {
+          photos.push({
+            id: item.id,
+            dataUrl: await this.blobToDataUrl(item.file),
+            uploading: item.status === 'SUBIENDO',
+            uploaded: item.status === 'SUBIDO',
+            err: item.status === 'ERROR',
+          });
+        } else {
+          const file = new File([item.file], item.fileName, { type: item.contentType });
+          videos.push({
+            id: item.id,
+            file,
+            objectUrl: URL.createObjectURL(file),
+            uploading: item.status === 'SUBIENDO',
+            uploaded: item.status === 'SUBIDO',
+            err: item.status === 'ERROR',
+            durationSeconds: item.durationSeconds,
+          });
+        }
+      }
+      this.photos.set(photos);
+      this.revokeVideoUrls();
+      this.videos.set(videos);
+      this.state.set('ready');
+    } catch (error) {
+      this.state.set('error');
+      this.notifications.fromHttpError(error, 'No se pudo abrir la captura local');
+    }
+  }
+
+  private buildOfflineTask(record: CampoOfflineRecord): TareaCampoDto {
+    const vin = record.vin || null;
+    return {
+      id: record.id,
+      tramiteId: null,
+      vehiculoId: null,
+      clienteId: record.clienteId,
+      numeroConsecutivo: null,
+      clienteNombre: record.clienteNombreLibre,
+      vehiculoResumen: record.descripcionVehiculo || (vin ? `VIN ${vin}` : 'Registro en yarda'),
+      descripcionVehiculo: record.descripcionVehiculo,
+      clienteNombreLibre: record.clienteNombreLibre,
+      vin,
+      vinCorto: vin ? vin.slice(-6) : null,
+      tipo: 'PRE_INSPECCION',
+      estatus: record.status === 'COMPLETADO' ? 'COMPLETADA' : 'ABIERTA',
+      personalCampoId: null,
+      personalCampoNombre: null,
+      usuarioCampoId: null,
+      usuarioCampoNombre: null,
+      clientOperationId: record.clientOperationId,
+      ubicacion: record.ubicacion,
+      vinConfirmado: vin,
+      fotosUrls: [],
+      videosUrls: [],
+      incidencia: record.notasInternas,
+      fechaCreacion: record.createdAt,
+      fechaTomada: null,
+      fechaCompletada: null,
+    };
+  }
+
+  private blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('No se pudo leer una foto guardada.'));
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsDataURL(blob);
     });
   }
 
@@ -2200,11 +2298,14 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    const photoId = crypto.randomUUID();
     this.photos.update(items => [
       ...items,
-      { id: crypto.randomUUID(), dataUrl, uploading: false, uploaded: false, err: false },
+      { id: photoId, dataUrl, uploading: false, uploaded: false, err: false },
     ]);
-    const respaldada = this.persistLocalPhotos();
+    const respaldada = this.offlineMode
+      ? await this.persistOfflinePhoto(photoId, dataUrl)
+      : this.persistLocalPhotos();
     this.triggerFlash();
     this.vibrate([18, 28, 18]);
 
@@ -2267,6 +2368,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     const video = this.videos().find(item => item.id === id);
     if (video) URL.revokeObjectURL(video.objectUrl);
     this.videos.update(items => items.filter(item => item.id !== id));
+    if (this.offlineMode) void this.campoOffline.deleteMedia(id);
   }
 
   /** Abre la galería/archivos del dispositivo. */
@@ -2280,7 +2382,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     this.videoInputRef?.nativeElement.click();
   }
 
-  onVideoSelected(event: Event): void {
+  async onVideoSelected(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const files = Array.from(input.files ?? []).filter(file => file.type.startsWith('video/'));
     input.value = '';
@@ -2290,7 +2392,16 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
         this.notifications.warning(`El video ${file.name} excede 120 MB.`);
         continue;
       }
-      this.addVideo(file);
+      try {
+        const duration = await this.getVideoDuration(file);
+        if (duration > 60.5) {
+          this.notifications.warning(`El video ${file.name} no puede durar más de 1 minuto.`);
+          continue;
+        }
+        this.addVideo(file, duration);
+      } catch {
+        this.notifications.warning(`No se pudo validar la duración de ${file.name}.`);
+      }
     }
   }
 
@@ -2314,10 +2425,12 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
       for (const archivo of archivos) {
         try {
           const dataUrl = await this.fileToResizedDataUrl(archivo);
+          const photoId = crypto.randomUUID();
           this.photos.update(items => [
             ...items,
-            { id: crypto.randomUUID(), dataUrl, uploading: false, uploaded: false, err: false },
+            { id: photoId, dataUrl, uploading: false, uploaded: false, err: false },
           ]);
+          if (this.offlineMode) await this.persistOfflinePhoto(photoId, dataUrl);
           agregadas++;
         } catch {
           fallidas++;
@@ -2328,7 +2441,7 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     }
 
     if (agregadas > 0) {
-      const respaldada = this.persistLocalPhotos();
+      const respaldada = this.offlineMode ? true : this.persistLocalPhotos();
       this.vibrate([18, 28, 18]);
 
       if (!respaldada) {
@@ -2380,10 +2493,45 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     });
   }
 
+  private async persistOfflinePhoto(id: string, dataUrl: string): Promise<boolean> {
+    try {
+      await this.campoOffline.savePhoto(
+        this.taskId,
+        id,
+        this.dataUrlToBlob(dataUrl),
+        `campo-${this.taskId}-${id}.jpg`
+      );
+      return true;
+    } catch {
+      this.storageFull.set(true);
+      return false;
+    }
+  }
+
+  private getVideoDuration(file: File): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const duration = video.duration;
+        URL.revokeObjectURL(url);
+        if (!Number.isFinite(duration)) reject(new Error('Duración no disponible'));
+        else resolve(duration);
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Video no válido'));
+      };
+      video.src = url;
+    });
+  }
+
   removePhoto(id: string): void {
     if (this.state() === 'sending') return;
     this.photos.update(items => items.filter(p => p.id !== id));
-    this.persistLocalPhotos();
+    if (this.offlineMode) void this.campoOffline.deleteMedia(id);
+    else this.persistLocalPhotos();
     this.realignGalleryIndex();
     this.vibrate([8]);
   }
@@ -2404,16 +2552,22 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     const file = new File([blob], `campo-${this.taskId}-${crypto.randomUUID()}.${extension}`, {
       type: mimeType,
     });
-    this.addVideo(file);
+    this.addVideo(file, this.videoSeconds());
     this.notifications.success('Video listo para subir al guardar la captura.');
   }
 
-  private addVideo(file: File): void {
+  private addVideo(file: File, durationSeconds: number | null = null): void {
+    const id = crypto.randomUUID();
     const objectUrl = URL.createObjectURL(file);
     this.videos.update(items => [
       ...items,
-      { id: crypto.randomUUID(), file, objectUrl, uploading: false, uploaded: false, err: false },
+      { id, file, objectUrl, uploading: false, uploaded: false, err: false, durationSeconds },
     ]);
+    if (this.offlineMode) {
+      this.offlineMediaWrites.push(
+        this.campoOffline.saveVideo(this.taskId, id, file, file.name, durationSeconds)
+      );
+    }
   }
 
   private revokeVideoUrls(): void {
@@ -2507,6 +2661,11 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     const task = this.tarea();
     if (!task || !this.canSend()) return;
 
+    if (this.offlineMode) {
+      await this.sendOfflineReport();
+      return;
+    }
+
     this.state.set('sending');
     this.closeCamera();
 
@@ -2539,7 +2698,9 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
           items.map(item => (item.id === video.id ? { ...item, uploading: true, err: false } : item))
         );
 
-        const response = await firstValueFrom(this.campoService.uploadVideo(current.id, video.file));
+        const response = await firstValueFrom(
+          this.campoService.uploadVideo(current.id, video.file, video.durationSeconds)
+        );
         current = response.tarea;
         this.videos.update(items =>
           items.map(item => (item.id === video.id ? { ...item, uploading: false, uploaded: true } : item))
@@ -2591,6 +2752,32 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     }
   }
 
+  private async sendOfflineReport(): Promise<void> {
+    if (!this.taskId) return;
+
+    this.state.set('sending');
+    this.closeCamera();
+    try {
+      await Promise.all(this.offlineMediaWrites);
+      this.offlineMediaWrites = [];
+      await this.campoOffline.markReady(this.taskId, {
+        ubicacion: this.ubicacion || null,
+        vin: this.tarea()?.vin || this.vinConfirmado || null,
+        notasInternas: this.incidencia().trim() || null,
+      });
+      this.vibrate([60, 40, 120]);
+      this.notifications.success(
+        navigator.onLine
+          ? 'Captura guardada. Se enviará en segundo plano.'
+          : 'Captura guardada sin internet. Se enviará al recuperar señal.'
+      );
+      this.goBack();
+    } catch (error) {
+      this.state.set('ready');
+      this.notifications.fromHttpError(error, 'No se pudo guardar la captura local');
+    }
+  }
+
   onVinChange(value: string): void {
     this.vinConfirmado = this.normalizeVin(value);
     this.persistDraft();
@@ -2603,6 +2790,14 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
 
   persistDraft(): void {
     if (!this.taskId) return;
+    if (this.offlineMode) {
+      void this.campoOffline.updateDraft(this.taskId, {
+        ubicacion: this.ubicacion || null,
+        vin: this.tarea()?.vin || this.vinConfirmado || null,
+        notasInternas: this.incidencia().trim() || null,
+      });
+      return;
+    }
     try {
       localStorage.setItem(
         this.draftKey(this.taskId),
@@ -2795,6 +2990,10 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return new File([bytes], fileName, { type: mime });
+  }
+
+  private dataUrlToBlob(dataUrl: string): Blob {
+    return this.dataUrlToFile(dataUrl, 'captura.jpg');
   }
 
   private triggerFlash(): void {

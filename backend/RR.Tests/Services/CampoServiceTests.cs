@@ -65,6 +65,77 @@ public class CampoServiceTests
         vehiculo.FotosUrls.Should().BeEquivalentTo(fotos);
     }
 
+    [Fact]
+    public async Task CrearPreInspeccionAsync_WithSameClientOperationId_ReturnsSameTask()
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var tenantContext = new TestTenantContext(tenantId);
+        await using var db = CreateDbContext(tenantContext);
+        var service = CreateService(db, tenantContext, userId);
+        var operationId = Guid.NewGuid();
+
+        var request = new CrearPreInspeccionRequest
+        {
+            ClientOperationId = operationId,
+            Vin = "1HGCV1F33JA235611",
+            DescripcionVehiculo = "Honda Accord en yarda",
+        };
+
+        var first = await service.CrearPreInspeccionAsync(request);
+        var second = await service.CrearPreInspeccionAsync(request);
+
+        second.Id.Should().Be(first.Id);
+        (await db.TareasCampo.CountAsync()).Should().Be(1);
+        (await db.Vehiculos.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RegistrarMediaAsync_WithSameClientMediaId_IsIdempotent()
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var tenantContext = new TestTenantContext(tenantId);
+        await using var db = CreateDbContext(tenantContext);
+        var service = CreateService(db, tenantContext, userId);
+        var tarea = new TareaCampo
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Tipo = "PRE_INSPECCION",
+            EstadoLogistico = "ABIERTA",
+            CreadoPor = userId,
+            FotosUrls = [],
+            VideosUrls = [],
+        };
+        db.TareasCampo.Add(tarea);
+        await db.SaveChangesAsync();
+
+        var mediaId = Guid.NewGuid().ToString();
+        var first = await service.RegistrarMediaAsync(
+            tarea.Id,
+            mediaId,
+            "FOTO",
+            "/storage/campo/foto-1.jpg",
+            "foto-1.jpg",
+            "image/jpeg",
+            1200);
+        var second = await service.RegistrarMediaAsync(
+            tarea.Id,
+            mediaId,
+            "FOTO",
+            "/storage/campo/foto-1-reintentada.jpg",
+            "foto-1.jpg",
+            "image/jpeg",
+            1200);
+
+        first.YaExistia.Should().BeFalse();
+        second.YaExistia.Should().BeTrue();
+        (await db.TareasCampoMedios.CountAsync()).Should().Be(1);
+        (await db.TareasCampoMedios.SingleAsync()).Url.Should().Be("/storage/campo/foto-1.jpg");
+        (await db.TareasCampo.SingleAsync()).FotosUrls.Should().ContainSingle();
+    }
+
     private static CampoService CreateService(AppDbContext db, ITenantContext tenantContext, Guid userId)
     {
         var realtime = new Mock<IRealtimeNotifier>();
@@ -88,6 +159,11 @@ public class CampoServiceTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var notifications = new Mock<INotificacionEventoService>();
+        notifications
+            .Setup(x => x.EmitirAsync(It.IsAny<NotificacionEvento>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
         return new CampoService(
             db,
             new TestCurrentUserService(userId),
@@ -95,7 +171,7 @@ public class CampoServiceTests
             Mock.Of<IEmailService>(),
             new ConfigurationBuilder().Build(),
             Mock.Of<IWhatsAppService>(),
-            Mock.Of<INotificacionEventoService>());
+            notifications.Object);
     }
 
     private static AppDbContext CreateDbContext(ITenantContext tenantContext)

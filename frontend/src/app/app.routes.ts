@@ -50,6 +50,13 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/campo/campo-pin.component').then(m => m.CampoPinComponent),
   },
   {
+    path: 'campo/pre-registro/:id/captura',
+    canActivate: [campoAuthGuard],
+    data: { offline: true },
+    loadComponent: () =>
+      import('./pages/campo/campo-captura.component').then(m => m.CampoCapturaComponent),
+  },
+  {
     path: 'campo/:id/captura',
     canActivate: [campoAuthGuard],
     loadComponent: () =>

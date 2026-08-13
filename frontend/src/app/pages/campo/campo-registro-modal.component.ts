@@ -2,6 +2,7 @@ import { Component, EventEmitter, inject, Output, signal, ViewChild, ElementRef,
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CampoService } from '../../services/campo.service';
+import { CampoOfflineService } from '../../services/campo-offline.service';
 import { NotificationService } from '../../services/notification.service';
 import { MarcaDto, MarcaService } from '../../services/marca.service';
 import { ClienteListDto, ClienteService } from '../../services/cliente.service';
@@ -48,7 +49,18 @@ interface LockableScreenOrientation extends ScreenOrientation {
                 <path d="M4 4h4v4H4zM16 4h4v4h-4zM4 16h4v4H4zM12 4v16M8 12h8"/>
               </svg>
             </button>
+            <button type="button" class="btn-photo-vin" (click)="openVinPhotoPicker()" title="Elegir foto del VIN" [disabled]="photoVinLoading()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="16" rx="2"/>
+                <circle cx="8.5" cy="9" r="1.5"/>
+                <path d="m21 15-4.5-4.5L8 19"/>
+              </svg>
+            </button>
+            <input #vinPhotoInput type="file" accept="image/*" hidden (change)="onVinPhotoSelected($event)" />
           </div>
+          @if (photoVinMessage()) {
+            <small class="vin-photo-status">{{ photoVinMessage() }}</small>
+          }
           
           <div class="form-group">
             <label>Marca</label>
@@ -498,6 +510,32 @@ interface LockableScreenOrientation extends ScreenOrientation {
       .btn-scan:active {
         transform: scale(0.95);
       }
+      .btn-photo-vin {
+        height: 44px;
+        width: 44px;
+        border-radius: 12px;
+        background: #1d4ed8;
+        color: white;
+        border: none;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        transition: transform 0.1s, opacity 0.1s;
+      }
+      .btn-photo-vin:active:not(:disabled) {
+        transform: scale(0.95);
+      }
+      .btn-photo-vin:disabled {
+        opacity: 0.65;
+        cursor: wait;
+      }
+      .vin-photo-status {
+        display: block;
+        margin-top: -10px;
+        color: var(--text-2);
+        font-size: 12px;
+      }
       .camera-shell {
         position: fixed;
         inset: 0;
@@ -653,13 +691,15 @@ interface LockableScreenOrientation extends ScreenOrientation {
 })
 export class CampoRegistroModalComponent implements OnDestroy {
   @Output() close = new EventEmitter<void>();
-  @Output() registered = new EventEmitter<void>();
+  @Output() registered = new EventEmitter<string>();
 
   @ViewChild('video') videoRef?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvas') canvasRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('cameraShell') cameraShellRef?: ElementRef<HTMLDivElement>;
+  @ViewChild('vinPhotoInput') vinPhotoInput?: ElementRef<HTMLInputElement>;
 
   private campoService = inject(CampoService);
+  private campoOffline = inject(CampoOfflineService);
   private marcaService = inject(MarcaService);
   private clienteService = inject(ClienteService);
   private cotizacionService = inject(CotizacionService);
@@ -682,6 +722,8 @@ export class CampoRegistroModalComponent implements OnDestroy {
   clientePickerOpen = signal(false);
   descripcionVehiculo = signal('');
   vinLookupState = signal<VinLookupState>('idle');
+  photoVinLoading = signal(false);
+  photoVinMessage = signal('');
 
   // Scanner state
   cameraOpen = signal(false);
@@ -763,6 +805,49 @@ export class CampoRegistroModalComponent implements OnDestroy {
     this.clienteSearch.set('');
     this.clientePickerOpen.set(true);
     this.loadClientes();
+  }
+
+  openVinPhotoPicker(): void {
+    this.vinPhotoInput?.nativeElement.click();
+  }
+
+  async onVinPhotoSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      this.notifications.warning('Elige una imagen del VIN.');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      this.notifications.warning('La imagen del VIN no puede exceder 15 MB.');
+      return;
+    }
+
+    this.photoVinLoading.set(true);
+    this.photoVinMessage.set('Preparando lectura local...');
+    try {
+      const result = await this.vinScanner.scanVinFromImage(file, message => {
+        this.photoVinMessage.set(message);
+      });
+      if (!result.vin) {
+        this.photoVinMessage.set('No encontramos un VIN. Prueba con una foto más cercana y nítida.');
+        this.notifications.warning('No se pudo leer el VIN de la foto.');
+        return;
+      }
+
+      this.vin.set(result.vin);
+      this.onVinChange(result.vin);
+      this.photoVinMessage.set(result.source === 'barcode' ? 'VIN leído desde código local.' : 'VIN leído desde las letras de la imagen.');
+      this.notifications.success('VIN leído desde la foto: ' + result.vin);
+    } catch (error) {
+      this.photoVinMessage.set('No se pudo procesar la foto.');
+      this.notifications.fromHttpError(error, 'No se pudo leer la foto del VIN');
+    } finally {
+      this.photoVinLoading.set(false);
+    }
   }
 
   clienteLabel(cliente: ClienteListDto): string {
@@ -1038,26 +1123,23 @@ export class CampoRegistroModalComponent implements OnDestroy {
 
     const selectedCliente = this.selectedCliente();
     this.saving.set(true);
-    this.campoService.crearPreInspeccion({
+    this.campoOffline.createDraft({
       vin: this.vin(),
       marcaId: this.marcaId(),
-      modelo: this.modelo() || undefined,
-      anno: this.anno() || undefined,
-      ubicacion: this.ubicacion() || undefined,
+      modelo: this.modelo() || null,
+      anno: this.anno() || null,
+      ubicacion: this.ubicacion() || null,
       clienteId: this.clienteId(),
-      clienteNombreLibre: selectedCliente ? this.clienteLabel(selectedCliente) : undefined,
+      clienteNombreLibre: selectedCliente ? this.clienteLabel(selectedCliente) : null,
       descripcionVehiculo: this.descripcionVehiculo() || 'Registro en yarda',
-    }).subscribe({
-      next: () => {
-        this.notifications.success('Vehículo registrado');
-        this.saving.set(false);
-        this.registered.emit();
-        this.close.emit();
-      },
-      error: err => {
-        this.notifications.fromHttpError(err, 'Error al registrar vehículo');
-        this.saving.set(false);
-      }
+    }).then(record => {
+      this.notifications.success('Registro preparado. Ahora toma las fotos de la unidad.');
+      this.saving.set(false);
+      this.registered.emit(record.id);
+      this.close.emit();
+    }).catch(error => {
+      this.notifications.fromHttpError(error, 'Error al preparar el registro');
+      this.saving.set(false);
     });
   }
 

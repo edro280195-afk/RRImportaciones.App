@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../shared/api/api_client.dart';
 import '../../../shared/theme/app_tokens.dart';
-import '../data/campo_api.dart';
+import '../data/campo_offline.dart';
 import '../data/catalog_api.dart';
 import '../domain/catalog_models.dart';
 import '../domain/vin_parser.dart';
@@ -155,9 +156,9 @@ class _RegistroPageState extends ConsumerState<RegistroPage> {
     setState(() => _saving = true);
     try {
       final anno = int.tryParse(_annoController.text.trim());
-      await ref
-          .read(campoApiProvider)
-          .crearPreInspeccion(
+      final draft = await ref
+          .read(campoOfflineProvider)
+          .createDraft(
             vin: vin,
             marcaId: _marcaId,
             modelo: _clean(_modeloController.text),
@@ -165,14 +166,17 @@ class _RegistroPageState extends ConsumerState<RegistroPage> {
             ubicacion: _clean(_ubicacionController.text),
             clienteId: _cliente?.id,
             clienteNombreLibre: _cliente?.label,
-            descripcionVehiculo: _clean(_descripcionController.text),
+            descripcionVehiculo:
+                _clean(_descripcionController.text) ?? 'Registro en yarda',
           );
 
       ref.invalidate(campoTasksProvider);
       HapticFeedback.mediumImpact();
       if (!mounted) return;
-      _showMessage('Vehículo registrado');
+      _showMessage('Registro preparado. Ahora toma las fotos.');
+      final router = GoRouter.of(context);
       Navigator.of(context).pop();
+      router.go('/campo/${draft.id}/captura');
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);

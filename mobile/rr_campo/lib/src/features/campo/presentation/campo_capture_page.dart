@@ -1,16 +1,19 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:camera/camera.dart' show XFile;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../shared/api/api_client.dart';
 import '../../../shared/session/session_controller.dart';
 import '../../../shared/theme/app_tokens.dart';
 import '../data/campo_api.dart';
+import '../data/campo_offline.dart';
 import '../domain/campo_constants.dart';
 import '../domain/tarea_campo.dart';
 import '../domain/vin_parser.dart';
@@ -20,7 +23,13 @@ import 'mlkit_vin_scanner_page.dart';
 
 final campoTaskProvider = FutureProvider.autoDispose.family<TareaCampo, String>(
   (ref, id) {
-    return ref.watch(campoApiProvider).getById(id);
+    return ref.watch(campoApiProvider).getById(id).catchError((_) async {
+      final task = await ref.read(campoOfflineProvider).getTask(id);
+      if (task == null) {
+        throw const ApiException('No se encontró la captura local');
+      }
+      return task;
+    });
   },
 );
 
@@ -38,10 +47,15 @@ class _CampoCapturePageState extends ConsumerState<CampoCapturePage> {
   final _vinController = TextEditingController();
   final _incidenciaController = TextEditingController();
   final List<XFile> _localPhotos = [];
+  final List<XFile> _localVideos = [];
+  final Map<String, String> _mediaIds = {};
+  final _imagePicker = ImagePicker();
   final _heroController = PageController();
 
   bool _initialized = false;
   bool _draftLoaded = false;
+  bool _offlineLoaded = false;
+  bool _offlineDraft = false;
   Map<String, dynamic> _draft = const {};
 
   bool _sending = false;
@@ -112,6 +126,11 @@ class _CampoCapturePageState extends ConsumerState<CampoCapturePage> {
         ? draftIncidencia!
         : (task.incidencia ?? '');
 
+    if (task.clientOperationId != null) {
+      _offlineDraft = true;
+      unawaited(_loadOfflineMedia(task.id));
+    }
+
     if (task.estatus == 'ABIERTA') {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {
@@ -125,6 +144,33 @@ class _CampoCapturePageState extends ConsumerState<CampoCapturePage> {
     }
   }
 
+  Future<void> _loadOfflineMedia(String id) async {
+    if (_offlineLoaded) return;
+    _offlineLoaded = true;
+    final draft = await ref.read(campoOfflineProvider).getDraft(id);
+    if (!mounted || draft == null) return;
+    final media = draft.media;
+    setState(() {
+      _localPhotos
+        ..clear()
+        ..addAll(
+          media
+              .where((item) => item.type == OfflineMediaType.foto)
+              .map((item) => XFile(item.path)),
+        );
+      _localVideos
+        ..clear()
+        ..addAll(
+          media
+              .where((item) => item.type == OfflineMediaType.video)
+              .map((item) => XFile(item.path)),
+        );
+      for (final item in media) {
+        _mediaIds[item.path] = item.id;
+      }
+    });
+  }
+
   // ── Fotos ───────────────────────────────────────────────────────────────
   Future<void> _openCamera(int alreadyTaken) async {
     final result = await Navigator.of(context).push<List<XFile>>(
@@ -133,14 +179,64 @@ class _CampoCapturePageState extends ConsumerState<CampoCapturePage> {
       ),
     );
     if (!mounted || result == null || result.isEmpty) return;
-    setState(() => _localPhotos.addAll(result));
+    setState(() {
+      _localPhotos.addAll(result);
+      for (final photo in result) {
+        _mediaIds[photo.path] ??= newCampoClientGuid();
+      }
+    });
+    if (_offlineDraft) {
+      for (final photo in result) {
+        await ref
+            .read(campoOfflineProvider)
+            .addMedia(widget.taskId, photo, OfflineMediaType.foto);
+      }
+    }
   }
 
   void _removeLocalPhoto(XFile photo) {
     setState(() {
       _localPhotos.remove(photo);
+      _mediaIds.remove(photo.path);
       if (_heroIndex > 0) _heroIndex--;
     });
+    if (_offlineDraft) {
+      unawaited(
+        ref.read(campoOfflineProvider).removeMedia(widget.taskId, photo.path),
+      );
+    }
+  }
+
+  Future<void> _pickVideo(ImageSource source) async {
+    if (_sending) return;
+    final file = await _imagePicker.pickVideo(source: source);
+    if (!mounted || file == null) return;
+
+    final controller = VideoPlayerController.file(File(file.path));
+    try {
+      await controller.initialize();
+      final duration = controller.value.duration.inMilliseconds / 1000;
+      if (duration > 60.5) {
+        _showMessage('El video no puede durar más de 1 minuto');
+        return;
+      }
+      setState(() {
+        _localVideos.add(file);
+        _mediaIds[file.path] = newCampoClientGuid();
+      });
+      if (_offlineDraft) {
+        await ref
+            .read(campoOfflineProvider)
+            .addMedia(
+              widget.taskId,
+              file,
+              OfflineMediaType.video,
+              durationSeconds: duration,
+            );
+      }
+    } finally {
+      await controller.dispose();
+    }
   }
 
   // ── VIN ───────────────────────────────────────────────────────────────
@@ -176,10 +272,14 @@ class _CampoCapturePageState extends ConsumerState<CampoCapturePage> {
   // ── Guardar ───────────────────────────────────────────────────────────
   Future<void> _sendReport(TareaCampo initialTask, int totalPhotos) async {
     if (_sending || totalPhotos == 0) return;
+    if (_offlineDraft) {
+      await _sendOfflineReport(initialTask);
+      return;
+    }
     setState(() {
       _sending = true;
       _uploadIndex = 0;
-      _uploadTotal = _localPhotos.length;
+      _uploadTotal = _localPhotos.length + _localVideos.length;
     });
 
     try {
@@ -189,9 +289,26 @@ class _CampoCapturePageState extends ConsumerState<CampoCapturePage> {
 
       for (var i = 0; i < _localPhotos.length; i++) {
         setState(() => _uploadIndex = i + 1);
-        final uploaded = await api.uploadFoto(task.id, _localPhotos[i]);
+        final uploaded = await api.uploadMedia(
+          task.id,
+          _localPhotos[i],
+          clientMediaId: _mediaIds[_localPhotos[i].path] ??=
+              newCampoClientGuid(),
+          tipo: 'FOTO',
+        );
         task = uploaded.tarea;
         fotos = [...task.fotosUrls];
+      }
+
+      for (final video in _localVideos) {
+        setState(() => _uploadIndex++);
+        await api.uploadMedia(
+          task.id,
+          video,
+          clientMediaId: _mediaIds[video.path] ??= newCampoClientGuid(),
+          tipo: 'VIDEO',
+          videoDurationSeconds: await _videoDuration(video),
+        );
       }
 
       await api.completar(
@@ -221,6 +338,50 @@ class _CampoCapturePageState extends ConsumerState<CampoCapturePage> {
       _showMessage('No se pudo guardar la captura');
     } finally {
       if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _sendOfflineReport(TareaCampo task) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final draft = await ref.read(campoOfflineProvider).getDraft(task.id);
+      if (draft == null) {
+        throw const ApiException('La captura local ya no existe');
+      }
+      final vin = _vinController.text.trim().length == 17
+          ? _vinController.text.trim()
+          : draft.vin;
+      await ref
+          .read(campoOfflineProvider)
+          .markReady(
+            task.id,
+            ubicacion: _clean(_ubicacionController.text) ?? '',
+            vin: vin,
+            incidencia: _clean(_incidenciaController.text),
+          );
+      await ref.read(campoOfflineProvider).syncAll();
+      ref.invalidate(campoTaskProvider(task.id));
+      ref.invalidate(campoTasksProvider);
+      if (!mounted) return;
+      _showMessage('Captura guardada. Se sincronizará al recuperar señal.');
+      context.go('/campo');
+    } on ApiException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } catch (_) {
+      if (mounted) _showMessage('No se pudo guardar la captura local');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<double> _videoDuration(XFile file) async {
+    final controller = VideoPlayerController.file(File(file.path));
+    try {
+      await controller.initialize();
+      return controller.value.duration.inMilliseconds / 1000;
+    } finally {
+      await controller.dispose();
     }
   }
 
@@ -309,12 +470,15 @@ class _CampoCapturePageState extends ConsumerState<CampoCapturePage> {
                   totalPhotos: totalPhotos,
                   serverFotos: task.fotosUrls,
                   localPhotos: _localPhotos,
+                  localVideos: _localVideos,
                   fileUrl: fileUrl,
                   sending: _sending,
                   ubicacionController: _ubicacionController,
                   vinController: _vinController,
                   incidenciaController: _incidenciaController,
                   onTakePhotos: () => _openCamera(totalPhotos),
+                  onRecordVideo: () => _pickVideo(ImageSource.camera),
+                  onPickVideo: () => _pickVideo(ImageSource.gallery),
                   onRemovePhoto: _removeLocalPhoto,
                   onUbicacionChanged: (_) {
                     _persistDraft();
@@ -586,12 +750,15 @@ class _Panel extends StatelessWidget {
     required this.totalPhotos,
     required this.serverFotos,
     required this.localPhotos,
+    required this.localVideos,
     required this.fileUrl,
     required this.sending,
     required this.ubicacionController,
     required this.vinController,
     required this.incidenciaController,
     required this.onTakePhotos,
+    required this.onRecordVideo,
+    required this.onPickVideo,
     required this.onRemovePhoto,
     required this.onUbicacionChanged,
     required this.onVinChanged,
@@ -603,12 +770,15 @@ class _Panel extends StatelessWidget {
   final int totalPhotos;
   final List<String> serverFotos;
   final List<XFile> localPhotos;
+  final List<XFile> localVideos;
   final String Function(String) fileUrl;
   final bool sending;
   final TextEditingController ubicacionController;
   final TextEditingController vinController;
   final TextEditingController incidenciaController;
   final VoidCallback onTakePhotos;
+  final VoidCallback onRecordVideo;
+  final VoidCallback onPickVideo;
   final ValueChanged<XFile> onRemovePhoto;
   final ValueChanged<String> onUbicacionChanged;
   final ValueChanged<String> onVinChanged;
@@ -686,6 +856,34 @@ class _Panel extends StatelessWidget {
             icon: const Icon(Icons.photo_camera_outlined),
             label: Text(totalPhotos == 0 ? 'Tomar fotos' : 'Tomar más fotos'),
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: sending ? null : onRecordVideo,
+                  icon: const Icon(Icons.videocam_outlined),
+                  label: const Text('Grabar video'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: sending ? null : onPickVideo,
+                  icon: const Icon(Icons.video_library_outlined),
+                  label: const Text('Elegir video'),
+                ),
+              ),
+            ],
+          ),
+          if (localVideos.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '${localVideos.length} video${localVideos.length == 1 ? '' : 's'} listo${localVideos.length == 1 ? '' : 's'} · máximo 1 minuto',
+                style: const TextStyle(color: AppColors.ink3, fontSize: 12),
+              ),
+            ),
           if (!fotosDone)
             Padding(
               padding: const EdgeInsets.only(top: 8),

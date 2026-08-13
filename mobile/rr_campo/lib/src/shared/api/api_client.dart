@@ -242,10 +242,15 @@ class ApiClient {
     return _runRequest('DELETE', path);
   }
 
-  Future<dynamic> uploadFile(String path, XFile file) async {
+  Future<dynamic> uploadFile(
+    String path,
+    XFile file, {
+    Map<String, String> headers = const {},
+  }) async {
     Future<http.Response> execute() async {
       final request = http.MultipartRequest('POST', uri(path));
       request.headers.addAll(await authHeaders(json: false));
+      request.headers.addAll(headers);
       request.files.add(
         await http.MultipartFile.fromPath(
           'file',

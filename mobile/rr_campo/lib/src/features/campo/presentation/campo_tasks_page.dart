@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,12 +7,23 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/session/session_controller.dart';
 import '../../../shared/theme/app_tokens.dart';
 import '../data/campo_api.dart';
+import '../data/campo_offline.dart';
 import '../domain/tarea_campo.dart';
 import 'widgets/filter_chips.dart';
 import 'widgets/task_card.dart';
 
 final campoTasksProvider = FutureProvider.autoDispose<List<TareaCampo>>((ref) {
-  return ref.watch(campoApiProvider).getTareas();
+  final api = ref.watch(campoApiProvider);
+  final offline = ref.watch(campoOfflineProvider);
+  return Future.wait([
+    api.getTareas().catchError((_) => <TareaCampo>[]),
+    offline.getTasks(),
+  ]).then((values) {
+    final serverTasks = values[0];
+    final localTasks = values[1];
+    unawaited(offline.syncAll());
+    return [...localTasks, ...serverTasks];
+  });
 });
 
 /// Pestaña "Tareas": header de usuario, banner de pendientes, buscador,

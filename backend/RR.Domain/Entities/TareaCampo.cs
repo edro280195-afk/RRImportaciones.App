@@ -9,6 +9,8 @@ public class TareaCampo : ITenantEntity
     public Guid? TramiteId { get; set; }
     public Guid? VehiculoId { get; set; }
     public Guid? PersonalCampoId { get; set; }
+    /// <summary>Identificador generado por el dispositivo para sincronizar sin duplicar.</summary>
+    public Guid? ClientOperationId { get; set; }
     public string Tipo { get; set; } = "FOTOS_YARDA";
     public string EstadoLogistico { get; set; } = "ABIERTA";
     public string? Ubicacion { get; set; }
@@ -35,4 +37,5 @@ public class TareaCampo : ITenantEntity
     public Vehiculo? Vehiculo { get; set; }
     public PersonalCampo? PersonalCampo { get; set; }
     public User? UsuarioCampo { get; set; }
+    public ICollection<TareaCampoMedia> Medios { get; set; } = new List<TareaCampoMedia>();
 }

@@ -19,6 +19,7 @@ public class TareaCampoDto
     public string? PersonalCampoNombre { get; set; }
     public Guid? UsuarioCampoId { get; set; }
     public string? UsuarioCampoNombre { get; set; }
+    public Guid? ClientOperationId { get; set; }
     public string? Ubicacion { get; set; }
     public string? VinConfirmado { get; set; }
     public string[] FotosUrls { get; set; } = [];
@@ -40,6 +41,7 @@ public class CrearTareaCampoRequest
 
 public class CrearPreInspeccionRequest
 {
+    public Guid? ClientOperationId { get; set; }
     public string? DescripcionVehiculo { get; set; }
     public string? ClienteNombreLibre { get; set; }
     public Guid? ClienteId { get; set; }
@@ -50,6 +52,15 @@ public class CrearPreInspeccionRequest
     public Guid? ModeloId { get; set; }
     public string? Modelo { get; set; }
     public int? Anno { get; set; }
+}
+
+public class CampoMediaUploadResult
+{
+    public string ClientMediaId { get; set; } = string.Empty;
+    public string Tipo { get; set; } = "FOTO";
+    public string Url { get; set; } = string.Empty;
+    public bool YaExistia { get; set; }
+    public TareaCampoDto Tarea { get; set; } = null!;
 }
 
 public class TomarTareaCampoRequest
