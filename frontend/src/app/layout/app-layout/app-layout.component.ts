@@ -413,6 +413,7 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
   private pinResetDismissTimer?: ReturnType<typeof setTimeout>;
   private preInspDismissTimer?: ReturnType<typeof setTimeout>;
   private yarderoDismissTimer?: ReturnType<typeof setTimeout>;
+  private authRefreshInFlight = false;
 
   sidebarCollapsed = signal(false);
   mobileMenuOpen = signal(false);
@@ -489,10 +490,23 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
       });
     });
 
-    // Si el token expiró, SignalR detectará un 401 y redirigiremos a login
+    // Si SignalR arranca justo con el access token vencido, primero intentamos
+    // renovar la sesión. Solo mandamos a login cuando el refresh token ya venció.
     this.authSub = this.realtime.authError$.subscribe(() => {
-      this.auth.clearSession();
-      void this.router.navigateByUrl('/login?session=expired', { replaceUrl: true });
+      if (this.authRefreshInFlight) return;
+      this.authRefreshInFlight = true;
+
+      this.auth.refreshToken().subscribe({
+        next: () => {
+          this.authRefreshInFlight = false;
+          this.realtime.start();
+        },
+        error: () => {
+          this.authRefreshInFlight = false;
+          this.auth.clearSession();
+          void this.router.navigateByUrl('/login?session=expired', { replaceUrl: true });
+        },
+      });
     });
 
     // Suscribir a push notifications (admin). Best-effort; si el navegador no soporta o el usuario rechaza, sigue funcionando todo lo demás.
