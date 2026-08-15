@@ -36,12 +36,18 @@ public class VehiculoService : IVehiculoService
             .Select(v => new VehiculoListDto
             {
                 Id = v.Id,
+                ClienteId = v.ClienteId,
                 Vin = v.Vin,
                 VinCorto = v.VinCorto,
                 MarcaNombre = v.Marca != null ? v.Marca.Nombre : null,
                 ModeloNombre = v.Modelo != null ? v.Modelo.Nombre : null,
                 Anno = v.Anno,
-                ClienteApodo = v.Cliente.Apodo,
+                ClienteApodo = v.Cliente != null ? v.Cliente.Apodo : null,
+                ClienteTemporalNombre = _db.ClientesTemporales
+                    .Where(t => t.VehiculoId == v.Id && t.Estado == "PENDIENTE")
+                    .OrderByDescending(t => t.FechaCreacion)
+                    .Select(t => t.NombrePropuesto)
+                    .FirstOrDefault(),
                 FechaIngresoPatio = v.FechaIngresoPatio,
                 UbicacionActual = v.UbicacionActual,
                 TieneTramiteActivo = v.Tramites.Any(t => t.EstadoLogistico != "ENTREGADO_AL_CLIENTE" && t.EstadoLogistico != "CANCELADO"),
@@ -151,12 +157,19 @@ public class VehiculoService : IVehiculoService
             .Select(v => new VehiculoDetailDto
             {
                 Id = v.Id,
+                ClienteId = v.ClienteId,
+                MarcaId = v.MarcaId,
                 Vin = v.Vin,
                 VinCorto = v.VinCorto,
                 MarcaNombre = v.Marca != null ? v.Marca.Nombre : null,
                 ModeloNombre = v.Modelo != null ? v.Modelo.Nombre : null,
                 Anno = v.Anno,
-                ClienteApodo = v.Cliente.Apodo,
+                ClienteApodo = v.Cliente != null ? v.Cliente.Apodo : null,
+                ClienteTemporalNombre = _db.ClientesTemporales
+                    .Where(t => t.VehiculoId == v.Id && t.Estado == "PENDIENTE")
+                    .OrderByDescending(t => t.FechaCreacion)
+                    .Select(t => t.NombrePropuesto)
+                    .FirstOrDefault(),
                 FechaIngresoPatio = v.FechaIngresoPatio,
                 UbicacionActual = v.UbicacionActual,
                 TieneTramiteActivo = v.Tramites.Any(t => t.EstadoLogistico != "ENTREGADO_AL_CLIENTE" && t.EstadoLogistico != "CANCELADO"),
@@ -169,8 +182,10 @@ public class VehiculoService : IVehiculoService
                 FraccionArancelaria = v.FraccionArancelaria != null ? v.FraccionArancelaria.Fraccion : null,
                 Color = v.Color,
                 NumMotor = v.NumMotor,
+                NumSerie = v.NumSerie,
                 ValorFactura = v.ValorFactura,
                 Moneda = v.Moneda,
+                FechaPedimentoProforma = v.FechaPedimentoProforma,
                 FechaRegistro = v.FechaRegistro,
                 HistorialTramites = v.Tramites.OrderByDescending(t => t.FechaCreacion).Take(10).Select(t => new TramiteSimpleDto
                 {
@@ -183,7 +198,21 @@ public class VehiculoService : IVehiculoService
             .FirstOrDefaultAsync();
 
         if (vehiculo != null)
+        {
+            var temporal = await _db.ClientesTemporales
+                .Where(t => t.VehiculoId == id && t.Estado == "PENDIENTE")
+                .OrderByDescending(t => t.FechaCreacion)
+                .Select(t => new { t.Id, t.Estado })
+                .FirstOrDefaultAsync();
+
+            if (temporal != null)
+            {
+                vehiculo.ClienteTemporalId = temporal.Id;
+                vehiculo.ClienteTemporalEstado = temporal.Estado;
+            }
+
             await MergeCampoFotosAsync([vehiculo]);
+        }
 
         return vehiculo;
     }
@@ -198,9 +227,16 @@ public class VehiculoService : IVehiculoService
                 throw new InvalidOperationException($"Ya existe un vehículo con el VIN '{request.Vin}'");
         }
 
-        var _ = await _db.Clientes
-            .FirstOrDefaultAsync(c => c.Id == request.ClienteId && c.DeletedAt == null)
-            ?? throw new KeyNotFoundException($"Cliente {request.ClienteId} no encontrado");
+        var clienteId = NormalizeClienteId(request.ClienteId);
+        if (!clienteId.HasValue && string.IsNullOrWhiteSpace(request.ClienteTemporalNombre))
+            throw new InvalidOperationException("Selecciona un cliente oficial o captura el nombre del cliente temporal");
+
+        if (clienteId.HasValue)
+        {
+            _ = await _db.Clientes
+                .FirstOrDefaultAsync(c => c.Id == clienteId.Value && c.DeletedAt == null)
+                ?? throw new KeyNotFoundException($"Cliente {clienteId.Value} no encontrado");
+        }
 
         var fraccionId = await AutoClassifyFraccionAsync(request.Categoria, request.CilindradaCm3);
 
@@ -214,7 +250,7 @@ public class VehiculoService : IVehiculoService
         var vehiculo = new Vehiculo
         {
             Id = Guid.NewGuid(),
-            ClienteId = request.ClienteId,
+            ClienteId = clienteId,
             Vin = vin,
             VinCorto = !string.IsNullOrWhiteSpace(vin) && vin.Length >= 6 ? vin[^6..] : null,
             MarcaId = request.MarcaId,
@@ -228,6 +264,7 @@ public class VehiculoService : IVehiculoService
             NumMotor = request.NumMotor,
             NumSerie = request.NumSerie,
             FechaIngresoPatio = request.FechaIngresoPatio,
+            FechaPedimentoProforma = request.FechaPedimentoProforma,
             UbicacionActual = request.UbicacionActual,
             CumplioRequisitos = request.CumplioRequisitos,
             TieneSelloAduanal = request.TieneSelloAduanal,
@@ -236,6 +273,7 @@ public class VehiculoService : IVehiculoService
         };
 
         _db.Vehiculos.Add(vehiculo);
+        await SyncClienteTemporalAsync(vehiculo, clienteId, request.ClienteTemporalNombre);
         await _db.SaveChangesAsync();
 
         return (await GetByIdAsync(vehiculo.Id))!;
@@ -258,12 +296,20 @@ public class VehiculoService : IVehiculoService
 
         var oldClienteId = vehiculo.ClienteId;
 
-        if (request.ClienteId != vehiculo.ClienteId)
+        var clienteId = NormalizeClienteId(request.ClienteId);
+
+        if (clienteId != vehiculo.ClienteId)
         {
-            var _ = await _db.Clientes
-                .FirstOrDefaultAsync(c => c.Id == request.ClienteId && c.DeletedAt == null)
-                ?? throw new KeyNotFoundException($"Cliente {request.ClienteId} no encontrado");
+            if (clienteId.HasValue)
+            {
+                _ = await _db.Clientes
+                    .FirstOrDefaultAsync(c => c.Id == clienteId.Value && c.DeletedAt == null)
+                    ?? throw new KeyNotFoundException($"Cliente {clienteId.Value} no encontrado");
+            }
         }
+
+        if (!clienteId.HasValue && string.IsNullOrWhiteSpace(request.ClienteTemporalNombre))
+            throw new InvalidOperationException("Selecciona un cliente oficial o captura el nombre del cliente temporal");
 
         var fraccionId = await AutoClassifyFraccionAsync(request.Categoria, request.CilindradaCm3);
 
@@ -274,7 +320,7 @@ public class VehiculoService : IVehiculoService
         }
 
         var vin = request.Vin ?? vehiculo.Vin;
-        vehiculo.ClienteId = request.ClienteId;
+        vehiculo.ClienteId = clienteId;
         vehiculo.Vin = vin;
         vehiculo.VinCorto = vin.Length >= 6 ? vin[^6..] : null;
         vehiculo.MarcaId = request.MarcaId;
@@ -288,14 +334,17 @@ public class VehiculoService : IVehiculoService
         vehiculo.NumMotor = request.NumMotor;
         vehiculo.NumSerie = request.NumSerie;
         vehiculo.FechaIngresoPatio = request.FechaIngresoPatio;
+        vehiculo.FechaPedimentoProforma = request.FechaPedimentoProforma;
         vehiculo.UbicacionActual = request.UbicacionActual;
         vehiculo.CumplioRequisitos = request.CumplioRequisitos;
         vehiculo.TieneSelloAduanal = request.TieneSelloAduanal;
         vehiculo.FraccionArancelariaId = fraccionId;
 
+        await SyncClienteTemporalAsync(vehiculo, clienteId, request.ClienteTemporalNombre);
+
         await _db.SaveChangesAsync();
 
-        if (oldClienteId != request.ClienteId)
+        if (oldClienteId != clienteId)
         {
             _db.AuditoriaLogs.Add(new AuditoriaLog
             {
@@ -306,7 +355,7 @@ public class VehiculoService : IVehiculoService
                 EntidadId = id.ToString(),
                 UsuarioId = _currentUser.UserId,
                 ValoresAnteriores = JsonSerializer.Serialize(new { ClienteId = oldClienteId }),
-                ValoresNuevos = JsonSerializer.Serialize(new { ClienteId = request.ClienteId }),
+                ValoresNuevos = JsonSerializer.Serialize(new { ClienteId = clienteId }),
                 Fecha = DateTime.UtcNow,
             });
             await _db.SaveChangesAsync();
@@ -353,12 +402,18 @@ public class VehiculoService : IVehiculoService
             .Select(v => new VehiculoListDto
             {
                 Id = v.Id,
+                ClienteId = v.ClienteId,
                 Vin = v.Vin,
                 VinCorto = v.VinCorto,
                 MarcaNombre = v.Marca != null ? v.Marca.Nombre : null,
                 ModeloNombre = v.Modelo != null ? v.Modelo.Nombre : null,
                 Anno = v.Anno,
-                ClienteApodo = v.Cliente.Apodo,
+                ClienteApodo = v.Cliente != null ? v.Cliente.Apodo : null,
+                ClienteTemporalNombre = _db.ClientesTemporales
+                    .Where(t => t.VehiculoId == v.Id && t.Estado == "PENDIENTE")
+                    .OrderByDescending(t => t.FechaCreacion)
+                    .Select(t => t.NombrePropuesto)
+                    .FirstOrDefault(),
                 FechaIngresoPatio = v.FechaIngresoPatio,
                 UbicacionActual = v.UbicacionActual,
                 TieneTramiteActivo = v.Tramites.Any(t => t.EstadoLogistico != "ENTREGADO_AL_CLIENTE" && t.EstadoLogistico != "CANCELADO"),
@@ -418,6 +473,64 @@ public class VehiculoService : IVehiculoService
 
             vehiculo.FotosUrls = fotos.ToArray();
         }
+    }
+
+    private async Task SyncClienteTemporalAsync(Vehiculo vehiculo, Guid? clienteId, string? nombreTemporal)
+    {
+        var pendientes = await _db.ClientesTemporales
+            .Include(t => t.TareaCampo)
+            .ThenInclude(t => t!.Tramite)
+            .Where(t => t.VehiculoId == vehiculo.Id && t.Estado == "PENDIENTE")
+            .OrderByDescending(t => t.FechaCreacion)
+            .ToListAsync();
+
+        if (clienteId.HasValue)
+        {
+            foreach (var temporal in pendientes)
+            {
+                temporal.ClienteId = clienteId;
+                if (temporal.TareaCampo?.Tramite != null)
+                    temporal.TareaCampo.Tramite.ClienteId = clienteId;
+                temporal.Estado = "APROBADA";
+                temporal.RevisadoPor = _currentUser.UserId;
+                temporal.FechaRevision = DateTime.UtcNow;
+                temporal.MotivoRechazo = null;
+            }
+
+            return;
+        }
+
+        var nombre = Clean(nombreTemporal);
+        if (nombre == null)
+            throw new InvalidOperationException("El nombre del cliente temporal es obligatorio");
+
+        var temporalActual = pendientes.FirstOrDefault();
+        if (temporalActual == null)
+        {
+            _db.ClientesTemporales.Add(new ClienteTemporal
+            {
+                Id = Guid.NewGuid(),
+                NombrePropuesto = nombre,
+                Estado = "PENDIENTE",
+                VehiculoId = vehiculo.Id,
+                CapturadoPor = _currentUser.UserId ?? Guid.Empty,
+                FechaCreacion = DateTime.UtcNow,
+            });
+        }
+        else
+        {
+            temporalActual.NombrePropuesto = nombre;
+            temporalActual.MotivoRechazo = null;
+        }
+    }
+
+    private static Guid? NormalizeClienteId(Guid? clienteId)
+        => clienteId.HasValue && clienteId.Value != Guid.Empty ? clienteId : null;
+
+    private static string? Clean(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 
     private async Task<Guid?> AutoClassifyFraccionAsync(string? categoria, int? cilindradaCm3)

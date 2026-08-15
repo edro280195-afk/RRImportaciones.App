@@ -8,12 +8,14 @@ import {
   UpdateInventarioRequest,
 } from '../../services/vehiculo.service';
 import { NotificationService } from '../../services/notification.service';
+import { AuthService } from '../../services/auth.service';
+import { VehiculoFormDialogComponent } from './vehiculo-form-dialog.component';
 import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-vehiculos-detail',
   standalone: true,
-  imports: [RouterLink, DatePipe, FormsModule],
+  imports: [RouterLink, DatePipe, FormsModule, VehiculoFormDialogComponent],
   template: `
     <div style="font-family: var(--font-body);">
       @if (vehiculo(); as v) {
@@ -69,8 +71,10 @@ import { environment } from '../../../environments/environment';
               </svg>
               Cotizar
             </button>
-            <a
-              routerLink="/vehiculos"
+            @if (canEditVehicle()) {
+            <button
+              type="button"
+              (click)="formDialog.openForEdit(v)"
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-medium transition-all duration-150 no-underline"
               style="background: #F3F4F6; color: #4B5162; border: 1px solid #E4E7EC;"
             >
@@ -87,7 +91,9 @@ import { environment } from '../../../environments/environment';
                 />
               </svg>
               Editar
-            </a>
+            </button>
+            }
+            @if (canDeleteVehicle()) {
             <button
               (click)="deleteVehiculo()"
               [disabled]="deleting()"
@@ -126,6 +132,7 @@ import { environment } from '../../../environments/environment';
               }
               Eliminar
             </button>
+            }
           </div>
         </div>
 
@@ -258,6 +265,18 @@ import { environment } from '../../../environments/environment';
             </p>
             @if (v.clienteApodo) {
               <p class="text-[14px] font-semibold text-[#0D1017]">{{ v.clienteApodo }}</p>
+            } @else if (v.clienteTemporalNombre) {
+              <p class="text-[14px] font-semibold text-[#9A3412]">{{ v.clienteTemporalNombre }}</p>
+              <p class="mt-1 text-[12px] text-[#C2410C]">Cliente temporal pendiente de validación</p>
+              @if (v.clienteTemporalId && auth.can('CLIENTES_VER')) {
+                <button
+                  type="button"
+                  (click)="openTemporalReview(v.clienteTemporalId)"
+                  class="mt-2 text-[12px] font-semibold text-[#A31820] hover:underline"
+                >
+                  Abrir revisión en Clientes →
+                </button>
+              }
             } @else {
               <p class="text-[14px] text-[#9EA3AE]">Sin cliente asignado</p>
             }
@@ -285,6 +304,9 @@ import { environment } from '../../../environments/environment';
         >
           <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#E4E7EC]">
             <span class="text-[13px] font-semibold text-[#1E2330]">Inventario</span>
+            @if (!canEditVehicle()) {
+              <span class="text-[11px] text-[#9EA3AE]">Solo lectura</span>
+            }
           </div>
           <div class="p-5">
             @if (inventarioSaved()) {
@@ -316,6 +338,7 @@ import { environment } from '../../../environments/environment';
                 <input
                   type="text"
                   [(ngModel)]="invForm.ubicacionActual"
+                  [disabled]="!canEditVehicle()"
                   name="ubicacionActual"
                   placeholder="Ej. Patio principal"
                   class="w-full px-3 py-2.5 text-[13.5px] rounded-xl outline-none transition-all duration-150 bg-[#F9FAFB] border border-[#E4E7EC] text-[#0D1017] placeholder:text-[#9EA3AE] focus:bg-white focus:border-[#C61D26] focus:shadow-[0_0_0_3px_rgba(198,29,38,0.10)]"
@@ -336,6 +359,7 @@ import { environment } from '../../../environments/environment';
                   (ngModelChange)="
                     invForm.fechaPedimentoProforma = $event ? $event + 'T00:00:00Z' : null
                   "
+                  [disabled]="!canEditVehicle()"
                   name="fechaPedimentoProforma"
                   class="w-full px-3 py-2.5 text-[13.5px] rounded-xl outline-none transition-all duration-150 bg-[#F9FAFB] border border-[#E4E7EC] text-[#0D1017] focus:bg-white focus:border-[#C61D26] focus:shadow-[0_0_0_3px_rgba(198,29,38,0.10)]"
                 />
@@ -345,6 +369,7 @@ import { environment } from '../../../environments/environment';
                   <input
                     type="checkbox"
                     [(ngModel)]="invForm.cumplioRequisitos"
+                    [disabled]="!canEditVehicle()"
                     name="cumplioRequisitos"
                     class="w-4 h-4 rounded border-[#C9C5CA] text-[#C61D26] focus:ring-[#C61D26]"
                   />
@@ -354,6 +379,7 @@ import { environment } from '../../../environments/environment';
                   <input
                     type="checkbox"
                     [(ngModel)]="invForm.tieneSelloAduanal"
+                    [disabled]="!canEditVehicle()"
                     name="tieneSelloAduanal"
                     class="w-4 h-4 rounded border-[#C9C5CA] text-[#C61D26] focus:ring-[#C61D26]"
                   />
@@ -363,7 +389,7 @@ import { environment } from '../../../environments/environment';
               <div class="col-span-2 flex justify-end pt-2 border-t border-[#E4E7EC]">
                 <button
                   type="submit"
-                  [disabled]="savingInv()"
+                  [disabled]="savingInv() || !canEditVehicle()"
                   class="btn-primary px-5 py-2.5 rounded-xl text-[13px]"
                 >
                   @if (savingInv()) {
@@ -479,6 +505,7 @@ import { environment } from '../../../environments/environment';
           </div>
         </div>
       }
+      <app-vehiculo-form-dialog #formDialog (saved)="loadVehiculo()" />
     </div>
   `,
   styles: [
@@ -592,6 +619,7 @@ export class VehiculosDetailComponent {
   private route = inject(ActivatedRoute);
   private service = inject(VehiculoService);
   private notifications = inject(NotificationService);
+  auth = inject(AuthService);
   router = inject(Router);
 
   vehiculo = signal<VehiculoDetailDto | null>(null);
@@ -603,6 +631,18 @@ export class VehiculosDetailComponent {
   lightboxOpen = signal(false);
   lightboxIndex = signal(0);
   private currentId = '';
+
+  canEditVehicle(): boolean {
+    return this.auth.canAny('VEHICULOS_EDITAR', 'TRAMITES_EDITAR', 'CAMPO_USAR');
+  }
+
+  canDeleteVehicle(): boolean {
+    return this.auth.canAny('VEHICULOS_BORRAR', 'TRAMITES_BORRAR');
+  }
+
+  openTemporalReview(temporalId: string): void {
+    this.router.navigate(['/clientes'], { queryParams: { clienteTemporalId: temporalId } });
+  }
 
   infoItems: { label: string; value: string }[] = [];
 
@@ -669,6 +709,7 @@ export class VehiculosDetailComponent {
   }
 
   saveInventario(): void {
+    if (!this.canEditVehicle()) return;
     const id = this.currentId;
     if (!id) return;
     this.savingInv.set(true);

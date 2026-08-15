@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using RR.Application.DTOs.Vehiculos;
 using RR.Application.Interfaces;
 using RR.Domain.Entities;
 using RR.Infrastructure.Data;
@@ -9,6 +10,38 @@ namespace RR.Tests.Services;
 
 public class VehiculoServiceTests
 {
+    [Fact]
+    public async Task CreateAsync_WithTemporaryClient_CreatesVehicleAndPendingReview()
+    {
+        var tenantId = Guid.NewGuid();
+        var tenantContext = new TestTenantContext(tenantId);
+        await using var db = CreateDbContext(tenantContext);
+        var service = new VehiculoService(db, new TestCurrentUserService(), tenantContext);
+        var marca = new Marca { Id = Guid.NewGuid(), Nombre = "Honda" };
+
+        db.Marcas.Add(marca);
+        await db.SaveChangesAsync();
+
+        var result = await service.CreateAsync(new CreateVehiculoRequest
+        {
+            Vin = "1HGCV1F33JA235611",
+            MarcaId = marca.Id,
+            Modelo = "Accord",
+            ClienteId = null,
+            ClienteTemporalNombre = "Cliente capturado en patio",
+            FechaIngresoPatio = DateTime.UtcNow,
+        });
+
+        result.ClienteId.Should().BeNull();
+        result.ClienteTemporalNombre.Should().Be("Cliente capturado en patio");
+        var temporal = await db.ClientesTemporales.SingleAsync();
+        temporal.VehiculoId.Should().Be(result.Id);
+        temporal.Estado.Should().Be("PENDIENTE");
+
+        var list = await service.GetListAsync(null, null, null, null, null, null, null, null, null, null, 1, 20);
+        list.Items.Should().ContainSingle(item => item.ClienteTemporalNombre == "Cliente capturado en patio");
+    }
+
     [Fact]
     public async Task GetByIdAsync_WhenVehicleExists_ReturnsRequestedVehicle()
     {

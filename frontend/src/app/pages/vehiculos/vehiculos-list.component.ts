@@ -7,6 +7,7 @@ import { VehiculoFormDialogComponent } from './vehiculo-form-dialog.component';
 import { ChoferEntregaDto, EntregaLinkResponseDto, EntregaTareaService } from '../../services/entrega-tarea.service';
 import { CampoService, CampoShareResponse } from '../../services/campo.service';
 import { NotificationService } from '../../services/notification.service';
+import { AuthService } from '../../services/auth.service';
 import { environment } from '../../../environments/environment';
 
 const MAX_NATIVE_SHARE_BYTES = 100 * 1024 * 1024;
@@ -35,6 +36,7 @@ interface PreparedShareFiles {
             Vehículos
           </h1>
         </div>
+        @if (canCreateVehicle()) {
         <button
           (click)="formDialog.open()"
           class="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px]"
@@ -44,6 +46,7 @@ interface PreparedShareFiles {
           </svg>
           Nuevo vehículo
         </button>
+        }
       </div>
 
       <!-- Filters -->
@@ -165,12 +168,14 @@ interface PreparedShareFiles {
             </div>
             <p class="text-[14px] font-medium text-[#1E2330] mb-1">No hay vehículos</p>
             <p class="text-[13px] text-[#9EA3AE] mb-4">Registra el primer vehículo para empezar.</p>
-            <button
-              (click)="formDialog.open()"
-              class="btn-primary px-4 py-2 rounded-xl text-[13px]"
-            >
-              Nuevo vehículo
-            </button>
+            @if (canCreateVehicle()) {
+              <button
+                (click)="formDialog.open()"
+                class="btn-primary px-4 py-2 rounded-xl text-[13px]"
+              >
+                Nuevo vehículo
+              </button>
+            }
           </div>
         </div>
       } @else if (isMobile()) {
@@ -184,7 +189,7 @@ interface PreparedShareFiles {
           </div>
 
           @for (v of vehiculos(); track v.id) {
-            <div class="veh-card" [class.veh-card--alert]="!v.clienteApodo">
+            <div class="veh-card" [class.veh-card--alert]="!v.clienteApodo && !v.clienteTemporalNombre">
               <div class="veh-card__head" (click)="router.navigate(['/vehiculos', v.id])">
                 <div class="veh-card__title">
                   <p class="veh-card__name">{{ vehicleLabel(v) }}</p>
@@ -192,6 +197,8 @@ interface PreparedShareFiles {
                 </div>
                 @if (v.clienteApodo) {
                   <span class="veh-card__cliente">{{ v.clienteApodo }}</span>
+                } @else if (v.clienteTemporalNombre) {
+                  <span class="veh-card__cliente" style="color:#9A3412;">{{ v.clienteTemporalNombre }} · temporal</span>
                 } @else {
                   <span class="veh-pill veh-pill--danger">Sin cliente</span>
                 }
@@ -379,6 +386,9 @@ interface PreparedShareFiles {
                     <td class="px-5 py-3.5">
                       @if (v.clienteApodo) {
                         <span class="font-semibold">{{ v.clienteApodo }}</span>
+                      } @else if (v.clienteTemporalNombre) {
+                        <span class="font-semibold text-[#9A3412]">{{ v.clienteTemporalNombre }}</span>
+                        <span class="ml-1 text-[11px] text-[#C2410C]">temporal</span>
                       } @else {
                         <span class="text-[#9EA3AE]">—</span>
                       }
@@ -978,6 +988,7 @@ export class VehiculosListComponent {
   private entregaService = inject(EntregaTareaService);
   private campoService = inject(CampoService);
   private notifications = inject(NotificationService);
+  auth = inject(AuthService);
   router = inject(Router);
 
   /** Breakpoint móvil, igual convención que app-layout.component.ts. */
@@ -996,7 +1007,11 @@ export class VehiculosListComponent {
   }
 
   sinClienteCount(): number {
-    return this.vehiculos().filter(v => !v.clienteApodo).length;
+    return this.vehiculos().filter(v => !v.clienteApodo && !v.clienteTemporalNombre).length;
+  }
+
+  canCreateVehicle(): boolean {
+    return this.auth.canAny('VEHICULOS_CREAR', 'TRAMITES_CREAR', 'CAMPO_USAR');
   }
 
   vehicleLabel(v: VehiculoListDto): string {

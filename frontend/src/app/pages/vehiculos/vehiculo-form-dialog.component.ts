@@ -1,6 +1,11 @@
 import { Component, signal, model, output, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { VehiculoService, MarcaDto, CreateVehiculoRequest } from '../../services/vehiculo.service';
+import {
+  VehiculoService,
+  MarcaDto,
+  CreateVehiculoRequest,
+  VehiculoDetailDto,
+} from '../../services/vehiculo.service';
 import { ClienteService, ClienteListDto } from '../../services/cliente.service';
 
 @Component({
@@ -15,13 +20,13 @@ import { ClienteService, ClienteListDto } from '../../services/cliente.service';
         (click)="close()"
       >
         <div
-          class="w-full max-w-[560px] my-auto rounded-2xl p-6 animate-scaleIn"
+          class="w-full max-w-[760px] my-auto rounded-2xl p-6 animate-scaleIn"
           style="background: #FFFFFF; border: 1px solid #E4E7EC; box-shadow: var(--shadow-2xl);"
           (click)="$event.stopPropagation()"
         >
           <div class="flex items-center justify-between mb-5">
             <h2 class="text-[18px] font-semibold text-[#0D1017] tracking-[-0.3px]">
-              Nuevo vehículo
+              {{ isEditing() ? 'Editar vehículo' : 'Nuevo vehículo' }}
             </h2>
             <button
               (click)="close()"
@@ -142,41 +147,90 @@ import { ClienteService, ClienteListDto } from '../../services/cliente.service';
                 }
               </div>
 
-              <!-- Cliente autocomplete -->
-              <div class="col-span-2 sm:col-span-1 relative">
-                <label
-                  class="block text-[11px] font-semibold text-[#4B5162] uppercase tracking-[0.6px] mb-1.5"
-                >
-                  Cliente <span class="text-[#DC2626]">*</span>
-                </label>
-                <input
-                  type="text"
-                  [(ngModel)]="clienteText"
-                  name="clienteText"
-                  (input)="onClienteSearch()"
-                  (focus)="showClienteResults.set(true)"
-                  (blur)="hideClienteResults()"
-                  placeholder="Buscar por apodo…"
-                  autocomplete="off"
-                  class="w-full px-3 py-2.5 text-[13.5px] rounded-xl outline-none transition-all duration-150 bg-[#F9FAFB] border border-[#E4E7EC] text-[#0D1017] placeholder:text-[#9EA3AE] focus:bg-white focus:border-[#C61D26] focus:shadow-[0_0_0_3px_rgba(198,29,38,0.10)]"
-                />
-                @if (showClienteResults() && clienteResults().length > 0) {
-                  <div
-                    class="absolute z-10 left-0 right-0 mt-1 rounded-xl overflow-hidden shadow-lg border border-[#E4E7EC]"
-                    style="background: #FFFFFF; max-height: 200px; overflow-y: auto;"
-                  >
-                    @for (cl of clienteResults(); track cl.id) {
-                      <button
-                        type="button"
-                        (mousedown)="selectCliente(cl)"
-                        class="w-full text-left px-3.5 py-2.5 text-[13.5px] text-[#1E2330] hover:bg-[#F3F4F6] transition-all duration-75"
-                      >
-                        <span class="font-semibold">{{ cl.apodo }}</span>
-                        @if (cl.nombreCompleto) {
-                          <span class="text-[#9EA3AE]"> — {{ cl.nombreCompleto }}</span>
-                        }
-                      </button>
+              <!-- Asignación de cliente: oficial o temporal -->
+              <div class="col-span-2 rounded-2xl border border-[#E4E7EC] bg-[#FBFCFE] p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.6px] text-[#4B5162]">
+                      Cliente <span class="text-[#DC2626]">*</span>
+                    </p>
+                    <p class="mt-1 text-[12px] text-[#7A8190]">
+                      Selecciona un cliente existente o deja una captura temporal para validarla después.
+                    </p>
+                  </div>
+                  <div class="flex shrink-0 rounded-xl border border-[#E4E7EC] bg-white p-1">
+                    <button
+                      type="button"
+                      (click)="useOfficialClient()"
+                      [class.bg-[#0D1017]]="clienteMode === 'official'"
+                      [class.text-white]="clienteMode === 'official'"
+                      class="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-[#6B717F] transition-colors"
+                    >
+                      Cliente oficial
+                    </button>
+                    <button
+                      type="button"
+                      (click)="useTemporaryClient()"
+                      [class.bg-[#A31820]]="clienteMode === 'temporary'"
+                      [class.text-white]="clienteMode === 'temporary'"
+                      class="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-[#6B717F] transition-colors"
+                    >
+                      Cliente temporal
+                    </button>
+                  </div>
+                </div>
+
+                @if (clienteMode === 'official') {
+                  <div class="relative mt-3">
+                    @if (selectedCliente) {
+                      <div class="flex items-center justify-between gap-3 rounded-xl border border-[#C7D2FE] bg-[#EEF2FF] px-3.5 py-3">
+                        <div class="min-w-0">
+                          <span class="block text-[10px] font-bold uppercase tracking-[0.6px] text-[#4F46E5]">Asignado</span>
+                          <strong class="block truncate text-[13.5px] text-[#1E1B4B]">{{ selectedCliente.apodo }}</strong>
+                          @if (selectedCliente.nombreCompleto) {
+                            <span class="block truncate text-[12px] text-[#6366F1]">{{ selectedCliente.nombreCompleto }}</span>
+                          }
+                        </div>
+                        <button type="button" (click)="clearCliente()" class="shrink-0 rounded-lg px-2.5 py-1.5 text-[12px] font-semibold text-[#4F46E5] hover:bg-white">Cambiar</button>
+                      </div>
+                    } @else {
+                      <input
+                        type="text"
+                        [(ngModel)]="clienteText"
+                        name="clienteText"
+                        (input)="onClienteSearch()"
+                        (focus)="showClienteResults.set(true)"
+                        (blur)="hideClienteResults()"
+                        placeholder="Escribe apodo, nombre o teléfono…"
+                        autocomplete="off"
+                        class="w-full px-3 py-2.5 text-[13.5px] rounded-xl outline-none transition-all duration-150 bg-white border border-[#E4E7EC] text-[#0D1017] placeholder:text-[#9EA3AE] focus:border-[#4F46E5] focus:shadow-[0_0_0_3px_rgba(79,70,229,0.10)]"
+                      />
+                      @if (showClienteResults() && clienteResults().length > 0) {
+                        <div class="absolute z-20 left-0 right-0 mt-1 rounded-xl overflow-hidden shadow-lg border border-[#E4E7EC]" style="background: #FFFFFF; max-height: 220px; overflow-y: auto;">
+                          @for (cl of clienteResults(); track cl.id) {
+                            <button type="button" (mousedown)="selectCliente(cl)" class="w-full text-left px-3.5 py-2.5 text-[13.5px] text-[#1E2330] hover:bg-[#F3F4F6] transition-all duration-75">
+                              <span class="font-semibold">{{ cl.apodo }}</span>
+                              @if (cl.nombreCompleto) { <span class="text-[#9EA3AE]"> — {{ cl.nombreCompleto }}</span> }
+                            </button>
+                          }
+                        </div>
+                      } @else if (clienteText.trim()) {
+                        <p class="mt-2 text-[12px] text-[#9EA3AE]">No se encontró. Usa “Cliente temporal” para guardarlo y validarlo después.</p>
+                      }
                     }
+                  </div>
+                } @else {
+                  <div class="mt-3 rounded-xl border border-[#FED7AA] bg-[#FFF7ED] p-3">
+                    <label class="block text-[11px] font-semibold uppercase tracking-[0.6px] text-[#9A3412]">Nombre a validar</label>
+                    <input
+                      type="text"
+                      [(ngModel)]="form.clienteTemporalNombre"
+                      name="clienteTemporalNombre"
+                      maxlength="200"
+                      placeholder="Ej. Transportes del Norte / Juan Pérez"
+                      class="mt-1.5 w-full rounded-xl border border-[#FDBA74] bg-white px-3 py-2.5 text-[13.5px] text-[#0D1017] outline-none placeholder:text-[#C2410C] focus:border-[#EA580C] focus:shadow-[0_0_0_3px_rgba(234,88,12,0.10)]"
+                    />
+                    <p class="mt-2 text-[12px] leading-relaxed text-[#C2410C]">Quedará pendiente en Clientes para que alguien con permiso la revise y la vincule automáticamente a este vehículo.</p>
                   </div>
                 }
               </div>
@@ -259,6 +313,18 @@ import { ClienteService, ClienteListDto } from '../../services/cliente.service';
                 />
               </div>
               <div class="col-span-2 sm:col-span-1">
+                <label class="block text-[11px] font-semibold uppercase tracking-[0.6px] text-[#4B5162] mb-1.5">Moneda</label>
+                <select
+                  [(ngModel)]="form.moneda"
+                  name="moneda"
+                  class="w-full px-3 py-2.5 text-[13.5px] rounded-xl outline-none transition-all duration-150 bg-[#F9FAFB] border border-[#E4E7EC] text-[#0D1017] focus:bg-white focus:border-[#C61D26]"
+                >
+                  <option value="USD">USD · Dólares</option>
+                  <option value="MXN">MXN · Pesos</option>
+                  <option value="CAD">CAD · Dólares canadienses</option>
+                </select>
+              </div>
+              <div class="col-span-2 sm:col-span-1">
                 <label
                   class="block text-[11px] font-semibold text-[#4B5162] uppercase tracking-[0.6px] mb-1.5"
                   >No. Motor</label
@@ -309,6 +375,25 @@ import { ClienteService, ClienteListDto } from '../../services/cliente.service';
                   class="w-full px-3 py-2.5 text-[13.5px] rounded-xl outline-none transition-all duration-150 bg-[#F9FAFB] border border-[#E4E7EC] text-[#0D1017] focus:bg-white focus:border-[#C61D26] focus:shadow-[0_0_0_3px_rgba(198,29,38,0.10)]"
                 />
               </div>
+              <div class="col-span-2 sm:col-span-1">
+                <label class="block text-[11px] font-semibold uppercase tracking-[0.6px] text-[#4B5162] mb-1.5">Fecha pedimento próforma</label>
+                <input
+                  type="date"
+                  [(ngModel)]="form.fechaPedimentoProforma"
+                  name="fechaPedimentoProforma"
+                  class="w-full px-3 py-2.5 text-[13.5px] rounded-xl outline-none transition-all duration-150 bg-[#F9FAFB] border border-[#E4E7EC] text-[#0D1017] focus:bg-white focus:border-[#C61D26]"
+                />
+              </div>
+              <div class="col-span-2 flex flex-wrap items-center gap-5 rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3.5 py-3">
+                <label class="flex cursor-pointer items-center gap-2 text-[13px] text-[#1E2330]">
+                  <input type="checkbox" [(ngModel)]="form.cumplioRequisitos" name="cumplioRequisitos" class="h-4 w-4 rounded border-[#C9C5CA] text-[#C61D26] focus:ring-[#C61D26]" />
+                  Cumplió requisitos
+                </label>
+                <label class="flex cursor-pointer items-center gap-2 text-[13px] text-[#1E2330]">
+                  <input type="checkbox" [(ngModel)]="form.tieneSelloAduanal" name="tieneSelloAduanal" class="h-4 w-4 rounded border-[#C9C5CA] text-[#C61D26] focus:ring-[#C61D26]" />
+                  Tiene sello aduanal
+                </label>
+              </div>
             </div>
 
             <div class="flex items-center justify-end gap-3 pt-2 border-t border-[#E4E7EC]">
@@ -321,7 +406,7 @@ import { ClienteService, ClienteListDto } from '../../services/cliente.service';
               </button>
               <button
                 type="submit"
-                [disabled]="saving() || !selectedMarca || !selectedCliente"
+                [disabled]="saving() || !selectedMarca || !canSubmitClient()"
                 class="btn-primary px-5 py-2.5 rounded-xl text-[13px]"
               >
                 @if (saving()) {
@@ -344,7 +429,7 @@ import { ClienteService, ClienteListDto } from '../../services/cliente.service';
                     Guardando…
                   </span>
                 } @else {
-                  Crear vehículo
+                  {{ isEditing() ? 'Guardar cambios' : 'Crear vehículo' }}
                 }
               </button>
             </div>
@@ -362,6 +447,8 @@ export class VehiculoFormDialogComponent {
   saved = output<void>();
   saving = signal(false);
   error = signal('');
+  private editingVehicle: VehiculoDetailDto | null = null;
+  clienteMode: 'official' | 'temporary' = 'official';
 
   form: CreateVehiculoRequest = {
     vin: null,
@@ -370,13 +457,15 @@ export class VehiculoFormDialogComponent {
     anno: null,
     cilindradaCm3: null,
     categoria: null,
-    clienteId: '',
+    clienteId: null,
+    clienteTemporalNombre: null,
     color: null,
     valorFactura: null,
     moneda: 'USD',
     numMotor: null,
     numSerie: null,
     fechaIngresoPatio: null,
+    fechaPedimentoProforma: null,
     ubicacionActual: null,
     cumplioRequisitos: false,
     tieneSelloAduanal: false,
@@ -397,8 +486,62 @@ export class VehiculoFormDialogComponent {
   private hideClienteTimer: ReturnType<typeof setTimeout> | null = null;
 
   open(): void {
+    this.editingVehicle = null;
     this.resetForm();
     this.visible.set(true);
+  }
+
+  openForEdit(vehicle: VehiculoDetailDto): void {
+    this.editingVehicle = vehicle;
+    this.form = {
+      vin: vehicle.vin,
+      marcaId: vehicle.marcaId || '',
+      modelo: vehicle.modeloNombre,
+      anno: vehicle.anno,
+      cilindradaCm3: vehicle.cilindradaCm3,
+      categoria: vehicle.categoria,
+      clienteId: vehicle.clienteId,
+      clienteTemporalNombre: vehicle.clienteTemporalNombre,
+      color: vehicle.color,
+      valorFactura: vehicle.valorFactura,
+      moneda: vehicle.moneda || 'USD',
+      numMotor: vehicle.numMotor,
+      numSerie: vehicle.numSerie,
+      fechaIngresoPatio: this.toDateInput(vehicle.fechaIngresoPatio),
+      fechaPedimentoProforma: this.toDateInput(vehicle.fechaPedimentoProforma),
+      ubicacionActual: vehicle.ubicacionActual,
+      cumplioRequisitos: vehicle.cumplioRequisitos,
+      tieneSelloAduanal: vehicle.tieneSelloAduanal,
+    };
+    this.marcaText = vehicle.marcaNombre || '';
+    this.selectedMarca = vehicle.marcaId && vehicle.marcaNombre
+      ? { id: vehicle.marcaId, nombre: vehicle.marcaNombre, aliases: [] }
+      : null;
+    this.clienteText = vehicle.clienteApodo || '';
+    this.selectedCliente = vehicle.clienteId && vehicle.clienteApodo
+      ? {
+          id: vehicle.clienteId,
+          apodo: vehicle.clienteApodo,
+          nombreCompleto: null,
+          telefono: null,
+          email: null,
+          procedencia: null,
+          totalVehiculos: 0,
+          totalTramites: 0,
+          totalFacturado: 0,
+          fechaRegistro: vehicle.fechaRegistro,
+        }
+      : null;
+    this.clienteMode = this.selectedCliente ? 'official' : 'temporary';
+    this.marcaResults.set([]);
+    this.clienteResults.set([]);
+    this.error.set('');
+    this.saving.set(false);
+    this.visible.set(true);
+  }
+
+  isEditing(): boolean {
+    return !!this.editingVehicle;
   }
 
   private resetForm(): void {
@@ -409,19 +552,22 @@ export class VehiculoFormDialogComponent {
       anno: null,
       cilindradaCm3: null,
       categoria: null,
-      clienteId: '',
+      clienteId: null,
+      clienteTemporalNombre: null,
       color: null,
       valorFactura: null,
       moneda: 'USD',
       numMotor: null,
       numSerie: null,
       fechaIngresoPatio: null,
+      fechaPedimentoProforma: null,
       ubicacionActual: null,
       cumplioRequisitos: false,
       tieneSelloAduanal: false,
     };
     this.marcaText = '';
     this.clienteText = '';
+    this.clienteMode = 'official';
     this.selectedMarca = null;
     this.selectedCliente = null;
     this.error.set('');
@@ -456,8 +602,10 @@ export class VehiculoFormDialogComponent {
 
   onClienteSearch(): void {
     if (this.clienteSearchTimeout) clearTimeout(this.clienteSearchTimeout);
+    this.clienteMode = 'official';
     this.selectedCliente = null;
-    this.form.clienteId = '';
+    this.form.clienteId = null;
+    this.form.clienteTemporalNombre = null;
     if (!this.clienteText.trim()) {
       this.clienteResults.set([]);
       return;
@@ -470,14 +618,46 @@ export class VehiculoFormDialogComponent {
   }
 
   selectCliente(cl: ClienteListDto): void {
+    this.clienteMode = 'official';
     this.selectedCliente = cl;
     this.form.clienteId = cl.id;
+    this.form.clienteTemporalNombre = null;
     this.clienteText = cl.apodo;
     this.showClienteResults.set(false);
   }
 
   hideClienteResults(): void {
     this.hideClienteTimer = setTimeout(() => this.showClienteResults.set(false), 200);
+  }
+
+  useOfficialClient(): void {
+    this.clienteMode = 'official';
+    this.form.clienteTemporalNombre = null;
+  }
+
+  useTemporaryClient(): void {
+    this.clienteMode = 'temporary';
+    this.selectedCliente = null;
+    this.clienteText = '';
+    this.form.clienteId = null;
+    this.showClienteResults.set(false);
+  }
+
+  clearCliente(): void {
+    this.selectedCliente = null;
+    this.clienteText = '';
+    this.form.clienteId = null;
+    this.showClienteResults.set(false);
+  }
+
+  canSubmitClient(): boolean {
+    return this.clienteMode === 'official'
+      ? !!this.selectedCliente?.id
+      : !!this.form.clienteTemporalNombre?.trim();
+  }
+
+  private toDateInput(value: string | null): string | null {
+    return value ? value.slice(0, 10) : null;
   }
 
   close(): void {
@@ -497,18 +677,29 @@ export class VehiculoFormDialogComponent {
       this.error.set('Selecciona una marca');
       return;
     }
-    if (!this.selectedCliente) {
-      this.error.set('Selecciona un cliente');
+    if (!this.canSubmitClient()) {
+      this.error.set(
+        this.clienteMode === 'official'
+          ? 'Selecciona un cliente oficial'
+          : 'Captura el nombre del cliente temporal'
+      );
       return;
     }
+    this.form.clienteId = this.clienteMode === 'official' ? this.selectedCliente!.id : null;
+    this.form.clienteTemporalNombre = this.clienteMode === 'temporary'
+      ? this.form.clienteTemporalNombre!.trim()
+      : null;
     this.saving.set(true);
     this.error.set('');
-    this.vehiculoService
-      .create({
+    const request = {
         ...this.form,
         vin: this.form.vin!.toUpperCase(),
         moneda: this.form.moneda || 'USD',
-      })
+      };
+    const save$ = this.isEditing()
+      ? this.vehiculoService.update(this.editingVehicle!.id, request)
+      : this.vehiculoService.create(request);
+    save$
       .subscribe({
         next: () => {
           this.saving.set(false);
@@ -516,7 +707,7 @@ export class VehiculoFormDialogComponent {
           this.saved.emit();
         },
         error: err => {
-          this.error.set(err.error?.message || 'Error al crear vehículo');
+          this.error.set(err.error?.message || 'Error al guardar vehículo');
           this.saving.set(false);
         },
       });

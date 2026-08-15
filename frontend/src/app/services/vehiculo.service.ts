@@ -4,12 +4,14 @@ import { Observable } from 'rxjs';
 
 export interface VehiculoListDto {
   id: string;
+  clienteId: string | null;
   vin: string;
   vinCorto: string | null;
   marcaNombre: string | null;
   modeloNombre: string | null;
   anno: number | null;
   clienteApodo: string | null;
+  clienteTemporalNombre: string | null;
   fechaIngresoPatio: string | null;
   ubicacionActual: string | null;
   tieneTramiteActivo: boolean;
@@ -27,14 +29,18 @@ export interface TramiteSimpleDto {
 }
 
 export interface VehiculoDetailDto extends VehiculoListDto {
+  marcaId: string | null;
   cilindradaCm3: number | null;
   categoria: string | null;
   fraccionArancelaria: string | null;
   color: string | null;
   numMotor: string | null;
+  numSerie: string | null;
   valorFactura: number | null;
   moneda: string;
   fechaPedimentoProforma: string | null;
+  clienteTemporalId: string | null;
+  clienteTemporalEstado: string | null;
   fechaRegistro: string;
   historialTramites: TramiteSimpleDto[];
 }
@@ -46,13 +52,15 @@ export interface CreateVehiculoRequest {
   anno: number | null;
   cilindradaCm3: number | null;
   categoria: string | null;
-  clienteId: string;
+  clienteId: string | null;
+  clienteTemporalNombre: string | null;
   color: string | null;
   valorFactura: number | null;
   moneda: string;
   numMotor: string | null;
   numSerie: string | null;
   fechaIngresoPatio: string | null;
+  fechaPedimentoProforma: string | null;
   ubicacionActual: string | null;
   cumplioRequisitos: boolean;
   tieneSelloAduanal: boolean;
