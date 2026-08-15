@@ -146,6 +146,50 @@ public class VehiculoServiceTests
         result!.FotosUrls.Should().Contain("/storage/campo/foto-historica.jpg");
     }
 
+    [Fact]
+    public async Task UpdateAsync_WhenDateComesWithoutKind_SavesItAsUtc()
+    {
+        var tenantId = Guid.NewGuid();
+        var tenantContext = new TestTenantContext(tenantId);
+        await using var db = CreateDbContext(tenantContext);
+        var service = new VehiculoService(db, new TestCurrentUserService(), tenantContext);
+
+        var cliente = new Cliente
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Nombre = "Cliente prueba",
+            Apodo = "Cliente prueba",
+        };
+        var marca = new Marca { Id = Guid.NewGuid(), Nombre = "Honda" };
+        var vehiculo = new Vehiculo
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            ClienteId = cliente.Id,
+            MarcaId = marca.Id,
+            Vin = "1HGCV1F33JA235611",
+        };
+
+        db.Clientes.Add(cliente);
+        db.Marcas.Add(marca);
+        db.Vehiculos.Add(vehiculo);
+        await db.SaveChangesAsync();
+
+        var fechaIngreso = new DateTime(2026, 8, 15);
+        await service.UpdateAsync(vehiculo.Id, new CreateVehiculoRequest
+        {
+            ClienteId = cliente.Id,
+            MarcaId = marca.Id,
+            Vin = vehiculo.Vin,
+            FechaIngresoPatio = fechaIngreso,
+        });
+
+        var savedDate = (await db.Vehiculos.FindAsync(vehiculo.Id))!.FechaIngresoPatio;
+        savedDate.Should().Be(DateTime.SpecifyKind(fechaIngreso, DateTimeKind.Utc));
+        savedDate!.Value.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
     private static AppDbContext CreateDbContext(ITenantContext tenantContext)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

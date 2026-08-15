@@ -263,8 +263,8 @@ public class VehiculoService : IVehiculoService
             Moneda = request.Moneda,
             NumMotor = request.NumMotor,
             NumSerie = request.NumSerie,
-            FechaIngresoPatio = request.FechaIngresoPatio,
-            FechaPedimentoProforma = request.FechaPedimentoProforma,
+            FechaIngresoPatio = EnsureUtc(request.FechaIngresoPatio),
+            FechaPedimentoProforma = EnsureUtc(request.FechaPedimentoProforma),
             UbicacionActual = request.UbicacionActual,
             CumplioRequisitos = request.CumplioRequisitos,
             TieneSelloAduanal = request.TieneSelloAduanal,
@@ -333,8 +333,8 @@ public class VehiculoService : IVehiculoService
         vehiculo.Moneda = request.Moneda;
         vehiculo.NumMotor = request.NumMotor;
         vehiculo.NumSerie = request.NumSerie;
-        vehiculo.FechaIngresoPatio = request.FechaIngresoPatio;
-        vehiculo.FechaPedimentoProforma = request.FechaPedimentoProforma;
+        vehiculo.FechaIngresoPatio = EnsureUtc(request.FechaIngresoPatio);
+        vehiculo.FechaPedimentoProforma = EnsureUtc(request.FechaPedimentoProforma);
         vehiculo.UbicacionActual = request.UbicacionActual;
         vehiculo.CumplioRequisitos = request.CumplioRequisitos;
         vehiculo.TieneSelloAduanal = request.TieneSelloAduanal;
@@ -385,7 +385,7 @@ public class VehiculoService : IVehiculoService
         vehiculo.UbicacionActual = request.UbicacionActual ?? vehiculo.UbicacionActual;
         vehiculo.CumplioRequisitos = request.CumplioRequisitos;
         vehiculo.TieneSelloAduanal = request.TieneSelloAduanal;
-        vehiculo.FechaPedimentoProforma = request.FechaPedimentoProforma;
+        vehiculo.FechaPedimentoProforma = EnsureUtc(request.FechaPedimentoProforma);
 
         await _db.SaveChangesAsync();
     }
@@ -556,6 +556,20 @@ public class VehiculoService : IVehiculoService
             .FirstOrDefaultAsync(f => f.Fraccion == fraccionStr && f.Activo);
 
         return fraccion?.Id;
+    }
+
+    private static DateTime? EnsureUtc(DateTime? value)
+    {
+        if (!value.HasValue)
+            return null;
+
+        var dateTime = value.Value;
+        return dateTime.Kind switch
+        {
+            DateTimeKind.Utc => dateTime,
+            DateTimeKind.Local => dateTime.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(dateTime, DateTimeKind.Utc),
+        };
     }
 
     private async Task<Guid?> ResolveModeloId(Guid marcaId, string modeloNombre)
