@@ -66,6 +66,36 @@ public class CampoServiceTests
     }
 
     [Fact]
+    public async Task CompletarAsync_ConIncidencia_DejaLaTareaCompletadaYConservaElReporte()
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var tenantContext = new TestTenantContext(tenantId);
+        await using var db = CreateDbContext(tenantContext);
+        var service = CreateService(db, tenantContext, userId);
+        var tarea = new TareaCampo
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Tipo = "PRE_INSPECCION",
+            EstadoLogistico = "TOMADA",
+            CreadoPor = userId,
+            TomadaPorUsuarioId = userId,
+            FotosUrls = [],
+        };
+        db.TareasCampo.Add(tarea);
+        await db.SaveChangesAsync();
+
+        await service.CompletarAsync(tarea.Id, new CompletarTareaCampoRequest
+        {
+            Incidencia = "La unidad no fue localizada en la yarda.",
+        });
+
+        tarea.EstadoLogistico.Should().Be("COMPLETADA");
+        tarea.Incidencia.Should().Be("La unidad no fue localizada en la yarda.");
+    }
+
+    [Fact]
     public async Task CrearPreInspeccionAsync_WithSameClientOperationId_ReturnsSameTask()
     {
         var tenantId = Guid.NewGuid();
@@ -88,6 +118,30 @@ public class CampoServiceTests
         second.Id.Should().Be(first.Id);
         (await db.TareasCampo.CountAsync()).Should().Be(1);
         (await db.Vehiculos.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CrearPreInspeccionAsync_ConNombreLibre_CreaClienteTemporal()
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var tenantContext = new TestTenantContext(tenantId);
+        await using var db = CreateDbContext(tenantContext);
+        var service = CreateService(db, tenantContext, userId);
+
+        await service.CrearPreInspeccionAsync(new CrearPreInspeccionRequest
+        {
+            ClientOperationId = Guid.NewGuid(),
+            Vin = "1HGCV1F33JA235611",
+            ClienteNombreLibre = "Cliente de campo",
+            DescripcionVehiculo = "Honda Accord",
+        });
+
+        var temporal = await db.ClientesTemporales.SingleAsync();
+        temporal.NombrePropuesto.Should().Be("Cliente de campo");
+        temporal.Estado.Should().Be("PENDIENTE");
+        temporal.VehiculoId.Should().NotBeNull();
+        temporal.TareaCampoId.Should().NotBeNull();
     }
 
     [Fact]

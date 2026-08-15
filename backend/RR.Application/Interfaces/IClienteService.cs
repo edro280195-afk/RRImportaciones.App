@@ -11,4 +11,7 @@ public interface IClienteService
     Task<ClienteDetailDto> UpdateAsync(Guid id, UpdateClienteRequest request);
     Task DeleteAsync(Guid id);
     Task<IEnumerable<ClienteListDto>> SearchAutocompleteAsync(string query);
+    Task<List<ClienteTemporalDto>> GetTemporalesAsync(string? estado);
+    Task<ClienteTemporalDto> AprobarTemporalAsync(Guid id, AprobarClienteTemporalRequest request);
+    Task<ClienteTemporalDto> RechazarTemporalAsync(Guid id, RechazarClienteTemporalRequest request);
 }

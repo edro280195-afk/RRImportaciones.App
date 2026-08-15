@@ -49,6 +49,7 @@ public class CampoService : ICampoService
             .Include(t => t.Vehiculo).ThenInclude(v => v!.Cliente)
             .Include(t => t.Vehiculo).ThenInclude(v => v!.Marca)
             .Include(t => t.Vehiculo).ThenInclude(v => v!.Modelo)
+            .Include(t => t.ClienteTemporal)
             .Include(t => t.PersonalCampo)
             .Include(t => t.UsuarioCampo)
             .AsQueryable();
@@ -65,7 +66,7 @@ public class CampoService : ICampoService
         return tareas
             .GroupBy(t => new { TareaKey = t.TramiteId ?? t.Id, t.Tipo })
             .Select(g => g
-                .OrderBy(t => t.EstadoLogistico == "COMPLETADA" || t.EstadoLogistico == "CANCELADA" ? 1 : 0)
+                .OrderBy(t => t.EstadoLogistico is "COMPLETADA" or "CANCELADA" or "INCIDENCIA" ? 1 : 0)
                 .ThenByDescending(t => t.FechaCreacion)
                 .First())
             .Select(Map)
@@ -212,6 +213,23 @@ public class CampoService : ICampoService
         };
 
         _db.TareasCampo.Add(tarea);
+
+        ClienteTemporal? clienteTemporal = null;
+        if (cliente is null && !string.IsNullOrWhiteSpace(clienteNombre))
+        {
+            clienteTemporal = new ClienteTemporal
+            {
+                Id = Guid.NewGuid(),
+                NombrePropuesto = clienteNombre.Trim(),
+                Estado = "PENDIENTE",
+                TareaCampoId = tarea.Id,
+                VehiculoId = vehiculoId,
+                CapturadoPor = _currentUser.UserId ?? Guid.Empty,
+                FechaCreacion = DateTime.UtcNow,
+            };
+            _db.ClientesTemporales.Add(clienteTemporal);
+        }
+
         await _db.SaveChangesAsync();
         await RunBestEffortAsync(() => _realtime.CampoActualizadoAsync(tarea.Id, null, "CREADA"));
         var dto = (await GetById(tarea.Id))!;
@@ -248,6 +266,17 @@ public class CampoService : ICampoService
         // Push + campanita a admins: alguien registró una unidad en la yarda.
         await _notificaciones.EmitirAsync(CatalogoNotificaciones.VehiculoRegistradoEnCampo(
             tarea.Id, resumenPreInsp, vin, operadorNombre, clienteNombre));
+
+        if (clienteTemporal != null)
+        {
+            await _notificaciones.EmitirAsync(CatalogoNotificaciones.ClienteTemporalCreado(
+                clienteTemporal.Id,
+                tarea.Id,
+                resumenPreInsp,
+                vin,
+                clienteTemporal.NombrePropuesto,
+                operadorNombre));
+        }
 
         return dto;
     }
@@ -342,6 +371,14 @@ public class CampoService : ICampoService
                 if (!tarea.Vehiculo.ClienteId.HasValue && tramite.ClienteId.HasValue)
                     tarea.Vehiculo.ClienteId = tramite.ClienteId;
 
+                if (tarea.Vehiculo.ClienteId.HasValue)
+                {
+                    if (tramite.ClienteId.HasValue && tramite.ClienteId.Value != tarea.Vehiculo.ClienteId.Value)
+                        throw new InvalidOperationException("El tramite ya pertenece a otro cliente");
+
+                    tramite.ClienteId = tarea.Vehiculo.ClienteId;
+                }
+
                 tarea.Vehiculo.Estado = "EN_TRAMITE";
             }
         }
@@ -392,7 +429,10 @@ public class CampoService : ICampoService
         tarea.VinConfirmado = request.VinConfirmado;
         tarea.FotosUrls = request.FotosUrls ?? [];
         tarea.Incidencia = request.Incidencia;
-        tarea.EstadoLogistico = string.IsNullOrWhiteSpace(request.Incidencia) ? "COMPLETADA" : "INCIDENCIA";
+        // Una incidencia describe el resultado de una tarea ya ejecutada; no
+        // significa que la tarea siga pendiente. El detalle se conserva en
+        // Incidencia y el estado operativo permanece COMPLETADA.
+        tarea.EstadoLogistico = "COMPLETADA";
         tarea.FechaCompletada = DateTime.UtcNow;
 
         await SyncFotosToVehiculoAsync(tarea.VehiculoId ?? tarea.Tramite?.VehiculoId, tarea.FotosUrls);
@@ -458,7 +498,7 @@ public class CampoService : ICampoService
 
         // Push + campanita: fotos listas, o incidencia si el operador reportó algo.
         var referencia = dto.NumeroConsecutivo ?? "Pre-inspección";
-        await _notificaciones.EmitirAsync(tarea.EstadoLogistico == "INCIDENCIA"
+        await _notificaciones.EmitirAsync(!string.IsNullOrWhiteSpace(tarea.Incidencia)
             ? CatalogoNotificaciones.IncidenciaCampo(
                 tarea.Id, tarea.TramiteId, referencia, dto.VehiculoResumen,
                 tarea.Incidencia ?? "Sin detalle", operadorNombre)
@@ -506,6 +546,7 @@ public class CampoService : ICampoService
             .Include(t => t.Vehiculo).ThenInclude(v => v!.Cliente)
             .Include(t => t.Vehiculo).ThenInclude(v => v!.Marca)
             .Include(t => t.Vehiculo).ThenInclude(v => v!.Modelo)
+            .Include(t => t.ClienteTemporal)
             .Include(t => t.PersonalCampo)
             .Include(t => t.UsuarioCampo)
             .Where(t => t.Id == id)
@@ -765,6 +806,7 @@ public class CampoService : ICampoService
             .Include(t => t.Vehiculo).ThenInclude(v => v!.Cliente)
             .Include(t => t.Vehiculo).ThenInclude(v => v!.Marca)
             .Include(t => t.Vehiculo).ThenInclude(v => v!.Modelo)
+            .Include(t => t.ClienteTemporal)
             .Include(t => t.PersonalCampo)
             .Include(t => t.UsuarioCampo)
             .Where(t => t.Tipo == "PRE_INSPECCION"
@@ -843,6 +885,8 @@ public class CampoService : ICampoService
             VehiculoResumen = t.Tramite != null ? BuildVehiculoResumen(t.Tramite) : BuildPreInspeccionResumen(t),
             DescripcionVehiculo = t.DescripcionVehiculo,
             ClienteNombreLibre = t.ClienteNombreLibre,
+            ClienteTemporalId = t.ClienteTemporal?.Id,
+            ClienteTemporalEstado = t.ClienteTemporal?.Estado,
             Vin = vehiculo?.Vin,
             VinCorto = vehiculo?.VinCorto,
             Tipo = t.Tipo,

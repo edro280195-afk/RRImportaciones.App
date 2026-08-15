@@ -1,10 +1,18 @@
-import { Component, signal, inject, ViewChild } from '@angular/core';
+import { Component, OnDestroy, signal, inject, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { ClienteService, ClienteListDto, PagedResult } from '../../services/cliente.service';
+import {
+  AprobarClienteTemporalRequest,
+  ClienteService,
+  ClienteListDto,
+  ClienteTemporalDto,
+} from '../../services/cliente.service';
 import { ClienteFormDialogComponent } from './cliente-form-dialog.component';
 import { AuthService } from '../../services/auth.service';
+import { ActivatedRoute } from '@angular/router';
+import { RealtimeService } from '../../services/realtime.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-clientes-list',
@@ -59,6 +67,53 @@ import { AuthService } from '../../services/auth.service';
           />
         </div>
       </div>
+
+      @if (temporales().length > 0) {
+        <section
+          class="mb-5 rounded-2xl border border-[#FED7AA] bg-[#FFF7ED] p-4 stagger-item"
+          style="animation-delay: 60ms;"
+        >
+          <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-[14px] font-semibold text-[#9A3412]">
+                Clientes capturados en campo
+              </p>
+              <p class="text-[12.5px] text-[#C2410C]">
+                Valida los datos y crea el cliente oficial para relacionarlo automáticamente con su vehículo.
+              </p>
+            </div>
+            <span class="self-start rounded-full bg-[#FFEDD5] px-2.5 py-1 text-[12px] font-semibold text-[#9A3412]">
+              {{ temporales().length }} pendiente{{ temporales().length === 1 ? '' : 's' }}
+            </span>
+          </div>
+
+          <div class="mt-3 grid gap-2">
+            @for (temporal of temporales(); track temporal.id) {
+              <div class="flex flex-col gap-3 rounded-xl border border-[#FED7AA] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                  <p class="truncate text-[13.5px] font-semibold text-[#1E2330]">
+                    {{ temporal.nombrePropuesto }}
+                  </p>
+                  <p class="text-[12px] text-[#6B717F]">
+                    {{ temporal.vehiculoResumen || 'Unidad sin descripción' }}
+                    @if (temporal.vin) { · VIN {{ temporal.vin }} }
+                    @if (temporal.operadorNombre) { · {{ temporal.operadorNombre }} }
+                  </p>
+                </div>
+                @if (auth.can('CLIENTES_CREAR')) {
+                  <button
+                    type="button"
+                    class="shrink-0 rounded-xl bg-[#C61D26] px-3 py-2 text-[12.5px] font-semibold text-white hover:bg-[#A01520]"
+                    (click)="openTemporal(temporal)"
+                  >
+                    Revisar y vincular
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </section>
+      }
 
       <!-- Table -->
       @if (loading()) {
@@ -226,12 +281,86 @@ import { AuthService } from '../../services/auth.service';
     </div>
 
     <app-cliente-form-dialog #formDialog (saved)="loadClientes()" />
+
+    @if (temporalEnRevision(); as temporal) {
+      <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4" (click)="closeTemporal()">
+        <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl" (click)="$event.stopPropagation()">
+          <div class="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <p class="text-[11px] font-semibold uppercase tracking-[1px] text-[#C2410C]">Cliente de campo</p>
+              <h2 class="mt-1 text-[20px] font-semibold text-[#0D1017]">Validar y registrar cliente</h2>
+              <p class="mt-1 text-[13px] text-[#6B717F]">
+                La unidad quedará vinculada automáticamente al guardar.
+              </p>
+            </div>
+            <button type="button" class="text-2xl leading-none text-[#9EA3AE]" (click)="closeTemporal()">×</button>
+          </div>
+
+          <div class="mb-5 rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] p-3 text-[13px] text-[#4B5162]">
+            <p><strong>Nombre capturado:</strong> {{ temporal.nombrePropuesto }}</p>
+            <p><strong>Vehículo:</strong> {{ temporal.vehiculoResumen || '—' }}</p>
+            @if (temporal.vin) { <p><strong>VIN:</strong> {{ temporal.vin }}</p> }
+            @if (temporal.ubicacion) { <p><strong>Ubicación:</strong> {{ temporal.ubicacion }}</p> }
+          </div>
+
+          @if (temporalError()) {
+            <p class="mb-4 rounded-xl bg-[#FEE2E2] px-3 py-2.5 text-[13px] text-[#991B1B]">{{ temporalError() }}</p>
+          }
+
+          <form (ngSubmit)="aprobarTemporal()" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="text-[12px] font-semibold text-[#4B5162]">
+              Apodo <span class="text-[#DC2626]">*</span>
+              <input [(ngModel)]="temporalForm.apodo" name="temporalApodo" required class="mt-1 w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 text-[13px] outline-none focus:border-[#C61D26]" />
+            </label>
+            <label class="text-[12px] font-semibold text-[#4B5162]">
+              Nombre completo
+              <input [(ngModel)]="temporalForm.nombreCompleto" name="temporalNombreCompleto" class="mt-1 w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 text-[13px] outline-none focus:border-[#C61D26]" />
+            </label>
+            <label class="text-[12px] font-semibold text-[#4B5162]">
+              RFC
+              <input [(ngModel)]="temporalForm.rfc" name="temporalRfc" class="mt-1 w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 text-[13px] uppercase outline-none focus:border-[#C61D26]" />
+            </label>
+            <label class="text-[12px] font-semibold text-[#4B5162]">
+              Teléfono
+              <input [(ngModel)]="temporalForm.telefono" name="temporalTelefono" class="mt-1 w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 text-[13px] outline-none focus:border-[#C61D26]" />
+            </label>
+            <label class="text-[12px] font-semibold text-[#4B5162]">
+              Email
+              <input [(ngModel)]="temporalForm.email" name="temporalEmail" type="email" class="mt-1 w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 text-[13px] outline-none focus:border-[#C61D26]" />
+            </label>
+            <label class="text-[12px] font-semibold text-[#4B5162]">
+              Procedencia
+              <input [(ngModel)]="temporalForm.procedencia" name="temporalProcedencia" class="mt-1 w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 text-[13px] outline-none focus:border-[#C61D26]" />
+            </label>
+            <label class="text-[12px] font-semibold text-[#4B5162] sm:col-span-2">
+              Dirección
+              <input [(ngModel)]="temporalForm.direccion" name="temporalDireccion" class="mt-1 w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 text-[13px] outline-none focus:border-[#C61D26]" />
+            </label>
+            <label class="text-[12px] font-semibold text-[#4B5162] sm:col-span-2">
+              Notas
+              <textarea [(ngModel)]="temporalForm.notas" name="temporalNotas" rows="3" class="mt-1 w-full resize-none rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] px-3 py-2.5 text-[13px] outline-none focus:border-[#C61D26]"></textarea>
+            </label>
+
+            <div class="mt-2 flex flex-col-reverse gap-2 border-t border-[#E4E7EC] pt-4 sm:col-span-2 sm:flex-row sm:justify-end">
+              <button type="button" class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-2.5 text-[13px] font-semibold text-[#B91C1C]" [disabled]="temporalSaving()" (click)="rechazarTemporal()">
+                Rechazar
+              </button>
+              <button type="submit" class="rounded-xl bg-[#C61D26] px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-50" [disabled]="temporalSaving() || !temporalForm.apodo.trim()">
+                {{ temporalSaving() ? 'Guardando…' : 'Crear y vincular cliente' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
   `,
 })
-export class ClientesListComponent {
+export class ClientesListComponent implements OnDestroy {
   private service = inject(ClienteService);
   router = inject(Router);
   auth = inject(AuthService);
+  private route = inject(ActivatedRoute);
+  private realtime = inject(RealtimeService);
 
   @ViewChild('formDialog') formDialog!: ClienteFormDialogComponent;
 
@@ -242,8 +371,15 @@ export class ClientesListComponent {
   totalPages = signal(0);
   loading = signal(true);
   search = signal('');
+  temporales = signal<ClienteTemporalDto[]>([]);
+  temporalEnRevision = signal<ClienteTemporalDto | null>(null);
+  temporalSaving = signal(false);
+  temporalError = signal<string | null>(null);
+  temporalForm: AprobarClienteTemporalRequest = this.emptyTemporalForm();
 
   private searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  private realtimeSub?: Subscription;
+  private targetTemporalId: string | null = null;
 
   formatMoney(amount: number): string {
     return `$${amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -266,7 +402,17 @@ export class ClientesListComponent {
   };
 
   constructor() {
+    this.targetTemporalId = this.route.snapshot.queryParamMap.get('clienteTemporalId');
+    this.realtimeSub = this.realtime.notificacion$.subscribe(event => {
+      if (event.tipo === 'cliente_temporal_creado') this.loadTemporales();
+    });
     this.loadClientes();
+    this.loadTemporales();
+  }
+
+  ngOnDestroy(): void {
+    if (this.searchTimeout) clearTimeout(this.searchTimeout);
+    this.realtimeSub?.unsubscribe();
   }
 
   loadClientes(): void {
@@ -287,6 +433,100 @@ export class ClientesListComponent {
         },
         error: () => this.loading.set(false),
       });
+  }
+
+  loadTemporales(): void {
+    this.service.getTemporales().subscribe({
+      next: items => {
+        this.temporales.set(items);
+        if (this.targetTemporalId) {
+          const target = items.find(item => item.id === this.targetTemporalId);
+          if (target) {
+            this.openTemporal(target);
+            this.targetTemporalId = null;
+          }
+        }
+      },
+      error: () => this.temporales.set([]),
+    });
+  }
+
+  openTemporal(temporal: ClienteTemporalDto): void {
+    this.temporalError.set(null);
+    this.temporalForm = {
+      clienteExistenteId: null,
+      apodo: temporal.nombrePropuesto,
+      nombreCompleto: temporal.nombrePropuesto,
+      rfc: null,
+      telefono: null,
+      email: null,
+      procedencia: null,
+      direccion: null,
+      notas: null,
+    };
+    this.temporalEnRevision.set(temporal);
+  }
+
+  closeTemporal(): void {
+    if (this.temporalSaving()) return;
+    this.temporalEnRevision.set(null);
+    this.temporalError.set(null);
+  }
+
+  aprobarTemporal(): void {
+    const temporal = this.temporalEnRevision();
+    if (!temporal || !this.temporalForm.apodo.trim()) return;
+
+    this.temporalSaving.set(true);
+    this.temporalError.set(null);
+    this.service.aprobarTemporal(temporal.id, {
+      ...this.temporalForm,
+      apodo: this.temporalForm.apodo.trim(),
+    }).subscribe({
+      next: () => {
+        this.temporalSaving.set(false);
+        this.temporales.update(items => items.filter(item => item.id !== temporal.id));
+        this.temporalEnRevision.set(null);
+        this.loadClientes();
+      },
+      error: err => {
+        this.temporalSaving.set(false);
+        this.temporalError.set(err?.error?.message || 'No se pudo aprobar el cliente temporal.');
+      },
+    });
+  }
+
+  rechazarTemporal(): void {
+    const temporal = this.temporalEnRevision();
+    if (!temporal || !window.confirm('¿Rechazar este cliente capturado en campo?')) return;
+
+    this.temporalSaving.set(true);
+    this.temporalError.set(null);
+    this.service.rechazarTemporal(temporal.id, 'No validado por administración').subscribe({
+      next: () => {
+        this.temporalSaving.set(false);
+        this.temporales.update(items => items.filter(item => item.id !== temporal.id));
+        this.temporalEnRevision.set(null);
+      },
+      error: err => {
+        this.temporalSaving.set(false);
+        this.temporalError.set(err?.error?.message || 'No se pudo rechazar el cliente temporal.');
+      },
+    });
+  }
+
+  private emptyTemporalForm(): AprobarClienteTemporalRequest {
+    return {
+      clienteExistenteId: null,
+      apodo: '',
+      nombreCompleto: null,
+      rfc: null,
+      telefono: null,
+      email: null,
+      procedencia: null,
+      direccion: null,
+      notas: null,
+    };
   }
 
   onSearch(): void {

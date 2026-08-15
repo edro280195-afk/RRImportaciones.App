@@ -222,4 +222,177 @@ public class ClienteService : IClienteService
             })
             .ToListAsync();
     }
+
+    public async Task<List<ClienteTemporalDto>> GetTemporalesAsync(string? estado)
+    {
+        var query = _db.ClientesTemporales
+            .Include(x => x.TareaCampo).ThenInclude(x => x!.UsuarioCampo)
+            .Include(x => x.Vehiculo).ThenInclude(x => x!.Marca)
+            .Include(x => x.Vehiculo).ThenInclude(x => x!.Modelo)
+            .Include(x => x.Cliente)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(estado))
+            query = query.Where(x => x.Estado == estado.Trim().ToUpperInvariant());
+
+        var items = await query
+            .OrderByDescending(x => x.FechaCreacion)
+            .Take(200)
+            .ToListAsync();
+
+        return items.Select(MapTemporal).ToList();
+    }
+
+    public async Task<ClienteTemporalDto> AprobarTemporalAsync(
+        Guid id,
+        AprobarClienteTemporalRequest request)
+    {
+        var temporal = await _db.ClientesTemporales
+            .Include(x => x.TareaCampo).ThenInclude(x => x!.Tramite)
+            .Include(x => x.Vehiculo).ThenInclude(x => x!.Marca)
+            .Include(x => x.Vehiculo).ThenInclude(x => x!.Modelo)
+            .FirstOrDefaultAsync(x => x.Id == id)
+            ?? throw new KeyNotFoundException("Cliente temporal no encontrado");
+
+        if (!string.Equals(temporal.Estado, "PENDIENTE", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Este cliente temporal ya fue revisado");
+
+        Cliente cliente;
+        if (request.ClienteExistenteId.HasValue)
+        {
+            cliente = await _db.Clientes
+                .FirstOrDefaultAsync(x => x.Id == request.ClienteExistenteId.Value)
+                ?? throw new KeyNotFoundException("El cliente seleccionado no existe");
+        }
+        else
+        {
+            var apodo = (request.Apodo ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(apodo))
+                throw new InvalidOperationException("El apodo del cliente es obligatorio");
+
+            var apodoExiste = await _db.Clientes
+                .AnyAsync(x => x.Apodo.ToLower() == apodo.ToLower());
+            if (apodoExiste)
+                throw new InvalidOperationException($"Ya existe un cliente con el apodo '{apodo}'");
+
+            cliente = new Cliente
+            {
+                Id = Guid.NewGuid(),
+                Apodo = apodo,
+                Nombre = apodo,
+                NombreCompleto = Clean(request.NombreCompleto),
+                Rfc = Clean(request.Rfc),
+                Telefono = Clean(request.Telefono),
+                Email = Clean(request.Email),
+                Procedencia = Clean(request.Procedencia),
+                Direccion = Clean(request.Direccion),
+                Notas = Clean(request.Notas),
+                FechaRegistro = DateTime.UtcNow,
+                Activo = true,
+            };
+            _db.Clientes.Add(cliente);
+        }
+
+        if (temporal.Vehiculo != null)
+        {
+            if (temporal.Vehiculo.ClienteId.HasValue && temporal.Vehiculo.ClienteId.Value != cliente.Id)
+                throw new InvalidOperationException("El vehículo ya pertenece a otro cliente");
+
+            temporal.Vehiculo.ClienteId = cliente.Id;
+        }
+
+        if (temporal.TareaCampo?.Tramite != null)
+        {
+            if (temporal.TareaCampo.Tramite.ClienteId.HasValue && temporal.TareaCampo.Tramite.ClienteId.Value != cliente.Id)
+                throw new InvalidOperationException("El trámite ya pertenece a otro cliente");
+
+            temporal.TareaCampo.Tramite.ClienteId = cliente.Id;
+        }
+
+        temporal.ClienteId = cliente.Id;
+        temporal.Cliente = cliente;
+        temporal.Estado = "APROBADA";
+        temporal.RevisadoPor = _currentUser.UserId ?? Guid.Empty;
+        temporal.FechaRevision = DateTime.UtcNow;
+        temporal.MotivoRechazo = null;
+
+        await _db.SaveChangesAsync();
+
+        var updated = await _db.ClientesTemporales
+            .Include(x => x.TareaCampo).ThenInclude(x => x!.UsuarioCampo)
+            .Include(x => x.Vehiculo).ThenInclude(x => x!.Marca)
+            .Include(x => x.Vehiculo).ThenInclude(x => x!.Modelo)
+            .Include(x => x.Cliente)
+            .FirstAsync(x => x.Id == id);
+
+        return MapTemporal(updated);
+    }
+
+    public async Task<ClienteTemporalDto> RechazarTemporalAsync(
+        Guid id,
+        RechazarClienteTemporalRequest request)
+    {
+        var temporal = await _db.ClientesTemporales
+            .Include(x => x.TareaCampo).ThenInclude(x => x!.UsuarioCampo)
+            .Include(x => x.Vehiculo).ThenInclude(x => x!.Marca)
+            .Include(x => x.Vehiculo).ThenInclude(x => x!.Modelo)
+            .FirstOrDefaultAsync(x => x.Id == id)
+            ?? throw new KeyNotFoundException("Cliente temporal no encontrado");
+
+        if (!string.Equals(temporal.Estado, "PENDIENTE", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Este cliente temporal ya fue revisado");
+
+        temporal.Estado = "RECHAZADA";
+        temporal.MotivoRechazo = Clean(request.Motivo) ?? "No validado por administración";
+        temporal.RevisadoPor = _currentUser.UserId ?? Guid.Empty;
+        temporal.FechaRevision = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return MapTemporal(temporal);
+    }
+
+    private static ClienteTemporalDto MapTemporal(ClienteTemporal temporal)
+    {
+        var vehiculo = temporal.Vehiculo;
+        var resumen = vehiculo == null
+            ? temporal.TareaCampo?.DescripcionVehiculo
+            : string.Join(" ", new[]
+            {
+                vehiculo.Marca?.Nombre,
+                vehiculo.Modelo?.Nombre,
+                vehiculo.Anno?.ToString(),
+            }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        if (string.IsNullOrWhiteSpace(resumen))
+            resumen = vehiculo?.VinCorto ?? vehiculo?.Vin ?? temporal.TareaCampo?.DescripcionVehiculo;
+
+        var usuario = temporal.TareaCampo?.UsuarioCampo;
+        var operador = usuario == null
+            ? null
+            : string.Join(" ", new[] { usuario.Nombre, usuario.Apellidos }
+                .Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+
+        return new ClienteTemporalDto
+        {
+            Id = temporal.Id,
+            NombrePropuesto = temporal.NombrePropuesto,
+            Estado = temporal.Estado,
+            TareaCampoId = temporal.TareaCampoId,
+            VehiculoId = temporal.VehiculoId,
+            ClienteId = temporal.ClienteId,
+            Vin = vehiculo?.Vin,
+            VehiculoResumen = string.IsNullOrWhiteSpace(resumen) ? "Unidad sin descripción" : resumen,
+            Ubicacion = temporal.TareaCampo?.Ubicacion,
+            OperadorNombre = operador,
+            MotivoRechazo = temporal.MotivoRechazo,
+            FechaCreacion = temporal.FechaCreacion,
+            FechaRevision = temporal.FechaRevision,
+        };
+    }
+
+    private static string? Clean(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
 }

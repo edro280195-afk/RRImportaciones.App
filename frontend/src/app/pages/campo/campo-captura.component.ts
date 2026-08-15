@@ -2071,8 +2071,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
    * El riel de pasos exige MIN_PHOTOS ("Faltan N fotos para continuar"), así que
    * el botón debe exigir lo mismo. Excepción: con una incidencia descrita se
    * puede cerrar con menos fotos —el caso real es "unidad no localizada", donde
-   * no hay nada que fotografiar— y el backend la manda a INCIDENCIA en vez de
-   * COMPLETADA, así que igual la revisa un admin.
+   * no hay nada que fotografiar— y el backend conserva el reporte en Incidencia
+   * aunque la tarea quede COMPLETADA.
    */
   readonly canSend = computed(() => {
     if (this.state() === 'sending') return false;
@@ -2208,6 +2208,8 @@ export class CampoCapturaComponent implements OnInit, OnDestroy {
       vehiculoResumen: record.descripcionVehiculo || (vin ? `VIN ${vin}` : 'Registro en yarda'),
       descripcionVehiculo: record.descripcionVehiculo,
       clienteNombreLibre: record.clienteNombreLibre,
+      clienteTemporalId: null,
+      clienteTemporalEstado: record.clienteId ? null : 'PENDIENTE',
       vin,
       vinCorto: vin ? vin.slice(-6) : null,
       tipo: 'PRE_INSPECCION',

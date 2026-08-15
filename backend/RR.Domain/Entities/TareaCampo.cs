@@ -37,5 +37,6 @@ public class TareaCampo : ITenantEntity
     public Vehiculo? Vehiculo { get; set; }
     public PersonalCampo? PersonalCampo { get; set; }
     public User? UsuarioCampo { get; set; }
+    public ClienteTemporal? ClienteTemporal { get; set; }
     public ICollection<TareaCampoMedia> Medios { get; set; } = new List<TareaCampoMedia>();
 }

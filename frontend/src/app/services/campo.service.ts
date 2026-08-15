@@ -12,6 +12,8 @@ export interface TareaCampoDto {
   vehiculoResumen: string;
   descripcionVehiculo: string | null;
   clienteNombreLibre: string | null;
+  clienteTemporalId: string | null;
+  clienteTemporalEstado: string | null;
   vin: string | null;
   vinCorto: string | null;
   tipo: string;

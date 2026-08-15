@@ -11,6 +11,8 @@ public class TareaCampoDto
     public string VehiculoResumen { get; set; } = string.Empty;
     public string? DescripcionVehiculo { get; set; }
     public string? ClienteNombreLibre { get; set; }
+    public Guid? ClienteTemporalId { get; set; }
+    public string? ClienteTemporalEstado { get; set; }
     public string? Vin { get; set; }
     public string? VinCorto { get; set; }
     public string Tipo { get; set; } = "FOTOS_YARDA";

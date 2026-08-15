@@ -33,6 +33,36 @@ public static class CatalogoNotificaciones
         };
     }
 
+    /// <summary>Un operador capturó un cliente fuera del catálogo oficial.</summary>
+    public static NotificacionEvento ClienteTemporalCreado(
+        Guid clienteTemporalId,
+        Guid tareaCampoId,
+        string vehiculoResumen,
+        string? vin,
+        string nombrePropuesto,
+        string operadorNombre)
+    {
+        var detalle = string.IsNullOrWhiteSpace(vin)
+            ? vehiculoResumen
+            : $"{vehiculoResumen} · VIN {vin}";
+
+        return new NotificacionEvento
+        {
+            Tipo = "cliente_temporal_creado",
+            Titulo = "Cliente pendiente de validación",
+            Mensaje = $"{operadorNombre} capturó “{nombrePropuesto}” para {detalle}",
+            Url = $"/clientes?clienteTemporalId={clienteTemporalId}",
+            Severidad = "warning",
+            Destino = DestinoNotificacion.Admins,
+            Tag = $"cliente-temporal-{clienteTemporalId}",
+            Data = new Dictionary<string, string>
+            {
+                ["clienteTemporalId"] = clienteTemporalId.ToString(),
+                ["tareaCampoId"] = tareaCampoId.ToString(),
+            },
+        };
+    }
+
     /// <summary>El operador terminó la captura: fotos listas y unidad validada.</summary>
     public static NotificacionEvento CapturaCampoCompletada(
         Guid tareaCampoId, Guid? tramiteId, string referencia, string vehiculoResumen,

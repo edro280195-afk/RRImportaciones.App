@@ -258,7 +258,7 @@ interface AvisoCampo {
             [class.card--abierta]="t.estatus === 'ABIERTA'"
             [class.card--tomada]="t.estatus === 'TOMADA'"
             [class.card--yarda]="t.estatus === 'EN_YARDA'"
-            [class.card--incidencia]="t.estatus === 'INCIDENCIA'"
+            [class.card--incidencia]="!!t.incidencia"
             [class.card--done]="t.estatus === 'COMPLETADA' || t.estatus === 'CANCELADA'"
             role="listitem"
           >
@@ -277,6 +277,9 @@ interface AvisoCampo {
                     class="task-status-chip chip-{{ (t.estatus || 'abierta').toLowerCase() }}"
                     >{{ estadoLabel(t.estatus || '') }}</span
                   >
+                  @if (t.incidencia) {
+                    <span class="task-status-chip chip-incidencia">Incidencia reportada</span>
+                  }
                 </div>
 
                 <p class="task-vehicle">{{ t.vehiculoResumen || 'Sin datos del vehículo' }}</p>
@@ -1314,7 +1317,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   pendientes = computed(
     () =>
       this.tareas().filter(
-        t => t.estatus !== 'COMPLETADA' && t.estatus !== 'CANCELADA' && t.estatus !== 'INCIDENCIA'
+        t => t.estatus !== 'COMPLETADA' && t.estatus !== 'CANCELADA'
       ).length
   );
 
@@ -1322,7 +1325,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
     const f = this.activeFilter();
     const q = this.normalizeSearch(this.searchTerm());
     return this.tareas().filter(t => {
-      const statusMatches = !f || t.estatus === f;
+      const statusMatches = !f || (f === 'INCIDENCIA' ? !!t.incidencia : t.estatus === f);
       const searchMatches = !q || this.matchesSearch(t, q);
       return statusMatches && searchMatches;
     });
@@ -1487,7 +1490,7 @@ export class CampoTareasComponent implements OnInit, OnDestroy {
   }
 
   countByStatus(status: string): number {
-    return this.tareas().filter(t => t.estatus === status).length;
+    return this.tareas().filter(t => status === 'INCIDENCIA' ? !!t.incidencia : t.estatus === status).length;
   }
 
   private matchesSearch(tarea: TareaCampoDto, query: string): boolean {

@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
     public DbSet<User> Usuarios => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
+    public DbSet<ClienteTemporal> ClientesTemporales => Set<ClienteTemporal>();
     public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
     public DbSet<Tramite> Tramites => Set<Tramite>();
     public DbSet<Pedimento> Pedimentos => Set<Pedimento>();
@@ -141,6 +142,20 @@ public class AppDbContext : DbContext
             e.Property(x => x.TipoPersona).HasMaxLength(20).HasDefaultValue("FISICA");
             e.HasOne(x => x.Tenant).WithMany(t => t.Clientes).HasForeignKey(x => x.TenantId);
             e.HasQueryFilter(e => e.TenantId == CurrentTenantId && e.DeletedAt == null);
+        });
+
+        modelBuilder.Entity<ClienteTemporal>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.NombrePropuesto).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Estado).HasMaxLength(20).HasDefaultValue("PENDIENTE");
+            e.Property(x => x.MotivoRechazo).HasMaxLength(500);
+            e.HasIndex(x => new { x.TenantId, x.Estado });
+            e.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId);
+            e.HasOne(x => x.TareaCampo).WithOne(x => x.ClienteTemporal).HasForeignKey<ClienteTemporal>(x => x.TareaCampoId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Vehiculo).WithMany().HasForeignKey(x => x.VehiculoId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Cliente).WithMany().HasForeignKey(x => x.ClienteId).OnDelete(DeleteBehavior.SetNull);
+            e.HasQueryFilter(e => e.TenantId == CurrentTenantId);
         });
 
         modelBuilder.Entity<Vehiculo>(e =>

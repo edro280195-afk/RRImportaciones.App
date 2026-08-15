@@ -97,4 +97,51 @@ public class ClientesController : ControllerBase
         var results = await _clienteService.SearchAutocompleteAsync(q);
         return Ok(results);
     }
+
+    [HttpGet("temporales")]
+    [RequierePermiso(Permisos.ClientesVer)]
+    public async Task<IActionResult> GetTemporales([FromQuery] string? estado = "PENDIENTE")
+    {
+        return Ok(await _clienteService.GetTemporalesAsync(estado));
+    }
+
+    [HttpPost("temporales/{id:guid}/aprobar")]
+    [RequierePermiso(Permisos.ClientesCrear)]
+    public async Task<IActionResult> AprobarTemporal(
+        Guid id,
+        [FromBody] AprobarClienteTemporalRequest request)
+    {
+        try
+        {
+            return Ok(await _clienteService.AprobarTemporalAsync(id, request));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("temporales/{id:guid}/rechazar")]
+    [RequierePermiso(Permisos.ClientesCrear)]
+    public async Task<IActionResult> RechazarTemporal(
+        Guid id,
+        [FromBody] RechazarClienteTemporalRequest request)
+    {
+        try
+        {
+            return Ok(await _clienteService.RechazarTemporalAsync(id, request));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
 }

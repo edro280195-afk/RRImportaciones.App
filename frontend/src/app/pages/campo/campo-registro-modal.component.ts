@@ -97,7 +97,7 @@ interface LockableScreenOrientation extends ScreenOrientation {
                   (ngModelChange)="onClienteSearchChange($event)"
                   (focus)="openClientePicker()"
                   name="clienteSearch"
-                  placeholder="Buscar por apodo, nombre o telefono"
+                  placeholder="Buscar o escribir el nombre del cliente"
                   autocomplete="off"
                 />
                 @if (clienteId()) {
@@ -143,13 +143,22 @@ interface LockableScreenOrientation extends ScreenOrientation {
                       </button>
                     }
                   } @else {
-                    <div class="client-empty">No encontramos clientes con esa busqueda.</div>
+                    <div class="client-empty">
+                      No encontramos clientes en el catálogo.
+                      @if (clienteSearch().trim()) {
+                        <button type="button" class="client-use-free" (click)="useFreeClientName()">
+                          Usar “{{ clienteSearch().trim() }}” como cliente temporal
+                        </button>
+                      }
+                    </div>
                   }
                 </div>
               }
             </div>
             @if (!clienteId()) {
-              <small class="warning-text">Se recomienda asignar un cliente del catalogo antes de registrar.</small>
+              <small class="warning-text">
+                Escribe el nombre libremente. Se guardará como cliente temporal y administración lo validará para completar el catálogo.
+              </small>
             }
           </div>
           
@@ -444,6 +453,22 @@ interface LockableScreenOrientation extends ScreenOrientation {
         display: flex;
         align-items: center;
         gap: 8px;
+      }
+      .client-empty {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .client-use-free {
+        border: 0;
+        border-radius: 10px;
+        background: #fff1f2;
+        color: #be123c;
+        padding: 9px 10px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
       }
       .mini-spinner {
         width: 14px;
@@ -786,6 +811,15 @@ export class CampoRegistroModalComponent implements OnDestroy {
     }, 220);
   }
 
+  useFreeClientName(): void {
+    const name = this.clienteSearch().trim();
+    if (!name) return;
+    this.clienteId.set(null);
+    this.selectedCliente.set(null);
+    this.clienteSearch.set(name);
+    this.clientePickerOpen.set(false);
+  }
+
   openClientePicker(): void {
     this.clientePickerOpen.set(true);
     if (this.clientes().length === 0) {
@@ -1118,7 +1152,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
         anno: this.anno() || null,
         ubicacion: this.ubicacion() || null,
         clienteId: this.clienteId(),
-        clienteNombreLibre: selectedCliente ? this.clienteLabel(selectedCliente) : null,
+        clienteNombreLibre: selectedCliente ? this.clienteLabel(selectedCliente) : this.clienteSearch().trim() || null,
         descripcionVehiculo: this.descripcionVehiculo() || 'Registro en yarda',
       });
 
@@ -1143,10 +1177,13 @@ export class CampoRegistroModalComponent implements OnDestroy {
       return;
     }
     if (!this.clienteId()) {
+      const nombreLibre = this.clienteSearch().trim();
       const confirmed = await this.notifications.confirm({
-        title: 'Registrar sin cliente',
-        message: 'No has asignado un cliente del catalogo. El vehiculo se guardara, pero quedara pendiente de asociar a un cliente.',
-        confirmText: 'Registrar sin cliente',
+        title: nombreLibre ? 'Registrar cliente temporal' : 'Registrar sin cliente',
+        message: nombreLibre
+          ? `“${nombreLibre}” se enviará como cliente temporal. Administración completará sus datos y lo relacionará automáticamente con el vehículo.`
+          : 'No has asignado un cliente. El vehículo se guardará sin relación y no se podrá crear un cliente temporal sin nombre.',
+        confirmText: nombreLibre ? 'Guardar cliente temporal' : 'Registrar sin cliente',
         cancelText: 'Volver',
       });
 
@@ -1162,7 +1199,7 @@ export class CampoRegistroModalComponent implements OnDestroy {
       anno: this.anno() || null,
       ubicacion: this.ubicacion() || null,
       clienteId: this.clienteId(),
-      clienteNombreLibre: selectedCliente ? this.clienteLabel(selectedCliente) : null,
+      clienteNombreLibre: selectedCliente ? this.clienteLabel(selectedCliente) : this.clienteSearch().trim() || null,
       descripcionVehiculo: this.descripcionVehiculo() || 'Registro en yarda',
     }).then(record => {
       this.notifications.success('Registro preparado. Ahora toma las fotos de la unidad.');

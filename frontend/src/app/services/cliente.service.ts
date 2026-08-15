@@ -39,6 +39,22 @@ export interface ClienteDetailDto extends ClienteListDto {
   saldoPendiente: number;
 }
 
+export interface ClienteTemporalDto {
+  id: string;
+  nombrePropuesto: string;
+  estado: string;
+  tareaCampoId: string | null;
+  vehiculoId: string | null;
+  clienteId: string | null;
+  vin: string | null;
+  vehiculoResumen: string | null;
+  ubicacion: string | null;
+  operadorNombre: string | null;
+  motivoRechazo: string | null;
+  fechaCreacion: string;
+  fechaRevision: string | null;
+}
+
 export interface CreateClienteRequest {
   apodo: string;
   nombreCompleto: string | null;
@@ -51,6 +67,18 @@ export interface CreateClienteRequest {
 }
 
 export type UpdateClienteRequest = CreateClienteRequest;
+
+export interface AprobarClienteTemporalRequest {
+  clienteExistenteId?: string | null;
+  apodo: string;
+  nombreCompleto: string | null;
+  rfc: string | null;
+  telefono: string | null;
+  email: string | null;
+  procedencia: string | null;
+  direccion: string | null;
+  notas: string | null;
+}
 
 export interface PagedResult<T> {
   items: T[];
@@ -100,5 +128,22 @@ export class ClienteService {
     return this.http.get<ClienteListDto[]>(`${this.baseUrl}/search`, {
       params: new HttpParams().set('q', q),
     });
+  }
+
+  getTemporales(estado = 'PENDIENTE'): Observable<ClienteTemporalDto[]> {
+    return this.http.get<ClienteTemporalDto[]>(`${this.baseUrl}/temporales`, {
+      params: new HttpParams().set('estado', estado),
+    });
+  }
+
+  aprobarTemporal(
+    id: string,
+    request: AprobarClienteTemporalRequest
+  ): Observable<ClienteTemporalDto> {
+    return this.http.post<ClienteTemporalDto>(`${this.baseUrl}/temporales/${id}/aprobar`, request);
+  }
+
+  rechazarTemporal(id: string, motivo: string): Observable<ClienteTemporalDto> {
+    return this.http.post<ClienteTemporalDto>(`${this.baseUrl}/temporales/${id}/rechazar`, { motivo });
   }
 }
