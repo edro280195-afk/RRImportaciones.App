@@ -890,7 +890,9 @@ public class CampoService : ICampoService
             Vin = vehiculo?.Vin,
             VinCorto = vehiculo?.VinCorto,
             Tipo = t.Tipo,
-            Estatus = t.EstadoLogistico,
+            // Las incidencias de campo describen el resultado de una captura ya realizada.
+            // Se conserva el texto de Incidencia, pero no deben seguir contando como pendientes.
+            Estatus = t.EstadoLogistico == "INCIDENCIA" ? "COMPLETADA" : t.EstadoLogistico,
             PersonalCampoId = t.TomadaPorUsuarioId ?? t.PersonalCampoId,
             PersonalCampoNombre = BuildUsuarioNombre(t.UsuarioCampo) ?? (t.PersonalCampo != null ? t.PersonalCampo.Nombre : null),
             UsuarioCampoId = t.TomadaPorUsuarioId,

@@ -96,6 +96,37 @@ public class CampoServiceTests
     }
 
     [Fact]
+    public async Task GetTareasAsync_ConIncidenciaHistorica_SeExponeComoCompletadaYConservaLasFotos()
+    {
+        var tenantId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var tenantContext = new TestTenantContext(tenantId);
+        await using var db = CreateDbContext(tenantContext);
+        var service = CreateService(db, tenantContext, userId);
+        var tarea = new TareaCampo
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Tipo = "PRE_INSPECCION",
+            EstadoLogistico = "INCIDENCIA",
+            CreadoPor = userId,
+            FotosUrls = ["/storage/campo/foto-1.jpg", "/storage/campo/foto-2.jpg"],
+            Incidencia = "Cambiar llanta, lado izquierdo atrás chofer",
+            FechaCreacion = DateTime.UtcNow,
+            FechaCompletada = DateTime.UtcNow,
+        };
+        db.TareasCampo.Add(tarea);
+        await db.SaveChangesAsync();
+
+        var tareas = await service.GetTareasAsync(null);
+
+        var resultado = tareas.Should().ContainSingle().Subject;
+        resultado.Estatus.Should().Be("COMPLETADA");
+        resultado.Incidencia.Should().Be(tarea.Incidencia);
+        resultado.FotosUrls.Should().BeEquivalentTo(tarea.FotosUrls);
+    }
+
+    [Fact]
     public async Task CrearPreInspeccionAsync_WithSameClientOperationId_ReturnsSameTask()
     {
         var tenantId = Guid.NewGuid();
